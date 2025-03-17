@@ -1,0 +1,6 @@
+opencv-python==4.11.0.86
+numpy==1.21.6
+matplotlib==3.5.3
+pytesseract==0.3.10
+PyQt5==5.15.9
+python-dotenv==0.21.1
