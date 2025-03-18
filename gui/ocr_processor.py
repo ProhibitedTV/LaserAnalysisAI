@@ -61,13 +61,19 @@ class OCRProcessor:
         # Run OCR on the preprocessed image with all language options
         custom_config = r'--oem 3 --psm 6 -l eng+fra+spa+deu+ita+por+rus+jpn+chi_sim+chi_tra'
         try:
+            ocr_data = pytesseract.image_to_data(binary_img, config=custom_config, output_type=pytesseract.Output.DICT)
             detected_text = pytesseract.image_to_string(binary_img, config=custom_config).strip()
         except pytesseract.TesseractError as e:
             self.text_display.setPlainText(f"OCR Error: {str(e)}")
             return ""
 
-        # Display detected text in the GUI
+        # Calculate average confidence
+        confidences = [int(conf) for conf in ocr_data['conf'] if conf != '-1']
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+
+        # Display detected text and confidence in the GUI
         if not return_text:
-            self.text_display.setPlainText(detected_text if detected_text else "No readable text detected.")
+            result_text = f"Detected Text:\n{detected_text}\n\nAverage Confidence: {avg_confidence:.2f}%"
+            self.text_display.setPlainText(result_text)
         
-        return detected_text if detected_text else "No readable text detected."
+        return detected_text if return_text else result_text
