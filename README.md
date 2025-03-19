@@ -35,7 +35,7 @@ LaserAnalysisAI/
 ## 🔧 Installation
 ### **1️⃣ Clone the Repository**
 ```sh
-git clone https://github.com/YourUsername/LaserAnalysisAI.git
+git clone https://github.com/ProhibitedTV/LaserAnalysisAI.git
 cd LaserAnalysisAI
 ```
 
