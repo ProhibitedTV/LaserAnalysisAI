@@ -2,6 +2,8 @@
 
 The **Laser Projection Analysis Application** is a PyQt5-based GUI tool designed for analyzing laser projection videos. It provides a streamlined workflow for extracting frames from videos, applying various image processing techniques, and performing Optical Character Recognition (OCR) on the processed frames.
 
+![Application on Startup](/screenshots/app_on_start.png?raw=true "LaserAnalysisAI on startup")
+
 ## Features
 
 ### 1. **Video Loading and Frame Extraction**
