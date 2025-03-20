@@ -216,36 +216,13 @@ class FrameViewer(QObject):
             def process_frames(self):
                 """Processes all frames using the specified processing mode."""
                 processed_frames = [None] * len(self.frames)
-                use_gpu = cv2.cuda.getCudaEnabledDeviceCount() > 0
 
                 for index, frame_path in enumerate(self.frames):
                     try:
-                        # Load the frame
-                        frame = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
-                        if frame is None:
-                            print(f"Error: Could not load frame {frame_path}")
-                            continue
-
-                        # Apply the selected processing mode
-                        if self.processing_mode == "Edge Detection":
-                            if use_gpu:
-                                # Use GPU for edge detection
-                                gpu_frame = cv2.cuda_GpuMat()
-                                gpu_frame.upload(frame)
-                                blurred = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, cv2.CV_8UC1, (5, 5), 0).apply(gpu_frame)
-                                edges = cv2.cuda.createCannyEdgeDetector(50, 150).detect(blurred)
-                                processed_frame = edges.download()
-                            else:
-                                # Use CPU for edge detection
-                                blurred = cv2.GaussianBlur(frame, (5, 5), 0)
-                                processed_frame = cv2.Canny(blurred, 50, 150)
-                        elif self.processing_mode == "Thresholding":
-                            _, processed_frame = cv2.threshold(frame, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                        elif self.processing_mode == "Morphological Operations":
-                            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-                            processed_frame = cv2.morphologyEx(frame, cv2.MORPH_CLOSE, kernel)
-                        else:
-                            print(f"Error: Unknown processing mode '{self.processing_mode}'")
+                        # Process the frame using the selected mode
+                        processed_frame = process_image(frame_path, processing_type=self.processing_mode)
+                        if processed_frame is None:
+                            print(f"Error processing frame {index}: Unsupported processing mode.")
                             continue
 
                         # Save the processed frame

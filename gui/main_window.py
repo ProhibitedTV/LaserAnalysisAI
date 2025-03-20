@@ -62,7 +62,24 @@ class MainWindow(QMainWindow):
         
         # Dropdown for selecting processing mode
         self.processingModeDropdown = QComboBox(self)
-        self.processingModeDropdown.addItems(["Edge Detection", "Thresholding", "Morphological Operations"])
+        self.processingModeDropdown.addItems([
+            "Edge Detection",
+            "Thresholding",
+            "Morphological Operations",
+            "Adaptive Thresholding",
+            "Gaussian Blur",
+            "Sharpening",
+            "Histogram Equalization",
+            "Median Blur",
+            "Bilateral Filter"
+        ])
+        self.processingModeDropdown.currentIndexChanged.connect(self.update_help_text)
+
+        # Help text box for explaining processing modes
+        self.processingHelpText = QLabel(self)
+        self.processingHelpText.setWordWrap(True)
+        self.processingHelpText.setStyleSheet("font-size: 12px; color: gray;")
+        self.processingHelpText.setText("Select a processing mode to see its description.")
 
         # Views for displaying frames
         self.originalView = QLabel(self)
@@ -96,6 +113,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         layout.addWidget(self.loadVideoButton)
         layout.addWidget(self.processingModeDropdown)  # Add dropdown below the first button
+        layout.addWidget(self.processingHelpText)  # Add help text below the dropdown
         layout.addWidget(self.processFramesButton)
         layout.addWidget(self.processOCRButton)
         
@@ -203,3 +221,19 @@ class MainWindow(QMainWindow):
         if filePath:
             self.ocrProcessor.set_tesseract_path(filePath)
             self.statusBar.showMessage(f"Tesseract path set to: {filePath}")
+
+    def update_help_text(self):
+        """Updates the help text based on the selected processing mode."""
+        selected_mode = self.processingModeDropdown.currentText()
+        help_texts = {
+            "Edge Detection": "Highlights the edges in the image by detecting areas with rapid intensity changes.",
+            "Thresholding": "Converts the image to black and white based on a pixel intensity threshold.",
+            "Morphological Operations": "Applies transformations like dilation and erosion to refine shapes in the image.",
+            "Adaptive Thresholding": "Applies a threshold dynamically based on the local pixel neighborhood.",
+            "Gaussian Blur": "Smoothens the image by reducing noise and detail using a Gaussian filter.",
+            "Sharpening": "Enhances the edges and fine details in the image.",
+            "Histogram Equalization": "Improves contrast by redistributing pixel intensity values.",
+            "Median Blur": "Reduces noise while preserving edges by replacing each pixel with the median of its neighbors.",
+            "Bilateral Filter": "Smoothens the image while preserving edges by considering both spatial and intensity differences."
+        }
+        self.processingHelpText.setText(help_texts.get(selected_mode, "Select a processing mode to see its description."))

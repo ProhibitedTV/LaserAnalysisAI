@@ -5,6 +5,7 @@ This module applies various techniques such as edge detection, thresholding, and
 
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
 from utils.common import load_grayscale_image, apply_threshold, apply_morphological_operations
 
 def process_image(image_path, show_analysis=False, processing_type="Edge Detection"):
@@ -31,6 +32,19 @@ def process_image(image_path, show_analysis=False, processing_type="Edge Detecti
         processed = apply_threshold(img)
     elif processing_type == "Morphological Operations":
         processed = apply_morphological_operations(img)
+    elif processing_type == "Adaptive Thresholding":
+        processed = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    elif processing_type == "Gaussian Blur":
+        processed = cv2.GaussianBlur(img, (5, 5), 0)
+    elif processing_type == "Sharpening":
+        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+        processed = cv2.filter2D(img, -1, kernel)
+    elif processing_type == "Histogram Equalization":
+        processed = cv2.equalizeHist(img)
+    elif processing_type == "Median Blur":
+        processed = cv2.medianBlur(img, 5)
+    elif processing_type == "Bilateral Filter":
+        processed = cv2.bilateralFilter(img, 9, 75, 75)
     else:
         print(f"Error: Unknown processing type '{processing_type}'")
         return None
