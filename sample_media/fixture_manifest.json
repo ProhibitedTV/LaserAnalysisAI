@@ -1,0 +1,72 @@
+{
+  "fixtures": [
+    {
+      "attribution": "G. Mikaberidze",
+      "commons_file": "Double_slit_experiment.webm",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/a/a0/Double_slit_experiment.webm",
+      "filename": "commons-double-slit-experiment.webm",
+      "id": "commons-double-slit-experiment",
+      "kind": "video",
+      "label": "control",
+      "license": "CC BY-SA 4.0",
+      "notes": "Small simulation useful for detector sanity checks, not physical laser footage.",
+      "path": "sample_media\\commons-double-slit-experiment.webm",
+      "redistributable": true,
+      "sha256": "747618e45cfb031d2e3fca1b155b29455fef15077f672641a57773f7f38747f7",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Double_slit_experiment.webm",
+      "status": "fetched",
+      "title": "Double slit experiment"
+    },
+    {
+      "attribution": "Cookatoo.ergo.ZooM",
+      "commons_file": "Double_slit.theora.ogv",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/9/97/Double_slit.theora.ogv",
+      "filename": "commons-young-double-slit.ogv",
+      "id": "commons-young-double-slit",
+      "kind": "video",
+      "label": "laser",
+      "license": "CC BY-SA 3.0 or GFDL",
+      "notes": "Educational double-slit video clip; useful as a small redistributable optical fixture.",
+      "path": "sample_media\\commons-young-double-slit.ogv",
+      "redistributable": true,
+      "sha256": "56427bcdc563fa8722dcd504d81f8dfb5fcbf8cb977283f0dfb19d800e8ac51c",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Double_slit.theora.ogv",
+      "status": "fetched",
+      "title": "Young's double slit experiment video clip"
+    },
+    {
+      "attribution": "BrendaEM",
+      "commons_file": "3D_Interference_of_Laser_Light_Through_2_Pinholes_Animation.webm",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/5/5f/3D_Interference_of_Laser_Light_Through_2_Pinholes_Animation.webm",
+      "filename": "commons-two-pinhole-laser-interference.webm",
+      "id": "commons-two-pinhole-laser-interference",
+      "kind": "video",
+      "label": "laser",
+      "license": "CC BY-SA 4.0",
+      "notes": "Tomographic visualization from monochromatic laser light through two pinholes.",
+      "path": "sample_media\\commons-two-pinhole-laser-interference.webm",
+      "redistributable": true,
+      "sha256": "f6ab13b18fb0e160933437e7ac461eea3a30ccba22779e82b1cc67f63722e2e1",
+      "source_page": "https://commons.wikimedia.org/wiki/File:3D_Interference_of_Laser_Light_Through_2_Pinholes_Animation.webm",
+      "status": "fetched",
+      "title": "3D interference of laser light through 2 pinholes"
+    },
+    {
+      "attribution": "Jack Kingsley-Smith",
+      "commons_file": "Focused_Laguerre-Gaussian_beam.webm",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/1/19/Focused_Laguerre-Gaussian_beam.webm",
+      "filename": "commons-focused-laguerre-gaussian.webm",
+      "id": "commons-focused-laguerre-gaussian",
+      "kind": "video",
+      "label": "control",
+      "license": "CC BY-SA 4.0",
+      "notes": "Rendered optical beam fixture; useful for false-positive checks against structured non-text fields.",
+      "path": "sample_media\\commons-focused-laguerre-gaussian.webm",
+      "redistributable": true,
+      "sha256": "2b6995a30a157cd49092bd2ffb76672d7976290cc756d9e9c5da9871fe35d50c",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Focused_Laguerre-Gaussian_beam.webm",
+      "status": "fetched",
+      "title": "Focused Laguerre-Gaussian beam"
+    }
+  ]
+}

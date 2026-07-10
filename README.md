@@ -1,4 +1,120 @@
-# Laser Projection Analysis Application
+# LaserAnalysisAI
+
+LaserAnalysisAI is being rebuilt from an exploratory OCR viewer into a
+CLI-first blinded validation lab for laser capture analysis. The goal is not to
+claim what a signal "means"; it is to test whether image/video captures contain
+repeatable structured detections above matched controls.
+
+The original PyQt5 viewer is still present as a legacy frame browser. The new
+`laserlab` package is the v2 path for reproducible experiments, reports, and
+statistical comparison.
+
+## v2: Blinded Signal Validation Lab
+
+The v2 pipeline creates experiment manifests, ingests existing videos or image
+sets, blinds labels, generates matched controls, runs multiple preprocessing and
+detector passes, and emits JSON plus HTML reports.
+
+### Quick Start
+
+Use Python 3.10 or 3.11. On this workstation, the preferred interpreter is:
+
+```powershell
+$PY = "C:\Users\RhythmicCarnage\AppData\Local\Programs\Python\Python310\python.exe"
+& $PY -m venv .venv310
+.\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Generic setup:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
+```
+
+Create or append captures to an experiment:
+
+```bash
+python -m laserlab.cli init --source C:\captures\laser --kind image-set --label laser --experiment experiments\trial-001
+python -m laserlab.cli init --source C:\captures\control --kind image-set --label control --experiment experiments\trial-001
+```
+
+For video sources, use `--all-frames` to turn the frame dial fully open:
+
+```bash
+python -m laserlab.cli init --source C:\captures\laser.mp4 --kind video --label laser --experiment experiments\trial-001 --all-frames
+```
+
+Run blinded analysis:
+
+```bash
+python -m laserlab.cli run --experiment experiments\trial-001 --profile baseline --blind-seed 123
+```
+
+For an exploratory sweep over a wider range of preprocessing parameters:
+
+```bash
+python -m laserlab.cli run --experiment experiments\trial-001 --profile wide --blind-seed 123
+```
+
+Regenerate the latest report:
+
+```bash
+python -m laserlab.cli report --experiment experiments\trial-001 --format both
+```
+
+Fetch redistributable public fixture footage:
+
+```bash
+python -m laserlab.cli fixtures list --include-restricted
+python -m laserlab.cli fixtures fetch --output sample_media
+```
+
+The fixture catalog includes small Wikimedia Commons optical/interference videos
+with explicit Creative Commons licensing, plus an external pointer to the
+Illinois Wesleyan/American Journal of Physics single-photon video set. The IWU
+set is scientifically stronger but should stay external/manual until
+redistribution terms are confirmed.
+
+Primary outputs:
+
+- `manifest.json`: stable experiment record with sources, captures, frame
+  sampling, preprocessing profiles, detectors, blinding seed, and output paths.
+- `runs/<run-id>/results.json`: per-frame/per-variant detector records,
+  OCR status, ROI crops, hashes, blinded IDs, unblinded labels, and aggregate
+  statistics.
+- `runs/<run-id>/report.html`: human-readable evidence summary with top
+  candidates and null-result language.
+
+### Evidence Ladder
+
+Reports classify each run into one of these levels:
+
+- `no signal`: laser scores did not exceed matched controls.
+- `artifact`: detections are better explained by controls or weak differences.
+- `anomaly`: elevated structure exists, but not enough for a controlled claim.
+- `above-control candidate`: laser captures beat controls under permutation
+  testing and effect-size thresholds.
+- `repeatable candidate`: above-control evidence plus frame-to-frame
+  persistence.
+
+The system is intentionally conservative: a null result means this detector set
+and capture set did not beat the control baseline, not that the broader idea is
+disproven.
+
+### Test
+
+```bash
+.\.venv310\Scripts\python.exe -m unittest discover -s tests
+```
+
+Tesseract is optional for tests. If it is unavailable, OCR is marked
+unavailable and the rest of the detector pipeline still runs.
+
+---
+
+# Legacy Laser Projection Analysis Application
 
 The **Laser Projection Analysis Application** is a PyQt5-based GUI tool designed for analyzing laser projection videos. It provides a streamlined workflow for extracting frames from videos, applying various image processing techniques, and performing Optical Character Recognition (OCR) on the processed frames.
 
