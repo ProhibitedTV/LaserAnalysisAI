@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import platform
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
 from laserlab.artifacts import sha256_json
+from scripts.build_release import default_target, executable_name
 
 try:
     import cv2  # noqa: F401
@@ -25,6 +27,11 @@ except ImportError:
 
 
 class HashingTests(unittest.TestCase):
+    def test_release_target_and_executable_names(self) -> None:
+        self.assertRegex(default_target(), r"^(windows|macos|linux)-(?:x86_64|arm64)$")
+        expected = "LaserLab.exe" if platform.system() == "Windows" else "LaserLab"
+        self.assertEqual(executable_name("LaserLab"), expected)
+
     def test_sha256_json_is_stable(self) -> None:
         left = {"b": 2, "a": [3, 1]}
         right = {"a": [3, 1], "b": 2}

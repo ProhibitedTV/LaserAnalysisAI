@@ -21,25 +21,37 @@ experiments\release-demo\runs\<run-id>\report.html
 
 The fixture demo also writes release screenshot inputs under `release_dumps\`.
 
-## Build Windows Exe
+## Build Native Bundles
+
+The platform-neutral builder packages the GUI, CLI, fixtures, attribution, license, and build metadata. Run it on the target operating system because PyInstaller does not cross-compile:
+
+```text
+python scripts/build_release.py --output-dir dist
+```
+
+On Windows, the existing wrapper installs build dependencies and delegates to the shared builder:
 
 ```powershell
 .\scripts\build_windows_exe.ps1 -OutputDir dist
 ```
 
-Output:
+Outputs are target-specific:
 
 ```text
-dist\LaserLab-windows.zip
+dist/LaserLab-v0.3.0-windows-x86_64.zip
+dist/LaserLab-v0.3.0-linux-x86_64.zip
+dist/LaserLab-v0.3.0-macos-x86_64.zip
+dist/LaserLab-v0.3.0-macos-arm64.zip
 ```
 
 The zip includes:
 
-- `LaserLab.exe`
-- `LaserLabCLI.exe`
+- `LaserLab`, `LaserLab.exe`, or `LaserLab.app`, depending on the platform
+- `LaserLabCLI` or `LaserLabCLI.exe`
 - `README.md`
 - `LICENSE`
-- `sample_media\`
+- `sample_media/`
+- `BUILD-INFO.json`
 
 `LaserLab.exe` is the GUI dashboard. `LaserLabCLI.exe` keeps the scripted
 `init`, `run`, `report`, `fixtures`, `protocols`, and `bundle` commands.
@@ -47,8 +59,10 @@ The zip includes:
 ## GitHub Actions
 
 - `CI` runs on pushes and pull requests to `main`, using Python 3.10 and 3.11.
-- `Windows Release` runs manually or when a `v*` tag is pushed.
-- Tagged release builds upload `dist/LaserLab-windows.zip` to the GitHub release.
+- `Cross-platform Release` runs manually or when a `v*` tag is pushed.
+- The build matrix covers Windows x64, Linux x64, macOS Intel, and macOS Apple Silicon.
+- Each native executable is smoke-tested before its archive is uploaded.
+- Tagged builds publish all four archives to one GitHub release only after every platform succeeds.
 
 ## Exhaustive Fixture Runs
 
@@ -67,6 +81,6 @@ them under `experiments\`, which is intentionally ignored by Git.
 - Run the bundled demo for `diffraction`, `speckle`, `ocr`, and `anomaly` with `-MaxFrames 2`.
 - Confirm JSON/HTML reports include badges, q-values, protocol, detector-family summaries, and conservative interpretation text.
 - Export a review bundle and inspect `manifest.json`, `report.json`, `results.json`, `environment.json`, `hashes.json`, top crops, and `README.txt`.
-- Build `dist\LaserLab-windows.zip`.
-- Verify `dist\LaserLab.exe --smoke` and `dist\LaserLabCLI.exe --help`.
+- Build all four native archives through the `Cross-platform Release` workflow.
+- Verify each platform's GUI `--smoke` and CLI `--help` checks pass.
 - Push a `v0.3.0` tag only after tests, executable smoke, and bundled fixture smoke pass.

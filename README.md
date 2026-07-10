@@ -11,11 +11,12 @@ and statistical comparison.
 
 ## LaserLab v0.3 Dashboard
 
-The Windows release bundle contains:
+Native release bundles contain:
 
-- `LaserLab.exe`: desktop dashboard for experiment setup, runs, review, and export.
-- `LaserLabCLI.exe`: command-line interface for scripted workflows.
-- `sample_media\`: redistributable public optical/interference fixture clips.
+- `LaserLab` (`LaserLab.exe` on Windows, `LaserLab.app` on macOS): desktop dashboard for experiment setup, runs, review, and export.
+- `LaserLabCLI` (`LaserLabCLI.exe` on Windows): command-line interface for scripted workflows.
+- `sample_media/`: redistributable public optical/interference fixture clips.
+- `BUILD-INFO.json`: exact version, target, Python, operating system, and CPU architecture used for the build.
 
 Dashboard tabs:
 
@@ -33,6 +34,8 @@ Dashboard tabs:
 ![LaserLab report summary](screenshots/release_report_summary.png)
 
 ## Quick Start
+
+See the [Researcher Workflow](docs/researcher_workflow.md) for the complete dashboard flow, capture guidance, interpretation rules, sharing steps, and platform troubleshooting.
 
 Use Python 3.10 or 3.11. On this workstation, the preferred interpreter is:
 
@@ -173,17 +176,30 @@ A null result is useful. It means the selected protocol, detector sweep, and cap
 
 LaserLab cannot prove metaphysical origin, intent, consciousness interaction, or that any detected structure is language. It can only report whether detector scores exceed matched controls under a reproducible local protocol.
 
-## Build Windows Release
+## Build Native Release
+
+The shared builder runs on Windows, macOS, or Linux and produces a native archive for the host platform:
+
+```text
+python scripts/build_release.py --output-dir dist
+```
+
+Windows users can use the compatibility wrapper:
 
 ```powershell
 .\scripts\build_windows_exe.ps1 -OutputDir dist
 ```
 
-The release zip is written to:
+Release archives are named by version, operating system, and architecture:
 
 ```text
-dist\LaserLab-windows.zip
+dist/LaserLab-v0.3.0-windows-x86_64.zip
+dist/LaserLab-v0.3.0-linux-x86_64.zip
+dist/LaserLab-v0.3.0-macos-x86_64.zip
+dist/LaserLab-v0.3.0-macos-arm64.zip
 ```
+
+GitHub Actions builds and smoke-tests all four native bundles. Tesseract remains optional at runtime; OCR is reported as unavailable when the external Tesseract executable is not installed.
 
 ## Legacy Viewer Status
 

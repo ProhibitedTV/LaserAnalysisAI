@@ -139,7 +139,7 @@ class LabDashboardWindow(QMainWindow):
 
         experiment_group = QGroupBox("Experiment")
         experiment_layout = QGridLayout(experiment_group)
-        self.experiment_path = QLineEdit("experiments\\community-demo")
+        self.experiment_path = QLineEdit(str(Path("experiments") / "community-demo"))
         browse_exp = QPushButton("Browse")
         browse_exp.clicked.connect(self.browse_experiment)
         open_exp = QPushButton("Open")
@@ -380,7 +380,7 @@ class LabDashboardWindow(QMainWindow):
 
         demo = QGroupBox("Demo")
         demo_layout = QGridLayout(demo)
-        self.demo_experiment_path = QLineEdit("experiments\\community-demo")
+        self.demo_experiment_path = QLineEdit(str(Path("experiments") / "community-demo"))
         self.demo_max_frames = QSpinBox()
         self.demo_max_frames.setRange(1, 1000)
         self.demo_max_frames.setValue(8)
@@ -432,7 +432,7 @@ class LabDashboardWindow(QMainWindow):
             "Python: " + os.sys.executable + "\n"
             "Bundled fixtures: sample_media\n"
             "Generated experiments: experiments\n"
-            "Release bundle: dist\\LaserLab-windows.zip\n"
+            "Release bundles: dist/LaserLab-v<version>-<platform>.zip\n"
             "Sharing: local-first review bundles; no telemetry or uploads\n"
         )
         layout.addWidget(info)
