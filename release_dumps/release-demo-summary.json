@@ -15,10 +15,15 @@
     "synthetic_positive_mean_score": 0.080871
   },
   "blind_seed": 20260710,
+  "experiment": "experiments\\release-demo",
+  "local_paths": {
+    "report_html": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac\\report.html",
+    "report_json": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac\\report.json",
+    "results_json": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac\\results.json",
+    "run_dir": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac"
+  },
   "profile": "wide",
-  "report_html": "experiments\\release-demo\\runs\\run-20260710T011440-d8f07662\\report.html",
-  "report_json": "experiments\\release-demo\\runs\\run-20260710T011440-d8f07662\\report.json",
   "result_count": 1159,
-  "run_id": "run-20260710T011440-d8f07662",
+  "run_id": "run-20260710T145052-588b94ac",
   "sample_count": 61
 }

@@ -1,7 +1,7 @@
 """LaserAnalysisAI v2 experiment pipeline.
 
-The laserlab package provides a CLI-first validation workflow for blinded
-analysis of laser captures and matched controls.
+The laserlab package provides the validation engine, CLI, and GUI-facing API for
+blinded analysis of laser captures and matched controls.
 """
 
 __all__ = ["__version__"]

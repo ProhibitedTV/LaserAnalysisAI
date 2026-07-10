@@ -7,6 +7,7 @@ Use the workstation-preferred Python environment:
 ```powershell
 .\.venv310\Scripts\python.exe -m unittest discover -s tests
 .\scripts\run_fixture_demo.ps1 -Python .\.venv310\Scripts\python.exe -Experiment experiments\release-demo -MaxFrames 12 -Profile wide
+.\.venv310\Scripts\python.exe scripts\capture_screenshots.py
 ```
 
 The report is written under:
@@ -14,6 +15,8 @@ The report is written under:
 ```text
 experiments\release-demo\runs\<run-id>\report.html
 ```
+
+The fixture demo also writes release screenshot inputs under `release_dumps\`.
 
 ## Build Windows Exe
 
@@ -30,9 +33,13 @@ dist\LaserLab-windows.zip
 The zip includes:
 
 - `LaserLab.exe`
+- `LaserLabCLI.exe`
 - `README.md`
 - `LICENSE`
 - `sample_media\`
+
+`LaserLab.exe` is the GUI dashboard. `LaserLabCLI.exe` keeps the scripted
+`init`, `run`, `report`, and `fixtures` commands.
 
 ## GitHub Actions
 
