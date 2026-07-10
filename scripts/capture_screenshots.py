@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,25 @@ if str(ROOT) not in sys.path:
 
 
 def capture_gui(output: Path) -> None:
+    if os.environ.get("LASERLAB_REAL_QT_SCREENSHOT") == "1":
+        try:
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PyQt5.QtWidgets import QApplication
+
+            from gui.lab_dashboard import LabDashboardWindow
+
+            app = QApplication.instance() or QApplication([])
+            window = LabDashboardWindow()
+            window.resize(1420, 900)
+            window.show()
+            app.processEvents()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            window.grab().save(str(output))
+            window.close()
+            return
+        except Exception:
+            pass
+
     from PIL import Image, ImageDraw
 
     from laserlab.fixtures import list_fixtures
@@ -28,10 +48,10 @@ def capture_gui(output: Path) -> None:
     font = _font(15)
     font_small = _font(13)
 
-    tabs = ["Experiment", "Sources", "Run", "Review", "Fixtures", "Settings"]
+    tabs = ["Home", "Experiment", "Protocol", "Run", "Review", "Compare", "Fixtures", "Export", "Settings"]
     x = 32
     for index, tab in enumerate(tabs):
-        tab_width = 140 if index != 3 else 132
+        tab_width = 140 if index != 1 else 164
         fill = "#ffffff" if index == 0 else "#e6eef5"
         draw.rounded_rectangle((x, 26, x + tab_width, 70), radius=6, fill=fill, outline="#b8c8d8")
         draw.text((x + 18, 40), tab, fill="#102a43", font=font_h)
@@ -40,38 +60,34 @@ def capture_gui(output: Path) -> None:
     draw.text((42, 105), "LaserLab", fill="#102a43", font=font_title)
     draw.text(
         (42, 143),
-        "Blinded signal validation dashboard over the laserlab v2 engine",
+        "Community science dashboard for blinded laser, diffraction, speckle, and symbol experiments",
         fill="#52616b",
         font=font,
     )
 
-    _panel(draw, (42, 188, 1358, 302), "Experiment", font_h, font)
-    _field(draw, (178, 228, 1040, 266), "experiments\\release-demo", font)
-    _button(draw, (1060, 228, 1180, 266), "Browse", font_small)
-    _button(draw, (1194, 228, 1294, 266), "Open", font_small)
-    draw.text((68, 237), "Directory", fill="#334e68", font=font)
+    _panel(draw, (42, 188, 1358, 326), "Start", font_h, font)
+    _button(draw, (82, 238, 318, 288), "Run bundled demo", font)
+    _button(draw, (350, 238, 586, 288), "Analyze my footage", font)
+    _button(draw, (618, 238, 884, 288), "Open existing experiment", font)
+    draw.text((930, 248), "Local-first sharing, no accounts, no telemetry", fill="#334e68", font=font)
 
-    _panel(draw, (42, 324, 1358, 500), "Sources", font_h, font)
-    draw.text((68, 368), "Path", fill="#334e68", font=font)
-    _field(draw, (178, 358, 1040, 396), "sample_media\\commons-young-double-slit.ogv", font)
-    _button(draw, (1060, 358, 1180, 396), "Browse", font_small)
-    _button(draw, (1194, 358, 1294, 396), "Add Capture", font_small)
-    draw.text((68, 424), "Kind", fill="#334e68", font=font)
-    _field(draw, (178, 414, 350, 452), "video", font)
-    draw.text((400, 424), "Label", fill="#334e68", font=font)
-    _field(draw, (482, 414, 654, 452), "laser", font)
-    draw.text((704, 424), "Frame interval", fill="#334e68", font=font)
-    _field(draw, (835, 414, 952, 452), "1", font)
-    draw.text((994, 424), "Max frames", fill="#334e68", font=font)
-    _field(draw, (1106, 414, 1223, 452), "2", font)
-    draw.rectangle((1250, 423, 1264, 437), fill="#ffffff", outline="#9fb3c8")
-    draw.text((1274, 419), "All frames", fill="#334e68", font=font)
+    _panel(draw, (42, 350, 1358, 536), "Protocol Preset", font_h, font)
+    draw.text((68, 396), "Preset", fill="#334e68", font=font)
+    _field(draw, (178, 386, 496, 424), "General anomaly scan", font)
+    draw.text((536, 396), "Primary metric", fill="#334e68", font=font)
+    _field(draw, (682, 386, 932, 424), "structure_score", font)
+    draw.text((68, 458), "Controls", fill="#334e68", font=font)
+    _field(draw, (178, 448, 360, 486), "standard", font)
+    draw.text((402, 458), "ROI", fill="#334e68", font=font)
+    _field(draw, (482, 448, 682, 486), "optional crop/mask", font)
+    draw.text((722, 454), "FFT, speckle, OCR, texture, persistence, FDR correction", fill="#334e68", font=font)
 
-    table = (42, 526, 1358, 744)
-    headers = ["Capture ID", "Label", "Kind", "Frames", "Source"]
+    table = (42, 566, 1358, 744)
+    headers = ["Check", "Status", "Why it matters", "Action"]
     rows = [
-        ["cap-laser", "laser", "video", "2", "commons-young-double-slit.ogv"],
-        ["cap-control", "control", "video", "2", "commons-double-slit-experiment.webm"],
+        ["laser capture", "OK", "primary sample group", "ingest footage"],
+        ["control capture", "OK", "matched null baseline", "ingest controls"],
+        ["multiple comparisons", "OK", "reduces sweep false positives", "BH q-values"],
     ]
     _table(draw, table, headers, rows, font_small)
 
@@ -110,11 +126,12 @@ def capture_report(summary_path: Path, candidates_path: Path, output: Path) -> N
 
     cards = [
         ("Evidence", stats["evidence_ladder"]),
+        ("Protocol", str(summary.get("protocol", "anomaly"))),
+        ("Primary", str(stats.get("primary_metric", "structure_score"))),
         ("Samples", str(summary["sample_count"])),
-        ("Detector Records", str(summary["result_count"])),
         ("Laser Mean", f"{stats['laser_mean_score']:.4f}"),
         ("Control Mean", f"{stats['control_mean_score']:.4f}"),
-        ("Permutation p", f"{stats['permutation_p_value']:.4f}"),
+        ("Min q", "n/a" if stats.get("minimum_q_value") is None else f"{stats['minimum_q_value']:.4f}"),
     ]
     x = 48
     y = 136
@@ -129,8 +146,8 @@ def capture_report(summary_path: Path, candidates_path: Path, output: Path) -> N
 
     table_y = 410
     draw.text((48, table_y - 44), "Top Candidates", fill="#102a43", font=font_h)
-    headers = ["Rank", "Blind ID", "Label", "Score", "Persist", "Variant", "OCR"]
-    widths = [70, 130, 150, 90, 90, 190, 570]
+    headers = ["Rank", "Blind ID", "Label", "Primary", "Persist", "q", "Variant", "OCR"]
+    widths = [70, 130, 150, 90, 90, 90, 180, 480]
     x = 48
     for header, col_width in zip(headers, widths):
         draw.rectangle((x, table_y, x + col_width, table_y + 34), fill="#d9e2ec")
@@ -144,8 +161,9 @@ def capture_report(summary_path: Path, candidates_path: Path, output: Path) -> N
             row["rank"],
             row["blind_id"],
             row["unblinded_label"],
-            row["structure_score"],
+            row.get("primary_metric_score", row["structure_score"]),
             row["persistence_score"],
+            row.get("q_value", ""),
             row["preprocessing_variant"],
             (row["ocr_text"] or "").replace("\n", " ")[:80],
         ]
@@ -164,6 +182,7 @@ def capture_cli(output: Path) -> None:
 
     commands = [
         [sys.executable, "-m", "laserlab.cli", "--help"],
+        [sys.executable, "-m", "laserlab.cli", "protocols", "list"],
         [sys.executable, "-m", "laserlab.cli", "fixtures", "list", "--include-restricted"],
     ]
     blocks = []
@@ -214,7 +233,10 @@ def _button(draw, box: tuple[int, int, int, int], text: str, font) -> None:
 
 def _table(draw, box: tuple[int, int, int, int], headers: list[str], rows: list[list[str]], font) -> None:
     left, top, right, bottom = box
-    widths = [190, 120, 120, 100, right - left - 530]
+    if len(headers) == 4:
+        widths = [190, 120, 520, right - left - 830]
+    else:
+        widths = [190, 120, 120, 100, right - left - 530]
     x = left
     draw.rectangle((left, top, right, top + 38), fill="#d9e2ec")
     for header, width in zip(headers, widths):

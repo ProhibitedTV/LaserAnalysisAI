@@ -1,29 +1,79 @@
 {
   "aggregate_statistics": {
-    "cohen_d": 0.204672,
-    "control_count": 48,
-    "control_mean_score": 0.095263,
+    "candidate_q_values": {
+      "cap-99cb0c3bb8-frame-000000": 0.916667,
+      "cap-99cb0c3bb8-frame-000001": 0.916667,
+      "cap-bf2f196629-frame-000000": 0.916667,
+      "cap-bf2f196629-frame-000001": 0.916667,
+      "ctrl-cap-99cb0c3bb8-frame-000000-blank_mean": 1.0,
+      "ctrl-cap-99cb0c3bb8-frame-000000-block_shuffle": 0.916667,
+      "ctrl-cap-99cb0c3bb8-frame-000000-rotated": 0.950618,
+      "ctrl-cap-99cb0c3bb8-frame-000001-blank_mean": 1.0,
+      "ctrl-cap-99cb0c3bb8-frame-000001-block_shuffle": 0.916667,
+      "ctrl-cap-99cb0c3bb8-frame-000001-rotated": 0.916667,
+      "synthetic-positive-known-text": 0.916667
+    },
+    "calibration_passed": true,
+    "cohen_d": -0.08087,
+    "control_confidence_interval": {
+      "high": 0.087645,
+      "low": 0.017307,
+      "mean": 0.052476
+    },
+    "control_count": 8,
+    "control_mean_score": 0.052476,
+    "detector_family_statistics": {
+      "diffraction": {
+        "high": 0.241212,
+        "low": 0.105933,
+        "mean": 0.173573
+      },
+      "speckle": {
+        "high": 0.171209,
+        "low": 0.031556,
+        "mean": 0.101382
+      },
+      "symbol": {
+        "high": 0.078665,
+        "low": 0.010808,
+        "mean": 0.044737
+      },
+      "texture": {
+        "high": 0.087849,
+        "low": 0.020454,
+        "mean": 0.054152
+      }
+    },
     "evidence_ladder": "no signal",
-    "laser_count": 12,
-    "laser_mean_persistence": 0.412533,
-    "laser_mean_score": 0.107224,
-    "mean_difference": 0.011961,
+    "fdr_method": "benjamini_hochberg",
+    "laser_confidence_interval": {
+      "high": 0.110634,
+      "low": -0.013421,
+      "mean": 0.048606
+    },
+    "laser_count": 2,
+    "laser_mean_persistence": 0.302698,
+    "laser_mean_score": 0.048606,
+    "mean_difference": -0.0038699999999999984,
+    "minimum_q_value": 0.916667,
     "null_result_language": "This run did not find structured detections above matched controls. That does not prove absence of signal; it means this capture and detector set did not beat the null.",
-    "permutation_p_value": 0.318681,
-    "sample_count": 61,
+    "permutation_p_value": 0.603397,
+    "primary_metric": "structure_score",
+    "sample_count": 11,
     "synthetic_positive_count": 1,
     "synthetic_positive_mean_score": 0.080871
   },
   "blind_seed": 20260710,
-  "experiment": "experiments\\release-demo",
+  "experiment": "experiments\\release-demo-v03",
   "local_paths": {
-    "report_html": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac\\report.html",
-    "report_json": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac\\report.json",
-    "results_json": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac\\results.json",
-    "run_dir": "experiments\\release-demo\\runs\\run-20260710T145052-588b94ac"
+    "report_html": "experiments\\release-demo-v03\\runs\\run-20260710T153757-bef30d8b\\report.html",
+    "report_json": "experiments\\release-demo-v03\\runs\\run-20260710T153757-bef30d8b\\report.json",
+    "results_json": "experiments\\release-demo-v03\\runs\\run-20260710T153757-bef30d8b\\results.json",
+    "run_dir": "experiments\\release-demo-v03\\runs\\run-20260710T153757-bef30d8b"
   },
   "profile": "wide",
-  "result_count": 1159,
-  "run_id": "run-20260710T145052-588b94ac",
-  "sample_count": 61
+  "protocol": "anomaly",
+  "result_count": 209,
+  "run_id": "run-20260710T153757-bef30d8b",
+  "sample_count": 11
 }

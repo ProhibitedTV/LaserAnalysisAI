@@ -23,6 +23,7 @@ def main() -> int:
     parser.add_argument("--experiment", default="experiments/release-demo")
     parser.add_argument("--max-frames", type=int, default=12)
     parser.add_argument("--profile", default="wide", choices=["baseline", "wide"])
+    parser.add_argument("--protocol", default="anomaly", choices=["diffraction", "speckle", "ocr", "anomaly"])
     parser.add_argument("--blind-seed", type=int, default=20260710)
     parser.add_argument("--dump-dir", default="release_dumps")
     args = parser.parse_args()
@@ -49,7 +50,15 @@ def main() -> int:
             max_frames=args.max_frames,
         )
 
-    run_record = app_api.run_analysis(experiment_dir, profile=args.profile, blind_seed=args.blind_seed)
+    preset = next((item for item in app_api.list_protocol_presets() if item["id"] == args.protocol), None)
+    primary_metric = preset["primary_metric"] if preset else None
+    run_record = app_api.run_analysis(
+        experiment_dir,
+        profile=args.profile,
+        blind_seed=args.blind_seed,
+        protocol=args.protocol,
+        primary_metric=primary_metric,
+    )
     report = app_api.load_latest_report(experiment_dir)
 
     dump_dir = Path(args.dump_dir)
@@ -60,6 +69,7 @@ def main() -> int:
         "experiment": str(experiment_dir),
         "run_id": run_record["run_id"],
         "profile": run_record["profile"],
+        "protocol": run_record.get("protocol"),
         "blind_seed": run_record["blind_seed"],
         "sample_count": len(run_record.get("samples", [])),
         "result_count": len(run_record.get("results", [])),

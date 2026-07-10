@@ -38,17 +38,27 @@ jobs:
         shell: pwsh
         run: |
           $env:QT_QPA_PLATFORM = "offscreen"
-          python -c "from PyQt5.QtWidgets import QApplication; from gui.lab_dashboard import LabDashboardWindow; app = QApplication([]); window = LabDashboardWindow(); assert window.tabs.count() == 5"
+          python -c "from PyQt5.QtWidgets import QApplication; from gui.lab_dashboard import LabDashboardWindow; app = QApplication([]); window = LabDashboardWindow(); assert window.tabs.count() == 9"
 
       - name: CLI smoke
         run: |
           python -m laserlab.cli --help
           python -m laserlab.cli fixtures list --include-restricted
+          python -m laserlab.cli protocols list
+          python -m laserlab.cli protocols describe diffraction
 
       - name: Fixture smoke
         shell: pwsh
         run: |
-          python scripts\run_fixture_demo.py --experiment experiments\ci-smoke --max-frames 2 --profile wide --blind-seed 12345 --dump-dir release_dumps
+          python scripts\run_fixture_demo.py --experiment experiments\ci-smoke --max-frames 2 --profile wide --protocol anomaly --blind-seed 12345 --dump-dir release_dumps
+          python -m laserlab.cli bundle --experiment experiments\ci-smoke --output release_dumps\ci-smoke-bundle.zip
+
+      - name: Protocol smoke
+        shell: pwsh
+        run: |
+          foreach ($protocol in @("diffraction", "speckle", "ocr", "anomaly")) {
+            python scripts\run_fixture_demo.py --experiment "experiments\ci-$protocol" --max-frames 2 --profile wide --protocol $protocol --blind-seed 12345 --dump-dir "release_dumps\$protocol"
+          }
 
       - name: Upload smoke report
         uses: actions/upload-artifact@v4

@@ -11,14 +11,19 @@ from .artifacts import relative_to, write_json
 
 def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]) -> dict[str, Any]:
     aggregate = run_record["aggregate_statistics"]
-    candidates = top_candidates(run_record["results"])
+    primary_metric = aggregate.get("primary_metric", "structure_score")
+    candidates = top_candidates(run_record["results"], score_key="primary_metric_score")
+    badges = report_badges(run_record)
     report = {
         "schema_version": 1,
         "experiment_id": run_record["experiment_id"],
         "run_id": run_record["run_id"],
         "created_at": run_record["created_at"],
         "profile": run_record["profile"],
+        "protocol": run_record.get("protocol", "anomaly"),
+        "analysis_plan": run_record.get("analysis_plan", {}),
         "blind_seed": run_record["blind_seed"],
+        "badges": badges,
         "summary": {
             "evidence_ladder": aggregate["evidence_ladder"],
             "null_result_language": aggregate["null_result_language"],
@@ -27,7 +32,11 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
             "mean_difference": aggregate["mean_difference"],
             "cohen_d": aggregate["cohen_d"],
             "permutation_p_value": aggregate["permutation_p_value"],
+            "minimum_q_value": aggregate.get("minimum_q_value"),
+            "primary_metric": primary_metric,
         },
+        "interpretation": interpretation_text(aggregate),
+        "detector_family_explanations": detector_family_explanations(),
         "aggregate_statistics": aggregate,
         "top_candidates": candidates,
         "artifacts": {
@@ -40,14 +49,18 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
     return report
 
 
-def top_candidates(results: list[dict[str, Any]], limit: int = 20) -> list[dict[str, Any]]:
+def top_candidates(
+    results: list[dict[str, Any]],
+    limit: int = 20,
+    score_key: str = "structure_score",
+) -> list[dict[str, Any]]:
     best_by_sample: dict[str, dict[str, Any]] = {}
     for result in results:
         current = best_by_sample.get(result["sample_id"])
-        if current is None or result["structure_score"] > current["structure_score"]:
+        if current is None or _candidate_score(result, score_key) > _candidate_score(current, score_key):
             best_by_sample[result["sample_id"]] = result
 
-    candidates = sorted(best_by_sample.values(), key=lambda item: item["structure_score"], reverse=True)[:limit]
+    candidates = sorted(best_by_sample.values(), key=lambda item: _candidate_score(item, score_key), reverse=True)[:limit]
     return [
         {
             "blind_id": item["blind_id"],
@@ -55,6 +68,8 @@ def top_candidates(results: list[dict[str, Any]], limit: int = 20) -> list[dict[
             "blinded_label": item["blinded_label"],
             "unblinded_label": item["unblinded_label"],
             "structure_score": item["structure_score"],
+            "primary_metric": item.get("primary_metric", "structure_score"),
+            "primary_metric_score": item.get("primary_metric_score", item["structure_score"]),
             "persistence_score": item.get("persistence_score", 0.0),
             "preprocessing_variant": item["preprocessing_variant"],
             "ocr_text": item.get("ocr", {}).get("text", ""),
@@ -65,6 +80,8 @@ def top_candidates(results: list[dict[str, Any]], limit: int = 20) -> list[dict[
             "frame_index": item.get("frame_index"),
             "timestamp_ms": item.get("timestamp_ms"),
             "control_type": item.get("control_type", ""),
+            "q_value": item.get("q_value"),
+            "detector_family_scores": item.get("detector_family_scores", {}),
         }
         for item in candidates
     ]
@@ -78,6 +95,8 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     summary = report["summary"]
     candidates = report["top_candidates"]
     rows = "\n".join(_candidate_row(candidate) for candidate in candidates)
+    badges = " ".join(f"<span class=\"badge\">{html.escape(badge)}</span>" for badge in report.get("badges", []))
+    interpretation = report.get("interpretation", {})
     html_text = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -87,6 +106,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     body {{ font-family: Arial, sans-serif; margin: 32px; color: #1f2933; }}
     h1, h2 {{ margin-bottom: 8px; }}
     .summary {{ border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px; max-width: 960px; }}
+    .badge {{ display: inline-block; background: #e6f4f1; border: 1px solid #9fc9bf; border-radius: 999px; padding: 4px 10px; margin: 4px 6px 4px 0; font-size: 12px; }}
     .metric {{ display: inline-block; margin: 8px 18px 8px 0; }}
     .metric strong {{ display: block; font-size: 12px; color: #52616b; text-transform: uppercase; }}
     table {{ border-collapse: collapse; width: 100%; margin-top: 16px; }}
@@ -99,13 +119,18 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 <body>
   <h1>LaserAnalysisAI Blinded Signal Report</h1>
   <div class="summary">
+    <p>{badges}</p>
     <div class="metric"><strong>Evidence ladder</strong>{html.escape(str(summary['evidence_ladder']))}</div>
+    <div class="metric"><strong>Primary metric</strong>{html.escape(str(summary.get('primary_metric', 'structure_score')))}</div>
     <div class="metric"><strong>Laser mean</strong>{_fmt(summary['laser_mean_score'])}</div>
     <div class="metric"><strong>Control mean</strong>{_fmt(summary['control_mean_score'])}</div>
     <div class="metric"><strong>Difference</strong>{_fmt(summary['mean_difference'])}</div>
     <div class="metric"><strong>Cohen d</strong>{_fmt(summary['cohen_d'])}</div>
     <div class="metric"><strong>Permutation p</strong>{_fmt(summary['permutation_p_value'])}</div>
+    <div class="metric"><strong>Minimum q</strong>{_fmt(summary.get('minimum_q_value'))}</div>
     <p>{html.escape(summary['null_result_language'])}</p>
+    <p><strong>What this means:</strong> {html.escape(interpretation.get('what_this_means', ''))}</p>
+    <p><strong>What this does not mean:</strong> {html.escape(interpretation.get('what_this_does_not_mean', ''))}</p>
   </div>
   <h2>Top Candidates</h2>
   <table>
@@ -115,6 +140,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
         <th>Unblinded Label</th>
         <th>Score</th>
         <th>Persistence</th>
+        <th>q-value</th>
         <th>Variant</th>
         <th>Source</th>
         <th>OCR</th>
@@ -138,8 +164,9 @@ def _candidate_row(candidate: dict[str, Any]) -> str:
       <tr>
         <td><code>{html.escape(candidate['blind_id'])}</code></td>
         <td>{html.escape(candidate['unblinded_label'])}</td>
-        <td>{_fmt(candidate['structure_score'])}</td>
+        <td>{_fmt(candidate.get('primary_metric_score', candidate['structure_score']))}</td>
         <td>{_fmt(candidate.get('persistence_score'))}</td>
+        <td>{_fmt(candidate.get('q_value'))}</td>
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
         <td>{html.escape(_source_label(candidate))}</td>
         <td>{html.escape(ocr_text[:120])}</td>
@@ -174,3 +201,52 @@ def _source_label(candidate: dict[str, Any]) -> str:
     if control_type:
         parts.append(str(control_type))
     return " | ".join(str(part) for part in parts if part)
+
+
+def _candidate_score(result: dict[str, Any], score_key: str) -> float:
+    value = result.get(score_key)
+    if value is None:
+        value = result.get("structure_score", 0.0)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def report_badges(run_record: dict[str, Any]) -> list[str]:
+    aggregate = run_record.get("aggregate_statistics", {})
+    results = run_record.get("results", [])
+    badges = ["multiple comparisons corrected"]
+    if aggregate.get("calibration_passed"):
+        badges.append("calibration passed")
+    elif aggregate.get("synthetic_positive_count", 0) > 0:
+        badges.append("calibration failed")
+    if aggregate.get("control_count", 0) > 0:
+        badges.append("controls matched")
+    if results and not any(item.get("ocr", {}).get("available") for item in results):
+        badges.append("OCR unavailable")
+    badges.append("media not included")
+    return badges
+
+
+def interpretation_text(aggregate: dict[str, Any]) -> dict[str, str]:
+    ladder = aggregate.get("evidence_ladder")
+    if ladder in {"above-control candidate", "repeatable candidate"}:
+        means = "The selected protocol found laser-frame scores above matched controls under this run's thresholds."
+    elif ladder == "anomaly":
+        means = "The run found elevated structure, but not enough to clear the controlled evidence threshold."
+    else:
+        means = "The selected capture and detector set did not beat matched controls."
+    return {
+        "what_this_means": means,
+        "what_this_does_not_mean": "This report does not establish origin, intent, or metaphysical proof; it only summarizes controlled image detections.",
+    }
+
+
+def detector_family_explanations() -> dict[str, str]:
+    return {
+        "symbol": "OCR and connected-component evidence for text-like or symbol-like regions.",
+        "diffraction": "FFT peak/ring evidence for repeatable spatial-frequency structure.",
+        "speckle": "Local contrast evidence using K = standard deviation divided by mean intensity.",
+        "texture": "Haralick-style texture, entropy, edge, line, and ROI structure evidence.",
+    }

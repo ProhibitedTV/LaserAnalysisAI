@@ -6,12 +6,24 @@ import random
 from statistics import mean, pstdev
 from typing import Any
 
+from .scientific import benjamini_hochberg_q_values, mean_confidence_interval
 
-def summarize_results(sample_results: list[dict[str, Any]], seed: int, permutations: int = 1000) -> dict[str, Any]:
+
+def summarize_results(
+    sample_results: list[dict[str, Any]],
+    seed: int,
+    permutations: int = 1000,
+    primary_metric: str = "structure_score",
+) -> dict[str, Any]:
     sample_scores = _sample_scores(sample_results)
     laser_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "laser"]
     control_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "control"]
     positive_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "synthetic_positive"]
+    candidate_p_values = _candidate_p_values(sample_scores, control_scores)
+    q_values = benjamini_hochberg_q_values([item["p_value"] for item in candidate_p_values])
+    candidate_q_values = {
+        item["sample_id"]: q_value for item, q_value in zip(candidate_p_values, q_values)
+    }
 
     laser_mean = _mean(laser_scores)
     control_mean = _mean(control_scores)
@@ -24,13 +36,21 @@ def summarize_results(sample_results: list[dict[str, Any]], seed: int, permutati
         "laser_count": len(laser_scores),
         "control_count": len(control_scores),
         "synthetic_positive_count": len(positive_scores),
+        "calibration_passed": bool(positive_scores and max(positive_scores) > 0.05),
+        "primary_metric": primary_metric,
         "laser_mean_score": laser_mean,
         "control_mean_score": control_mean,
         "synthetic_positive_mean_score": _mean(positive_scores),
+        "laser_confidence_interval": mean_confidence_interval(laser_scores),
+        "control_confidence_interval": mean_confidence_interval(control_scores),
         "mean_difference": None if laser_mean is None or control_mean is None else laser_mean - control_mean,
         "cohen_d": effect,
         "permutation_p_value": p_value,
+        "fdr_method": "benjamini_hochberg",
+        "candidate_q_values": candidate_q_values,
+        "minimum_q_value": min(candidate_q_values.values()) if candidate_q_values else None,
         "laser_mean_persistence": persistence,
+        "detector_family_statistics": _family_statistics(sample_results),
     }
     stats["evidence_ladder"] = evidence_ladder(stats)
     stats["null_result_language"] = null_result_language(stats)
@@ -51,7 +71,7 @@ def _sample_scores(sample_results: list[dict[str, Any]]) -> list[dict[str, Any]]
                 "persistence_scores": [],
             },
         )
-        record["scores"].append(float(result.get("structure_score", 0.0)))
+        record["scores"].append(float(result.get("primary_metric_score", result.get("structure_score", 0.0))))
         record["persistence_scores"].append(float(result.get("persistence_score", 0.0)))
 
     scores = []
@@ -103,6 +123,27 @@ def permutation_p_value(
         if mean(candidate_a) - mean(candidate_b) >= observed:
             count += 1
     return round(float((count + 1) / (permutations + 1)), 6)
+
+
+def _candidate_p_values(sample_scores: list[dict[str, Any]], control_scores: list[float]) -> list[dict[str, Any]]:
+    if not control_scores:
+        return [{"sample_id": item["sample_id"], "p_value": 1.0} for item in sample_scores]
+    records = []
+    for item in sample_scores:
+        greater_equal = sum(1 for control in control_scores if control >= item["score"])
+        p_value = (greater_equal + 1) / (len(control_scores) + 1)
+        records.append({"sample_id": item["sample_id"], "p_value": round(float(p_value), 6)})
+    return records
+
+
+def _family_statistics(sample_results: list[dict[str, Any]]) -> dict[str, Any]:
+    grouped: dict[str, list[float]] = {"symbol": [], "diffraction": [], "speckle": [], "texture": []}
+    for result in sample_results:
+        if result.get("unblinded_label") != "laser":
+            continue
+        for family, value in result.get("detector_family_scores", {}).items():
+            grouped.setdefault(family, []).append(float(value))
+    return {family: mean_confidence_interval(values) for family, values in grouped.items()}
 
 
 def evidence_ladder(stats: dict[str, Any]) -> str:
