@@ -28,6 +28,12 @@ jobs:
         shell: pwsh
         run: .\scripts\build_windows_exe.ps1 -Python python -OutputDir dist
 
+      - name: Verify executable entrypoints
+        shell: pwsh
+        run: |
+          .\dist\LaserLab.exe --smoke
+          .\dist\LaserLabCLI.exe --help
+
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:

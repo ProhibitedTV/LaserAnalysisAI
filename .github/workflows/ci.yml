@@ -29,18 +29,26 @@ jobs:
         run: python -m pip install -r requirements.txt
 
       - name: Compile
-        run: python -m compileall laserlab tests
+        run: python -m compileall laserlab gui tests scripts laserlab_launcher.py laserlab_cli_launcher.py main.py
 
       - name: Unit tests
         run: python -m unittest discover -s tests
 
+      - name: GUI smoke
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -c "from PyQt5.QtWidgets import QApplication; from gui.lab_dashboard import LabDashboardWindow; app = QApplication([]); window = LabDashboardWindow(); assert window.tabs.count() == 5"
+
+      - name: CLI smoke
+        run: |
+          python -m laserlab.cli --help
+          python -m laserlab.cli fixtures list --include-restricted
+
       - name: Fixture smoke
         shell: pwsh
         run: |
-          python -m laserlab.cli init --source sample_media\commons-young-double-slit.ogv --kind video --label laser --experiment experiments\ci-smoke --all-frames --max-frames 2
-          python -m laserlab.cli init --source sample_media\commons-double-slit-experiment.webm --kind video --label control --experiment experiments\ci-smoke --all-frames --max-frames 2
-          python -m laserlab.cli run --experiment experiments\ci-smoke --profile wide --blind-seed 12345
-          python -m laserlab.cli report --experiment experiments\ci-smoke --format both
+          python scripts\run_fixture_demo.py --experiment experiments\ci-smoke --max-frames 2 --profile wide --blind-seed 12345 --dump-dir release_dumps
 
       - name: Upload smoke report
         uses: actions/upload-artifact@v4

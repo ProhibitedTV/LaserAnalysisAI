@@ -21,14 +21,28 @@ if (-not (Test-Path -LiteralPath $Python)) {
     --clean `
     --onefile `
     --name LaserLab `
+    --windowed `
     --collect-all cv2 `
     --collect-all pytesseract `
     --add-data "sample_media;sample_media" `
     laserlab_launcher.py
 
+& $Python -m PyInstaller `
+    --noconfirm `
+    --onefile `
+    --name LaserLabCLI `
+    --collect-all cv2 `
+    --collect-all pytesseract `
+    --add-data "sample_media;sample_media" `
+    laserlab_cli_launcher.py
+
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 Copy-Item -Force -LiteralPath "README.md" -Destination $OutputDir
 Copy-Item -Force -LiteralPath "LICENSE" -Destination $OutputDir
+$sampleMediaDestination = Join-Path $OutputDir "sample_media"
+if (Test-Path -LiteralPath $sampleMediaDestination) {
+    Remove-Item -LiteralPath $sampleMediaDestination -Recurse -Force
+}
 Copy-Item -Recurse -Force -LiteralPath "sample_media" -Destination $OutputDir
 
 $zipPath = Join-Path $OutputDir "LaserLab-windows.zip"
@@ -38,6 +52,7 @@ if (Test-Path -LiteralPath $zipPath) {
 
 Compress-Archive -Path `
     (Join-Path $OutputDir "LaserLab.exe"), `
+    (Join-Path $OutputDir "LaserLabCLI.exe"), `
     (Join-Path $OutputDir "README.md"), `
     (Join-Path $OutputDir "LICENSE"), `
     (Join-Path $OutputDir "sample_media") `

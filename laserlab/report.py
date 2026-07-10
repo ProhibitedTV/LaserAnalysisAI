@@ -61,6 +61,10 @@ def top_candidates(results: list[dict[str, Any]], limit: int = 20) -> list[dict[
             "ocr_confidence": item.get("ocr", {}).get("confidence", 0.0),
             "candidate_rois": item.get("candidate_rois", [])[:3],
             "processed_path": item["processed_path"],
+            "source_path": item.get("source_path", ""),
+            "frame_index": item.get("frame_index"),
+            "timestamp_ms": item.get("timestamp_ms"),
+            "control_type": item.get("control_type", ""),
         }
         for item in candidates
     ]
@@ -112,6 +116,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
         <th>Score</th>
         <th>Persistence</th>
         <th>Variant</th>
+        <th>Source</th>
         <th>OCR</th>
         <th>Image</th>
       </tr>
@@ -136,6 +141,7 @@ def _candidate_row(candidate: dict[str, Any]) -> str:
         <td>{_fmt(candidate['structure_score'])}</td>
         <td>{_fmt(candidate.get('persistence_score'))}</td>
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
+        <td>{html.escape(_source_label(candidate))}</td>
         <td>{html.escape(ocr_text[:120])}</td>
         <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
       </tr>
@@ -157,3 +163,14 @@ def _fmt(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.4f}"
     return html.escape(str(value))
+
+
+def _source_label(candidate: dict[str, Any]) -> str:
+    parts = [candidate.get("source_path", "")]
+    frame_index = candidate.get("frame_index")
+    if frame_index is not None:
+        parts.append(f"frame {frame_index}")
+    control_type = candidate.get("control_type")
+    if control_type:
+        parts.append(str(control_type))
+    return " | ".join(str(part) for part in parts if part)
