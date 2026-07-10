@@ -10,7 +10,13 @@
       "label": "control",
       "license": "CC BY-SA 4.0",
       "notes": "Small simulation useful for detector sanity checks, not physical laser footage.",
-      "path": "sample_media\\commons-double-slit-experiment.webm",
+      "phenomena": [
+        "interference",
+        "simulation"
+      ],
+      "expected_behavior": "Stable fringe-like spatial frequencies; no readable text is expected.",
+      "limitations": "Rendered simulation rather than camera footage; use only as a structured control.",
+      "path": "sample_media/commons-double-slit-experiment.webm",
       "redistributable": true,
       "sha256": "747618e45cfb031d2e3fca1b155b29455fef15077f672641a57773f7f38747f7",
       "source_page": "https://commons.wikimedia.org/wiki/File:Double_slit_experiment.webm",
@@ -27,7 +33,13 @@
       "label": "laser",
       "license": "CC BY-SA 3.0 or GFDL",
       "notes": "Educational double-slit video clip; useful as a small redistributable optical fixture.",
-      "path": "sample_media\\commons-young-double-slit.ogv",
+      "phenomena": [
+        "diffraction",
+        "interference"
+      ],
+      "expected_behavior": "FFT and fringe metrics should respond more strongly than OCR metrics.",
+      "limitations": "Educational compressed video with unknown camera and processing history.",
+      "path": "sample_media/commons-young-double-slit.ogv",
       "redistributable": true,
       "sha256": "56427bcdc563fa8722dcd504d81f8dfb5fcbf8cb977283f0dfb19d800e8ac51c",
       "source_page": "https://commons.wikimedia.org/wiki/File:Double_slit.theora.ogv",
@@ -44,7 +56,14 @@
       "label": "laser",
       "license": "CC BY-SA 4.0",
       "notes": "Tomographic visualization from monochromatic laser light through two pinholes.",
-      "path": "sample_media\\commons-two-pinhole-laser-interference.webm",
+      "phenomena": [
+        "interference",
+        "diffraction",
+        "visualization"
+      ],
+      "expected_behavior": "Repeatable spectral structure is expected; text recovery is not.",
+      "limitations": "Tomographic visualization, not a raw sensor recording of an experiment.",
+      "path": "sample_media/commons-two-pinhole-laser-interference.webm",
       "redistributable": true,
       "sha256": "f6ab13b18fb0e160933437e7ac461eea3a30ccba22779e82b1cc67f63722e2e1",
       "source_page": "https://commons.wikimedia.org/wiki/File:3D_Interference_of_Laser_Light_Through_2_Pinholes_Animation.webm",
@@ -61,7 +80,14 @@
       "label": "control",
       "license": "CC BY-SA 4.0",
       "notes": "Rendered optical beam fixture; useful for false-positive checks against structured non-text fields.",
-      "path": "sample_media\\commons-focused-laguerre-gaussian.webm",
+      "phenomena": [
+        "structured_beam",
+        "diffraction",
+        "rendered_control"
+      ],
+      "expected_behavior": "Ring and texture metrics may respond while OCR should remain null.",
+      "limitations": "Rendered beam field; not physical footage and not a matched camera control.",
+      "path": "sample_media/commons-focused-laguerre-gaussian.webm",
       "redistributable": true,
       "sha256": "2b6995a30a157cd49092bd2ffb76672d7976290cc756d9e9c5da9871fe35d50c",
       "source_page": "https://commons.wikimedia.org/wiki/File:Focused_Laguerre-Gaussian_beam.webm",

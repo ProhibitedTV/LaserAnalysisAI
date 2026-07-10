@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from laserlab import app_api
+from laserlab.fixtures import fixture_metadata, require_valid_fixture_catalog
 
 
 LASER_FIXTURE = ROOT / "sample_media" / "commons-young-double-slit.ogv"
@@ -29,6 +30,7 @@ def main() -> int:
     args = parser.parse_args()
 
     experiment_dir = Path(args.experiment)
+    require_valid_fixture_catalog(ROOT / "sample_media", require_bundled_files=True)
     manifest = app_api.create_experiment(experiment_dir)
     labels = {capture.get("label") for capture in manifest.get("captures", [])}
     if "laser" not in labels:
@@ -39,6 +41,7 @@ def main() -> int:
             "laser",
             all_frames=True,
             max_frames=args.max_frames,
+            capture_metadata=fixture_metadata("commons-young-double-slit"),
         )
     if "control" not in labels:
         app_api.add_capture(
@@ -48,6 +51,7 @@ def main() -> int:
             "control",
             all_frames=True,
             max_frames=args.max_frames,
+            capture_metadata=fixture_metadata("commons-double-slit-experiment"),
         )
 
     preset = next((item for item in app_api.list_protocol_presets() if item["id"] == args.protocol), None)

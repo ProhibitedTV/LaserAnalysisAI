@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "scientific_metrics": {
+    "fft_peak_prominence_min": 8.0,
+    "phase_registration_response_min": 0.5,
+    "phase_shift_tolerance_px": 0.5,
+    "speckle_contrast_max": 1.5,
+    "speckle_contrast_min": 0.3
+  },
+  "null_run": {
+    "allowed_evidence_levels": [
+      "no signal",
+      "artifact",
+      "anomaly"
+    ],
+    "forbidden_evidence_levels": [
+      "above-control candidate",
+      "repeatable candidate"
+    ]
+  }
+}

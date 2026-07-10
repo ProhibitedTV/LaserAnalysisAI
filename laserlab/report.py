@@ -38,6 +38,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "interpretation": interpretation_text(aggregate),
         "detector_family_explanations": detector_family_explanations(),
         "aggregate_statistics": aggregate,
+        "source_provenance": source_provenance(run_record.get("samples", [])),
         "top_candidates": candidates,
         "artifacts": {
             "results_json": relative_to(run_dir / "results.json", experiment_dir),
@@ -82,6 +83,7 @@ def top_candidates(
             "control_type": item.get("control_type", ""),
             "q_value": item.get("q_value"),
             "detector_family_scores": item.get("detector_family_scores", {}),
+            "capture_metadata": item.get("capture_metadata", {}),
         }
         for item in candidates
     ]
@@ -95,6 +97,8 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     summary = report["summary"]
     candidates = report["top_candidates"]
     rows = "\n".join(_candidate_row(candidate) for candidate in candidates)
+    provenance_rows = "\n".join(_provenance_row(record) for record in report.get("source_provenance", []))
+    provenance_body = provenance_rows or '<tr><td colspan="5">No catalog fixture metadata was attached.</td></tr>'
     badges = " ".join(f"<span class=\"badge\">{html.escape(badge)}</span>" for badge in report.get("badges", []))
     interpretation = report.get("interpretation", {})
     html_text = f"""<!doctype html>
@@ -132,6 +136,21 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     <p><strong>What this means:</strong> {html.escape(interpretation.get('what_this_means', ''))}</p>
     <p><strong>What this does not mean:</strong> {html.escape(interpretation.get('what_this_does_not_mean', ''))}</p>
   </div>
+  <h2>Source Provenance</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Fixture</th>
+        <th>Phenomena</th>
+        <th>License</th>
+        <th>Expected behavior</th>
+        <th>Limitations</th>
+      </tr>
+    </thead>
+    <tbody>
+      {provenance_body}
+    </tbody>
+  </table>
   <h2>Top Candidates</h2>
   <table>
     <thead>
@@ -175,6 +194,25 @@ def _candidate_row(candidate: dict[str, Any]) -> str:
 """
 
 
+def _provenance_row(record: dict[str, Any]) -> str:
+    title = record.get("fixture_title") or record.get("fixture_id") or "Unknown fixture"
+    source_page = record.get("source_page")
+    if source_page:
+        title_html = f'<a href="{html.escape(str(source_page))}">{html.escape(str(title))}</a>'
+    else:
+        title_html = html.escape(str(title))
+    phenomena = ", ".join(str(item) for item in record.get("phenomena", []))
+    return f"""
+      <tr>
+        <td>{title_html}</td>
+        <td>{html.escape(phenomena)}</td>
+        <td>{html.escape(str(record.get('license', '')))}</td>
+        <td>{html.escape(str(record.get('expected_behavior', '')))}</td>
+        <td>{html.escape(str(record.get('limitations', '')))}</td>
+      </tr>
+"""
+
+
 def _relative_from_run(path: str) -> str:
     parts = path.split("/")
     if "runs" in parts:
@@ -200,7 +238,20 @@ def _source_label(candidate: dict[str, Any]) -> str:
     control_type = candidate.get("control_type")
     if control_type:
         parts.append(str(control_type))
+    fixture_title = candidate.get("capture_metadata", {}).get("fixture_title")
+    if fixture_title:
+        parts.append(str(fixture_title))
     return " | ".join(str(part) for part in parts if part)
+
+
+def source_provenance(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+    for sample in samples:
+        metadata = sample.get("capture_metadata") or {}
+        fixture_id = metadata.get("fixture_id")
+        if fixture_id:
+            records[str(fixture_id)] = dict(metadata)
+    return [records[key] for key in sorted(records)]
 
 
 def _candidate_score(result: dict[str, Any], score_key: str) -> float:

@@ -60,10 +60,15 @@ jobs:
             python scripts\run_fixture_demo.py --experiment "experiments\ci-$protocol" --max-frames 2 --profile wide --protocol $protocol --blind-seed 12345 --dump-dir "release_dumps\$protocol"
           }
 
-      - name: Upload smoke report
+      - name: Upload failed-run evidence
         uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: smoke-report-${{ matrix.python-version }}
-          path: experiments/ci-smoke/runs/**/report.html
+          name: failed-run-evidence-${{ matrix.python-version }}
+          path: |
+            experiments/ci-smoke/runs/**/report.html
+            experiments/ci-smoke/runs/**/report.json
+            experiments/ci-smoke/runs/**/results.json
+            experiments/ci-smoke/runs/**/processed/*.png
+            experiments/ci-smoke/runs/**/crops/*.png
           if-no-files-found: ignore

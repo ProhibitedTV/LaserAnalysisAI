@@ -160,6 +160,8 @@ Illinois Wesleyan/American Journal of Physics single-photon video set. The IWU
 set is scientifically stronger but stays external/manual until redistribution
 terms are confirmed.
 
+See the [Fixture Catalog](docs/fixture_catalog.md) for expected detector behavior, limitations, licenses, and provenance rules.
+
 ## Capture Better Footage
 
 - Capture laser and control footage under matched camera settings, exposure, focus, distance, and surface geometry.
@@ -193,10 +195,10 @@ Windows users can use the compatibility wrapper:
 Release archives are named by version, operating system, and architecture:
 
 ```text
-dist/LaserLab-v0.3.0-windows-x86_64.zip
-dist/LaserLab-v0.3.0-linux-x86_64.zip
-dist/LaserLab-v0.3.0-macos-x86_64.zip
-dist/LaserLab-v0.3.0-macos-arm64.zip
+dist/LaserLab-v<version>-windows-x86_64.zip
+dist/LaserLab-v<version>-linux-x86_64.zip
+dist/LaserLab-v<version>-macos-x86_64.zip
+dist/LaserLab-v<version>-macos-arm64.zip
 ```
 
 GitHub Actions builds and smoke-tests all four native bundles. Tesseract remains optional at runtime; OCR is reported as unavailable when the external Tesseract executable is not installed.

@@ -373,8 +373,10 @@ class LabDashboardWindow(QMainWindow):
     def _fixtures_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        self.fixture_table = QTableWidget(0, 5)
-        self.fixture_table.setHorizontalHeaderLabels(["ID", "Title", "Label", "License", "Source"])
+        self.fixture_table = QTableWidget(0, 7)
+        self.fixture_table.setHorizontalHeaderLabels(
+            ["ID", "Title", "Label", "Phenomena", "License", "Expected behavior", "Source"]
+        )
         self.fixture_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.fixture_table, 1)
 
@@ -847,7 +849,15 @@ class LabDashboardWindow(QMainWindow):
         fixtures = list_fixtures(include_restricted=True)
         self.fixture_table.setRowCount(len(fixtures))
         for row, item in enumerate(fixtures):
-            values = [item.get("id", ""), item.get("title", ""), item.get("label", ""), item.get("license", ""), item.get("source_page", "")]
+            values = [
+                item.get("id", ""),
+                item.get("title", ""),
+                item.get("label", ""),
+                ", ".join(item.get("phenomena", [])),
+                item.get("license", ""),
+                item.get("expected_behavior", ""),
+                item.get("source_page", ""),
+            ]
             for column, value in enumerate(values):
                 self.fixture_table.setItem(row, column, QTableWidgetItem(str(value)))
 

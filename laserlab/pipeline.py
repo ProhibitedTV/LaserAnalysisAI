@@ -133,6 +133,7 @@ def run_experiment(
                 "primary_metric_score": 0.0,
                 "q_value": None,
                 "persistence_score": 0.0,
+                "capture_metadata": sample.get("capture_metadata", {}),
             }
             result_record["primary_metric_score"] = round(float(metric_score(result_record, primary_metric)), 6)
             results.append(result_record)
@@ -192,6 +193,7 @@ def _build_samples(
                     "timestamp_ms": frame.get("timestamp_ms"),
                     "unblinded_label": capture["label"],
                     "synthetic": False,
+                    "capture_metadata": capture.get("metadata", {}),
                 }
             )
 

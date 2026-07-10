@@ -38,10 +38,10 @@ On Windows, the existing wrapper installs build dependencies and delegates to th
 Outputs are target-specific:
 
 ```text
-dist/LaserLab-v0.3.0-windows-x86_64.zip
-dist/LaserLab-v0.3.0-linux-x86_64.zip
-dist/LaserLab-v0.3.0-macos-x86_64.zip
-dist/LaserLab-v0.3.0-macos-arm64.zip
+dist/LaserLab-v<version>-windows-x86_64.zip
+dist/LaserLab-v<version>-linux-x86_64.zip
+dist/LaserLab-v<version>-macos-x86_64.zip
+dist/LaserLab-v<version>-macos-arm64.zip
 ```
 
 The zip includes:
@@ -76,11 +76,11 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
-## v0.3 Release Checklist
+## v0.3.x Release Checklist
 
 - Run the bundled demo for `diffraction`, `speckle`, `ocr`, and `anomaly` with `-MaxFrames 2`.
 - Confirm JSON/HTML reports include badges, q-values, protocol, detector-family summaries, and conservative interpretation text.
 - Export a review bundle and inspect `manifest.json`, `report.json`, `results.json`, `environment.json`, `hashes.json`, top crops, and `README.txt`.
 - Build all four native archives through the `Cross-platform Release` workflow.
 - Verify each platform's GUI `--smoke` and CLI `--help` checks pass.
-- Push a `v0.3.0` tag only after tests, executable smoke, and bundled fixture smoke pass.
+- Push the matching `v0.3.x` tag only after tests, executable smoke, and bundled fixture smoke pass.
