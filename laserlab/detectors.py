@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .artifacts import ensure_dir, relative_to
+from .scientific import fft_spectrum_metrics, glcm_texture_metrics, speckle_contrast_metrics
 
 
 @dataclass(frozen=True)
@@ -24,14 +25,22 @@ def run_detectors(processed_image: Any, context: DetectorContext) -> dict[str, A
     components = connected_components(processed_image)
     texture = entropy_texture(processed_image)
     edge_lines = edge_line_density(processed_image)
+    fft = fft_spectrum_metrics(processed_image)
+    speckle = speckle_contrast_metrics(processed_image)
+    glcm = glcm_texture_metrics(processed_image)
     rois = extract_candidate_rois(processed_image, context)
+    structure = structure_score(ocr, components, texture, edge_lines, rois)
     return {
         "ocr": ocr,
         "connected_components": components,
         "entropy_texture": texture,
         "edge_line_density": edge_lines,
+        "fft_spectrum": fft,
+        "speckle_contrast": speckle,
+        "texture_features": glcm,
         "candidate_rois": rois,
-        "structure_score": structure_score(ocr, components, texture, edge_lines, rois),
+        "detector_family_scores": detector_family_scores(ocr, components, texture, edge_lines, fft, speckle, glcm, rois),
+        "structure_score": structure,
     }
 
 
@@ -259,3 +268,41 @@ def structure_score(
         + roi_score * 0.10
     )
     return round(float(score), 6)
+
+
+def detector_family_scores(
+    ocr: dict[str, Any],
+    components: dict[str, Any],
+    texture: dict[str, Any],
+    edge_lines: dict[str, Any],
+    fft: dict[str, Any],
+    speckle: dict[str, Any],
+    glcm: dict[str, Any],
+    rois: list[dict[str, Any]],
+) -> dict[str, float]:
+    symbol = 0.0
+    if ocr.get("available"):
+        words = float(ocr.get("word_count", len(ocr.get("boxes", []))) or 0)
+        conf = max(0.0, float(ocr.get("confidence", 0.0) or 0.0)) / 100.0
+        symbol = min(1.0, (words / 8.0) * 0.6 + conf * 0.4)
+    symbol = max(symbol, min(1.0, float(components.get("text_like_count", 0)) / 40.0))
+
+    diffraction = min(
+        1.0,
+        float(fft.get("peak_prominence", 0.0)) / 8.0 * 0.75
+        + float(fft.get("ring_energy_ratio", 0.0)) * 0.25,
+    )
+    speckle_score = min(1.0, float(speckle.get("spatial_contrast_mean", 0.0)) * 2.0)
+    texture_score = min(
+        1.0,
+        float(texture.get("entropy", 0.0)) / 8.0 * 0.35
+        + float(edge_lines.get("edge_density", 0.0)) * 4.0 * 0.25
+        + min(1.0, float(glcm.get("contrast", 0.0)) / 24.0) * 0.25
+        + min(1.0, len(rois) / 5.0) * 0.15,
+    )
+    return {
+        "symbol": round(float(symbol), 6),
+        "diffraction": round(float(diffraction), 6),
+        "speckle": round(float(speckle_score), 6),
+        "texture": round(float(texture_score), 6),
+    }

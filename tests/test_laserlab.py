@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from laserlab.artifacts import sha256_json
@@ -39,8 +40,61 @@ class HashingTests(unittest.TestCase):
         self.assertTrue(all(item["redistributable"] for item in redistributable))
 
 
+class ProtocolPresetTests(unittest.TestCase):
+    def test_protocol_presets_are_listable_and_describable(self) -> None:
+        from laserlab.protocols import describe_protocol, list_protocol_presets
+
+        presets = list_protocol_presets()
+        ids = {item["id"] for item in presets}
+
+        self.assertEqual(ids, {"diffraction", "speckle", "ocr", "anomaly"})
+        self.assertIn("2D FFT", describe_protocol("diffraction"))
+        self.assertIn("speckle", describe_protocol("speckle").lower())
+
+
 @unittest.skipUnless(HAS_IMAGE_STACK, "OpenCV and NumPy are required for image pipeline tests")
 class LaserLabPipelineTests(unittest.TestCase):
+    def test_scientific_metrics_detect_synthetic_fixtures(self) -> None:
+        import cv2
+
+        from laserlab.scientific import (
+            benjamini_hochberg_q_values,
+            fft_spectrum_metrics,
+            glcm_texture_metrics,
+            phase_registration_metrics,
+            speckle_contrast_metrics,
+        )
+        from laserlab.synthetic import (
+            create_shifted_copy,
+            create_synthetic_grating,
+            create_synthetic_positive,
+            create_synthetic_speckle,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            grating = cv2.imread(str(create_synthetic_grating(root / "grating.png")), cv2.IMREAD_COLOR)
+            speckle = cv2.imread(str(create_synthetic_speckle(root / "speckle.png")), cv2.IMREAD_COLOR)
+            positive = create_synthetic_positive(root / "positive.png")
+            shifted = create_shifted_copy(positive, root / "shifted.png", shift_x=7, shift_y=4)
+
+            fft = fft_spectrum_metrics(grating)
+            speckle_metrics = speckle_contrast_metrics(speckle)
+            texture = glcm_texture_metrics(speckle)
+            registration = phase_registration_metrics(
+                cv2.imread(str(positive), cv2.IMREAD_COLOR),
+                cv2.imread(str(shifted), cv2.IMREAD_COLOR),
+            )
+
+        self.assertGreater(fft["peak_prominence"], 8.0)
+        self.assertGreater(fft["ring_energy_ratio"], 0.0)
+        self.assertGreater(speckle_metrics["spatial_contrast_mean"], 0.3)
+        self.assertIn("entropy", texture)
+        self.assertAlmostEqual(registration["shift_x"], 7.0, delta=0.5)
+        self.assertAlmostEqual(registration["shift_y"], 4.0, delta=0.5)
+        self.assertGreater(registration["response"], 0.5)
+        self.assertEqual(benjamini_hochberg_q_values([0.01, 0.04, 0.03]), [0.03, 0.04, 0.04])
+
     def test_image_set_ingest_run_and_report(self) -> None:
         from laserlab import app_api
         from laserlab.ingest import init_experiment
@@ -79,12 +133,26 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertEqual(report["run_id"], run["run_id"])
             self.assertIn("top_candidates", report)
             self.assertIn("source_path", report["top_candidates"][0])
+            self.assertIn("primary_metric_score", report["top_candidates"][0])
+            self.assertIn("multiple comparisons corrected", report["badges"])
 
             latest = app_api.load_latest_report(experiment)
             self.assertEqual(latest["run_id"], run["run_id"])
             csv_path = app_api.export_candidates_csv(experiment, root / "candidates.csv")
             self.assertTrue(csv_path.exists())
-            self.assertIn("source_path", csv_path.read_text(encoding="utf-8").splitlines()[0])
+            header = csv_path.read_text(encoding="utf-8").splitlines()[0]
+            self.assertIn("source_path", header)
+            self.assertIn("primary_metric_score", header)
+
+            bundle_path = app_api.export_review_bundle(experiment, root / "review_bundle.zip")
+            self.assertTrue(bundle_path.exists())
+            with zipfile.ZipFile(bundle_path) as bundle:
+                names = set(bundle.namelist())
+            self.assertIn("manifest.json", names)
+            self.assertIn("report.json", names)
+            self.assertIn("results.json", names)
+            self.assertIn("environment.json", names)
+            self.assertIn("README.txt", names)
 
     def test_tesseract_is_optional(self) -> None:
         from laserlab.detectors import run_ocr
@@ -137,6 +205,20 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertEqual(report["run_id"], run["run_id"])
             self.assertIn("local_paths", report)
 
+            manifest = app_api.update_analysis_plan(
+                experiment,
+                protocol="diffraction",
+                primary_metric="fft_peak_prominence",
+                preprocessing_intensity="wide",
+                control_generation="strict",
+                frame_sampling_mode="capped_all_frames",
+                roi={"x": 0, "y": 0, "width": 120, "height": 80},
+            )
+            self.assertEqual(manifest["analysis_plan"]["frame_sampling_mode"], "capped_all_frames")
+            estimate = app_api.estimate_run(experiment, profile="wide", protocol="diffraction", control_generation="strict")
+            self.assertEqual(estimate["control_generation"], "strict")
+            self.assertGreater(estimate["detector_records"], 0)
+
 
 @unittest.skipUnless(HAS_PYQT, "PyQt5 is required for dashboard smoke tests")
 class LaserLabGuiTests(unittest.TestCase):
@@ -150,10 +232,13 @@ class LaserLabGuiTests(unittest.TestCase):
         app = QApplication.instance() or QApplication([])
         window = LabDashboardWindow()
         try:
-            self.assertEqual(window.tabs.count(), 5)
-            self.assertEqual(window.tabs.tabText(0), "Experiment")
-            self.assertEqual(window.tabs.tabText(2), "Review")
+            self.assertEqual(window.tabs.count(), 9)
+            self.assertEqual(window.tabs.tabText(0), "Home")
+            self.assertEqual(window.tabs.tabText(1), "Experiment Setup")
+            self.assertEqual(window.tabs.tabText(4), "Review")
             self.assertGreaterEqual(window.fixture_table.rowCount(), 4)
+            self.assertEqual(window.home_demo_button.text(), "Run bundled demo")
+            self.assertGreater(window.protocol_combo.count(), 3)
         finally:
             window.close()
 

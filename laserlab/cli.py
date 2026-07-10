@@ -6,9 +6,11 @@ import argparse
 import sys
 from pathlib import Path
 
+from .bundle import export_review_bundle
 from .ingest import init_experiment
 from .manifest import latest_run_dir, load_manifest
 from .pipeline import run_experiment
+from .protocols import describe_protocol, list_protocol_presets
 from .report import build_report, write_report_json
 from .artifacts import load_json
 from .fixtures import fetch_fixtures, list_fixtures
@@ -35,6 +37,11 @@ def main(argv: list[str] | None = None) -> int:
                 experiment_dir=Path(args.experiment),
                 profile_name=args.profile,
                 blind_seed=args.blind_seed,
+                protocol=args.protocol,
+                roi=_parse_roi(args.roi),
+                primary_metric=args.primary_metric,
+                preprocessing_intensity=args.preprocessing_intensity,
+                control_generation=args.control_generation,
             )
             latest = Path(args.experiment) / "runs" / run_record["run_id"]
             print(f"Run complete: {latest}")
@@ -69,6 +76,19 @@ def main(argv: list[str] | None = None) -> int:
                 for item in fetched:
                     print(f"{item['status']}: {item['id']} -> {item.get('path', item.get('reason', ''))}")
                 return 0
+        if args.command == "protocols":
+            if args.protocol_action == "list":
+                for item in list_protocol_presets():
+                    print(f"{item['id']}: {item['name']} [{item['primary_metric']}]")
+                    print(f"  {item['description']}")
+                return 0
+            if args.protocol_action == "describe":
+                print(describe_protocol(args.preset))
+                return 0
+        if args.command == "bundle":
+            path = export_review_bundle(Path(args.experiment), Path(args.output), include_media=args.include_media)
+            print(path)
+            return 0
     except Exception as exc:
         print(f"laserlab error: {exc}", file=sys.stderr)
         return 2
@@ -96,6 +116,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--experiment", required=True, help="Experiment directory containing manifest.json.")
     run_parser.add_argument("--profile", default="baseline", help="Preprocessing profile name. Default: baseline.")
     run_parser.add_argument("--blind-seed", type=int, default=1, help="Seed for deterministic blinding.")
+    run_parser.add_argument("--protocol", choices=["diffraction", "speckle", "ocr", "anomaly"], default=None)
+    run_parser.add_argument("--primary-metric", default=None, help="Override protocol primary metric.")
+    run_parser.add_argument("--preprocessing-intensity", choices=["standard", "wide"], default=None)
+    run_parser.add_argument("--control-generation", choices=["none", "standard", "strict"], default=None)
+    run_parser.add_argument("--roi", default=None, help="Optional ROI as x,y,width,height.")
 
     report_parser = subparsers.add_parser("report", help="Regenerate report artifacts for the latest run.")
     report_parser.add_argument("--experiment", required=True, help="Experiment directory containing manifest.json.")
@@ -112,7 +137,27 @@ def build_parser() -> argparse.ArgumentParser:
     fixtures_fetch.add_argument("--id", action="append", help="Fixture ID to fetch. Repeat for multiple IDs.")
     fixtures_fetch.add_argument("--include-restricted", action="store_true", help="Include entries without direct downloads as skipped records.")
 
+    protocols_parser = subparsers.add_parser("protocols", help="List or describe scientific protocol presets.")
+    protocols_subparsers = protocols_parser.add_subparsers(dest="protocol_action", required=True)
+    protocols_subparsers.add_parser("list", help="List protocol presets.")
+    protocol_describe = protocols_subparsers.add_parser("describe", help="Describe a protocol preset.")
+    protocol_describe.add_argument("preset", choices=["diffraction", "speckle", "ocr", "anomaly"])
+
+    bundle_parser = subparsers.add_parser("bundle", help="Export a local-first community review bundle.")
+    bundle_parser.add_argument("--experiment", required=True, help="Experiment directory containing a completed run.")
+    bundle_parser.add_argument("--output", required=True, help="Output zip path.")
+    bundle_parser.add_argument("--include-media", action="store_true", help="Include original source media where available.")
+
     return parser
+
+
+def _parse_roi(raw: str | None) -> dict[str, int] | None:
+    if not raw:
+        return None
+    parts = [int(part.strip()) for part in raw.split(",")]
+    if len(parts) != 4:
+        raise ValueError("--roi must be x,y,width,height")
+    return {"x": parts[0], "y": parts[1], "width": parts[2], "height": parts[3]}
 
 
 if __name__ == "__main__":

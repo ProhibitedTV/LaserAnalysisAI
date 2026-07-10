@@ -54,6 +54,10 @@ DEFAULT_DETECTORS = [
     "connected_components",
     "entropy_texture",
     "edge_line_density",
+    "fft_spectrum",
+    "speckle_contrast",
+    "texture_features",
+    "frame_registration",
     "frame_persistence",
 ]
 
@@ -78,6 +82,24 @@ def new_manifest() -> dict[str, Any]:
         "preprocessing_profiles": {"baseline": BASELINE_PROFILE, "wide": WIDE_PROFILE},
         "detectors": DEFAULT_DETECTORS,
         "blind_seed": None,
+        "protocol": "anomaly",
+        "capture_metadata": {
+            "laser_wavelength_nm": None,
+            "camera": None,
+            "notes": "",
+        },
+        "analysis_plan": {
+            "protocol": "anomaly",
+            "roi": None,
+            "primary_metric": "structure_score",
+            "preprocessing_intensity": "standard",
+            "control_generation": "standard",
+            "frame_sampling_mode": "interval",
+        },
+        "community_export": {
+            "last_bundle": None,
+            "include_media": False,
+        },
         "outputs": {},
     }
 
@@ -98,10 +120,28 @@ def load_or_create_manifest(experiment_dir: Path) -> dict[str, Any]:
     ensure_dir(experiment_dir)
     path = manifest_path(experiment_dir)
     if path.exists():
-        return load_manifest(experiment_dir)
+        manifest = load_manifest(experiment_dir)
+        upgraded = upgrade_manifest(manifest)
+        if upgraded != manifest:
+            write_manifest(experiment_dir, upgraded)
+        return upgraded
     manifest = new_manifest()
     write_manifest(experiment_dir, manifest)
     return manifest
+
+
+def upgrade_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Backfill optional v0.3 keys while keeping schema version stable."""
+    updated = dict(manifest)
+    defaults = new_manifest()
+    for key in ("protocol", "capture_metadata", "analysis_plan", "community_export"):
+        if key not in updated:
+            updated[key] = defaults[key]
+    updated.setdefault("detectors", DEFAULT_DETECTORS)
+    profiles = updated.setdefault("preprocessing_profiles", {})
+    profiles.setdefault("baseline", BASELINE_PROFILE)
+    profiles.setdefault("wide", WIDE_PROFILE)
+    return updated
 
 
 def write_manifest(experiment_dir: Path, manifest: dict[str, Any]) -> None:

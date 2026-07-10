@@ -1,5 +1,5 @@
 param(
-    [string]$Python = ".\.venv310\Scripts\python.exe",
+    [string]$Python = "C:\Users\RhythmicCarnage\AppData\Local\Programs\Python\Python310\python.exe",
     [string]$OutputDir = "dist"
 )
 

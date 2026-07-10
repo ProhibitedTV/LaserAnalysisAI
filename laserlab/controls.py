@@ -14,6 +14,7 @@ def generate_matched_controls(
     capture: dict[str, Any],
     frame: dict[str, Any],
     image: Any,
+    level: str = "standard",
 ) -> list[dict[str, Any]]:
     import cv2
     import numpy as np
@@ -30,6 +31,12 @@ def generate_matched_controls(
 
     shuffled = _block_shuffle(image, block_size=32)
     records.append(_write_control(experiment_dir, controls_dir, "block_shuffle", shuffled, capture, frame))
+
+    if level == "strict":
+        noise = np.random.default_rng(20260710).normal(loc=np.mean(image), scale=np.std(image), size=image.shape)
+        records.append(_write_control(experiment_dir, controls_dir, "noise_matched", noise.clip(0, 255).astype("uint8"), capture, frame))
+        inverted = cv2.bitwise_not(image)
+        records.append(_write_control(experiment_dir, controls_dir, "intensity_inverted", inverted, capture, frame))
 
     return records
 
