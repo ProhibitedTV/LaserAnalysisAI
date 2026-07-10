@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Python test suite
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile
+        run: python -m compileall laserlab tests
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Fixture smoke
+        shell: pwsh
+        run: |
+          python -m laserlab.cli init --source sample_media\commons-young-double-slit.ogv --kind video --label laser --experiment experiments\ci-smoke --all-frames --max-frames 2
+          python -m laserlab.cli init --source sample_media\commons-double-slit-experiment.webm --kind video --label control --experiment experiments\ci-smoke --all-frames --max-frames 2
+          python -m laserlab.cli run --experiment experiments\ci-smoke --profile wide --blind-seed 12345
+          python -m laserlab.cli report --experiment experiments\ci-smoke --format both
+
+      - name: Upload smoke report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-report-${{ matrix.python-version }}
+          path: experiments/ci-smoke/runs/**/report.html
+          if-no-files-found: ignore
