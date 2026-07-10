@@ -9,6 +9,21 @@ from typing import Any
 
 from .artifacts import ensure_dir, sha256_file, write_json
 
+
+REQUIRED_FIXTURE_FIELDS = {
+    "id",
+    "title",
+    "kind",
+    "label",
+    "license",
+    "attribution",
+    "source_page",
+    "phenomena",
+    "expected_behavior",
+    "limitations",
+    "redistributable",
+}
+
 FIXTURE_CATALOG: list[dict[str, Any]] = [
     {
         "id": "commons-double-slit-experiment",
@@ -22,6 +37,9 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
         "license": "CC BY-SA 4.0",
         "attribution": "G. Mikaberidze",
         "notes": "Small simulation useful for detector sanity checks, not physical laser footage.",
+        "phenomena": ["interference", "simulation"],
+        "expected_behavior": "Stable fringe-like spatial frequencies; no readable text is expected.",
+        "limitations": "Rendered simulation rather than camera footage; use only as a structured control.",
         "redistributable": True,
     },
     {
@@ -36,6 +54,9 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
         "license": "CC BY-SA 3.0 or GFDL",
         "attribution": "Cookatoo.ergo.ZooM",
         "notes": "Educational double-slit video clip; useful as a small redistributable optical fixture.",
+        "phenomena": ["diffraction", "interference"],
+        "expected_behavior": "FFT and fringe metrics should respond more strongly than OCR metrics.",
+        "limitations": "Educational compressed video with unknown camera and processing history.",
         "redistributable": True,
     },
     {
@@ -50,6 +71,9 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
         "license": "CC BY-SA 4.0",
         "attribution": "BrendaEM",
         "notes": "Tomographic visualization from monochromatic laser light through two pinholes.",
+        "phenomena": ["interference", "diffraction", "visualization"],
+        "expected_behavior": "Repeatable spectral structure is expected; text recovery is not.",
+        "limitations": "Tomographic visualization, not a raw sensor recording of an experiment.",
         "redistributable": True,
     },
     {
@@ -64,6 +88,9 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
         "license": "CC BY-SA 4.0",
         "attribution": "Jack Kingsley-Smith",
         "notes": "Rendered optical beam fixture; useful for false-positive checks against structured non-text fields.",
+        "phenomena": ["structured_beam", "diffraction", "rendered_control"],
+        "expected_behavior": "Ring and texture metrics may respond while OCR should remain null.",
+        "limitations": "Rendered beam field; not physical footage and not a matched camera control.",
         "redistributable": True,
     },
     {
@@ -77,6 +104,9 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
         "license": "Classroom-use page; redistribution not confirmed",
         "attribution": "R. S. Aspden, M. J. Padgett, G. C. Spalding",
         "notes": "Scientifically strongest candidate footage. Keep external/manual until redistribution terms are confirmed.",
+        "phenomena": ["single_photon", "interference", "diffraction"],
+        "expected_behavior": "Accumulating interference structure should emerge over time.",
+        "limitations": "External manual source; redistribution and automated download are not permitted by LaserLab.",
         "redistributable": False,
     },
 ]
@@ -88,11 +118,60 @@ def list_fixtures(include_restricted: bool = False) -> list[dict[str, Any]]:
     return [item for item in FIXTURE_CATALOG if item["redistributable"]]
 
 
+def get_fixture(fixture_id: str) -> dict[str, Any]:
+    for item in FIXTURE_CATALOG:
+        if item["id"] == fixture_id:
+            return item.copy()
+    raise KeyError(f"Unknown fixture: {fixture_id}")
+
+
+def fixture_metadata(fixture_id: str) -> dict[str, Any]:
+    item = get_fixture(fixture_id)
+    return {
+        "fixture_id": item["id"],
+        "fixture_title": item["title"],
+        "source_page": item["source_page"],
+        "license": item["license"],
+        "attribution": item["attribution"],
+        "phenomena": item["phenomena"],
+        "expected_behavior": item["expected_behavior"],
+        "limitations": item["limitations"],
+        "redistributable": item["redistributable"],
+    }
+
+
+def validate_fixture_catalog(media_dir: Path | None = None, require_bundled_files: bool = False) -> list[str]:
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    media_dir = Path(media_dir) if media_dir is not None else None
+    for item in FIXTURE_CATALOG:
+        fixture_id = str(item.get("id") or "<missing-id>")
+        missing = sorted(field for field in REQUIRED_FIXTURE_FIELDS if item.get(field) in (None, "", []))
+        if missing:
+            errors.append(f"{fixture_id}: missing {', '.join(missing)}")
+        if fixture_id in seen_ids:
+            errors.append(f"{fixture_id}: duplicate fixture id")
+        seen_ids.add(fixture_id)
+        if item.get("redistributable") and not item.get("filename"):
+            errors.append(f"{fixture_id}: redistributable fixture has no filename")
+        if require_bundled_files and item.get("redistributable"):
+            if media_dir is None or not (media_dir / str(item.get("filename"))).is_file():
+                errors.append(f"{fixture_id}: bundled media file is missing")
+    return errors
+
+
+def require_valid_fixture_catalog(media_dir: Path | None = None, require_bundled_files: bool = False) -> None:
+    errors = validate_fixture_catalog(media_dir, require_bundled_files=require_bundled_files)
+    if errors:
+        raise ValueError("Invalid fixture catalog:\n- " + "\n- ".join(errors))
+
+
 def fetch_fixtures(
     output_dir: Path,
     fixture_ids: list[str] | None = None,
     include_restricted: bool = False,
 ) -> list[dict[str, Any]]:
+    require_valid_fixture_catalog()
     ensure_dir(output_dir)
     selected = list_fixtures(include_restricted=include_restricted)
     if fixture_ids:

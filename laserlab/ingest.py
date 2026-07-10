@@ -25,6 +25,7 @@ def init_experiment(
     experiment_dir: Path,
     frame_interval: int = 5,
     max_frames: int | None = None,
+    capture_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if kind not in {"video", "image-set"}:
         raise ValueError("kind must be 'video' or 'image-set'")
@@ -72,6 +73,7 @@ def init_experiment(
         "label": label,
         "sha256": source_hash,
         "created_at": utc_now_iso(),
+        "metadata": dict(capture_metadata or {}),
     }
     capture_record = {
         "capture_id": capture_id,
@@ -80,6 +82,7 @@ def init_experiment(
         "label": label,
         "frames": frame_records,
         "created_at": utc_now_iso(),
+        "metadata": dict(capture_metadata or {}),
     }
 
     manifest["sources"].append(source_record)

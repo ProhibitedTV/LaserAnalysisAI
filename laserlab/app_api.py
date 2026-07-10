@@ -31,6 +31,7 @@ def add_capture(
     all_frames: bool = False,
     frame_interval: int = 5,
     max_frames: int | None = None,
+    capture_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Ingest a video or image set into an experiment."""
     return init_experiment(
@@ -40,6 +41,7 @@ def add_capture(
         experiment_dir=Path(experiment_dir),
         frame_interval=1 if all_frames else frame_interval,
         max_frames=max_frames,
+        capture_metadata=capture_metadata,
     )
 
 

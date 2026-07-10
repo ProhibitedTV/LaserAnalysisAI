@@ -38,13 +38,20 @@ class HashingTests(unittest.TestCase):
         self.assertEqual(sha256_json(left), sha256_json(right))
 
     def test_fixture_catalog_separates_redistributable_sources(self) -> None:
-        from laserlab.fixtures import list_fixtures
+        from laserlab.fixtures import list_fixtures, validate_fixture_catalog
 
         redistributable = list_fixtures()
         full_catalog = list_fixtures(include_restricted=True)
         self.assertGreaterEqual(len(redistributable), 3)
         self.assertGreater(len(full_catalog), len(redistributable))
         self.assertTrue(all(item["redistributable"] for item in redistributable))
+        media_dir = Path(__file__).resolve().parents[1] / "sample_media"
+        self.assertEqual(validate_fixture_catalog(media_dir, require_bundled_files=True), [])
+        manifest = json.loads((media_dir / "fixture_manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            {item["id"] for item in manifest["fixtures"]},
+            {item["id"] for item in redistributable},
+        )
 
 
 class ProtocolPresetTests(unittest.TestCase):
@@ -78,6 +85,9 @@ class LaserLabPipelineTests(unittest.TestCase):
             create_synthetic_speckle,
         )
 
+        golden = json.loads(
+            (Path(__file__).parent / "golden" / "scientific_summary.json").read_text(encoding="utf-8")
+        )["scientific_metrics"]
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             grating = cv2.imread(str(create_synthetic_grating(root / "grating.png")), cv2.IMREAD_COLOR)
@@ -93,13 +103,15 @@ class LaserLabPipelineTests(unittest.TestCase):
                 cv2.imread(str(shifted), cv2.IMREAD_COLOR),
             )
 
-        self.assertGreater(fft["peak_prominence"], 8.0)
+        self.assertGreater(fft["peak_prominence"], golden["fft_peak_prominence_min"])
         self.assertGreater(fft["ring_energy_ratio"], 0.0)
-        self.assertGreater(speckle_metrics["spatial_contrast_mean"], 0.3)
+        self.assertGreater(speckle_metrics["spatial_contrast_mean"], golden["speckle_contrast_min"])
+        self.assertLess(speckle_metrics["spatial_contrast_mean"], golden["speckle_contrast_max"])
         self.assertIn("entropy", texture)
-        self.assertAlmostEqual(registration["shift_x"], 7.0, delta=0.5)
-        self.assertAlmostEqual(registration["shift_y"], 4.0, delta=0.5)
-        self.assertGreater(registration["response"], 0.5)
+        tolerance = golden["phase_shift_tolerance_px"]
+        self.assertAlmostEqual(registration["shift_x"], 7.0, delta=tolerance)
+        self.assertAlmostEqual(registration["shift_y"], 4.0, delta=tolerance)
+        self.assertGreater(registration["response"], golden["phase_registration_response_min"])
         self.assertEqual(benjamini_hochberg_q_values([0.01, 0.04, 0.03]), [0.03, 0.04, 0.04])
 
     def test_image_set_ingest_run_and_report(self) -> None:
@@ -173,6 +185,29 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertIn("available", result)
             self.assertIn("text", result)
 
+    def test_matched_null_fixture_cannot_promote_above_control(self) -> None:
+        from laserlab.ingest import init_experiment
+        from laserlab.pipeline import run_experiment
+        from laserlab.synthetic import create_synthetic_negative
+
+        golden = json.loads(
+            (Path(__file__).parent / "golden" / "scientific_summary.json").read_text(encoding="utf-8")
+        )["null_run"]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            laser = root / "laser"
+            control = root / "control"
+            experiment = root / "experiment"
+            create_synthetic_negative(laser / "null.png")
+            create_synthetic_negative(control / "null.png")
+            init_experiment(laser, "image-set", "laser", experiment, max_frames=1)
+            init_experiment(control, "image-set", "control", experiment, max_frames=1)
+            run = run_experiment(experiment, profile_name="baseline", blind_seed=314)
+
+        ladder = run["aggregate_statistics"]["evidence_ladder"]
+        self.assertIn(ladder, golden["allowed_evidence_levels"])
+        self.assertNotIn(ladder, golden["forbidden_evidence_levels"])
+
     def test_wide_profile_has_parameter_sweep_variants(self) -> None:
         from laserlab.manifest import WIDE_PROFILE
         from laserlab.preprocessing import apply_profile_variants
@@ -204,13 +239,29 @@ class LaserLabPipelineTests(unittest.TestCase):
 
             manifest = app_api.create_experiment(experiment)
             self.assertIn("experiment_id", manifest)
-            app_api.add_capture(experiment, laser, "image-set", "laser", max_frames=1)
+            app_api.add_capture(
+                experiment,
+                laser,
+                "image-set",
+                "laser",
+                max_frames=1,
+                capture_metadata={
+                    "fixture_id": "synthetic-test-positive",
+                    "fixture_title": "Synthetic test positive",
+                    "limitations": "Unit-test fixture only",
+                },
+            )
             app_api.add_capture(experiment, control, "image-set", "control", max_frames=1)
             run = app_api.run_analysis(experiment, profile="baseline", blind_seed=99)
             report = app_api.load_latest_report(experiment)
 
             self.assertEqual(report["run_id"], run["run_id"])
             self.assertIn("local_paths", report)
+            self.assertEqual(report["source_provenance"][0]["fixture_id"], "synthetic-test-positive")
+            self.assertIn(
+                "Unit-test fixture only",
+                Path(report["local_paths"]["report_html"]).read_text(encoding="utf-8"),
+            )
 
             manifest = app_api.update_analysis_plan(
                 experiment,
