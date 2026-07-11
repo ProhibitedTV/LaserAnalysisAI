@@ -9,7 +9,7 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.4 Dashboard
+## LaserLab v0.5 Dashboard
 
 Native release bundles contain:
 
@@ -20,9 +20,9 @@ Native release bundles contain:
 
 The desktop workflow is deliberately narrow:
 
-- `Setup`: open an experiment, ingest captures, choose a protocol, ROI, and bundled fixtures.
+- `Setup`: open an experiment, ingest captures with deterministic sampling and provenance checks, choose a protocol, ROI, and bundled fixtures.
 - `Run`: check protocol quality, estimate work, set the blind seed, and score sealed samples.
-- `Review`: inspect blind IDs, images, crops, OCR output, and detector scores without attribution.
+- `Review`: filter blind IDs, inspect images/crops/OCR/metrics, and save source-safe notes and flags without attribution.
 - `Compare`: unlock matched-control and detector-family statistics only after explicit unblind.
 - `Export`: create attribution-safe blinded bundles or complete unblinded research bundles.
 
@@ -66,7 +66,7 @@ Run the bundled demo through the same API layer used by the dashboard:
 - `OCR / symbol recovery`: OCR plus connected components and synthetic known-text calibration.
 - `General anomaly scan`: broad texture, edge, OCR, and persistence sweep with strict false-positive language.
 
-Each preset writes a sealed review first. The manifest, report, results, CSV, HTML, and review bundle omit labels, source paths, provenance, and raw media. Setup and Run remain locked until the reviewer explicitly chooses **Unblind and compare**.
+Each preset writes a sealed review first. The manifest, report, results, CSV, HTML, and review bundle omit labels, source paths, provenance, and raw media. Setup and Run remain locked until the reviewer marks inspection complete and explicitly chooses **Unblind and compare**.
 
 ## CLI Workflow
 
@@ -74,14 +74,16 @@ Create or append captures to an experiment:
 
 ```powershell
 & $PY -m laserlab.cli init --source C:\captures\laser --kind image-set --label laser --experiment experiments\trial-001
-& $PY -m laserlab.cli init --source C:\captures\control --kind image-set --label control --experiment experiments\trial-001
+& $PY -m laserlab.cli init --source C:\captures\control --kind image-set --label matched_control --experiment experiments\trial-001
 ```
 
 For video sources, use `--all-frames` to turn the frame dial fully open:
 
 ```powershell
-& $PY -m laserlab.cli init --source C:\captures\laser.mp4 --kind video --label laser --experiment experiments\trial-001 --all-frames
+& $PY -m laserlab.cli init --source C:\captures\laser.mp4 --kind video --label laser --experiment experiments\trial-001 --sampling-profile wide --all-frames --max-frames 500
 ```
+
+Sampling profiles are `quick`, `baseline`, `wide`, and `exhaustive`. Near-duplicate frames are suppressed by default using perceptual similarity plus brightness tolerance; use `--keep-duplicates` only when repeated identical frames are part of the planned analysis. `--sampling-mode scene_change` is available for long recordings with sparse transitions.
 
 Run blinded analysis:
 
@@ -129,12 +131,9 @@ List or fetch fixture media:
 
 ## Outputs
 
-- `manifest.json`: stable experiment record with sources, captures, frame
-  sampling, preprocessing profiles, detector settings, protocol plan, ROI,
-  blinding seed, and output paths.
+- `manifest.json`: stable experiment record with sources, captures, raw/frame hashes, media metadata, provenance warnings, deterministic sampling settings, preprocessing profiles, detector settings, protocol plan, ROI, blinding seed, and output paths.
 - `runs/<run-id>/results.json`: sealed detector records before unblind; after explicit unblind it gains source roles, attribution, q-values, and aggregate comparison statistics.
-- `runs/<run-id>/report.html`: human-readable evidence summary with top
-  candidates and null-result language.
+- `runs/<run-id>/report.html`: human-readable evidence summary with top candidates, blinded reviewer annotations, provenance after unblind, and null-result language.
 - `*.zip` review bundle: blinded bundles exclude source attribution and media; unblinded bundles can include provenance and optional raw media.
 
 ## Evidence Ladder

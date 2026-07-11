@@ -14,6 +14,7 @@ from .protocols import describe_protocol, list_protocol_presets
 from .report import build_report, write_report_json
 from .artifacts import load_json
 from .fixtures import fetch_fixtures, list_fixtures
+from .ingest import CAPTURE_ROLES
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,9 +29,17 @@ def main(argv: list[str] | None = None) -> int:
                 experiment_dir=Path(args.experiment),
                 frame_interval=1 if args.all_frames else args.frame_interval,
                 max_frames=args.max_frames,
+                sampling_profile=args.sampling_profile,
+                sampling_mode="all_frames" if args.all_frames and args.max_frames is None else "capped_all_frames" if args.all_frames else args.sampling_mode,
+                deduplicate=not args.keep_duplicates,
+                scene_change_threshold=args.scene_change_threshold,
             )
             print(f"Experiment ready: {Path(args.experiment) / 'manifest.json'}")
             print(f"Captures: {len(manifest['captures'])}")
+            warnings = manifest["captures"][-1].get("provenance_warnings", [])
+            print(f"Provenance warnings: {len(warnings)}")
+            for warning in warnings:
+                print(f"  {warning.get('code')}: {warning.get('message')}")
             return 0
         if args.command == "run":
             run_record = run_experiment(
@@ -112,11 +121,15 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser = subparsers.add_parser("init", help="Create or append to an experiment manifest.")
     init_parser.add_argument("--source", required=True, help="Video file or directory/file of images.")
     init_parser.add_argument("--kind", required=True, choices=["video", "image-set"])
-    init_parser.add_argument("--label", required=True, choices=["laser", "control"])
+    init_parser.add_argument("--label", required=True, choices=sorted(CAPTURE_ROLES))
     init_parser.add_argument("--experiment", required=True, help="Experiment output directory.")
-    init_parser.add_argument("--frame-interval", type=int, default=5, help="Video frame interval. Default: 5.")
+    init_parser.add_argument("--sampling-profile", choices=["quick", "baseline", "wide", "exhaustive"], default="baseline")
+    init_parser.add_argument("--sampling-mode", choices=["interval", "scene_change"], default=None)
+    init_parser.add_argument("--frame-interval", type=int, default=None, help="Override the sampling profile frame interval.")
     init_parser.add_argument("--all-frames", action="store_true", help="Extract every frame from video sources.")
     init_parser.add_argument("--max-frames", type=int, default=None, help="Optional maximum frames to ingest.")
+    init_parser.add_argument("--scene-change-threshold", type=float, default=None, help="Normalized scene-change threshold from 0 to 1.")
+    init_parser.add_argument("--keep-duplicates", action="store_true", help="Keep near-duplicate frames instead of suppressing them.")
 
     run_parser = subparsers.add_parser("run", help="Score a sealed blinded review without source attribution.")
     run_parser.add_argument("--experiment", required=True, help="Experiment directory containing manifest.json.")

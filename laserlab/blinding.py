@@ -153,7 +153,11 @@ def _restore_result(result: dict[str, Any], sample: dict[str, Any]) -> dict[str,
             "timestamp_ms": sample.get("timestamp_ms"),
             "source_path": sample.get("path", ""),
             "source_sha256": sample.get("source_sha256", ""),
+            "input_source_sha256": sample.get("input_source_sha256", ""),
             "capture_metadata": sample.get("capture_metadata", {}),
+            "media_metadata": sample.get("media_metadata", {}),
+            "provenance_warnings": sample.get("provenance_warnings", []),
+            "extraction_settings": sample.get("extraction_settings", {}),
         }
     )
     return restored

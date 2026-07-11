@@ -128,6 +128,7 @@ def run_experiment(
                 "timestamp_ms": sample.get("timestamp_ms"),
                 "source_path": sample["path"],
                 "source_sha256": sample["source_sha256"],
+                "input_source_sha256": sample.get("input_source_sha256", ""),
                 "processed_path": relative_to(processed_path, experiment_dir),
                 "review_image_path": relative_to(review_image_path, experiment_dir),
                 "processed_sha256": sha256_file(processed_path),
@@ -151,6 +152,9 @@ def run_experiment(
                 "q_value": None,
                 "persistence_score": 0.0,
                 "capture_metadata": sample.get("capture_metadata", {}),
+                "media_metadata": sample.get("media_metadata", {}),
+                "provenance_warnings": sample.get("provenance_warnings", []),
+                "extraction_settings": sample.get("extraction_settings", {}),
             }
             result_record["primary_metric_score"] = round(float(metric_score(result_record, primary_metric)), 6)
             results.append(result_record)
@@ -173,6 +177,14 @@ def run_experiment(
         "samples": seal_samples(blinded_samples),
         "results": seal_results(results, blinded_samples),
         "aggregate_statistics": aggregate,
+        "provenance_summary": {
+            "capture_count": len(manifest.get("captures", [])),
+            "warning_count": sum(
+                len(record.get("warnings", [])) for record in manifest.get("validation_warnings", [])
+            ),
+        },
+        "review_annotations": {},
+        "review_session": {"complete": False, "completed_at": None},
         "review_state": {
             "unblinded": False,
             "unblinded_at": None,
@@ -274,11 +286,15 @@ def _build_samples(
                     "frame_id": frame["frame_id"],
                     "path": frame["path"],
                     "source_sha256": frame["source_sha256"],
+                    "input_source_sha256": frame.get("input_source_sha256", ""),
                     "frame_index": frame.get("frame_index"),
                     "timestamp_ms": frame.get("timestamp_ms"),
                     "unblinded_label": capture["label"],
                     "synthetic": False,
                     "capture_metadata": capture.get("metadata", {}),
+                    "media_metadata": capture.get("media_metadata", {}),
+                    "provenance_warnings": capture.get("provenance_warnings", []),
+                    "extraction_settings": frame.get("extraction_settings", {}),
                 }
             )
 
