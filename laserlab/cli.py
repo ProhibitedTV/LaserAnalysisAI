@@ -9,7 +9,7 @@ from pathlib import Path
 from .bundle import export_review_bundle
 from .ingest import init_experiment
 from .manifest import latest_run_dir, load_manifest
-from .pipeline import run_experiment
+from .pipeline import run_experiment, unblind_latest_run
 from .protocols import describe_protocol, list_protocol_presets
 from .report import build_report, write_report_json
 from .artifacts import load_json
@@ -45,8 +45,14 @@ def main(argv: list[str] | None = None) -> int:
             )
             latest = Path(args.experiment) / "runs" / run_record["run_id"]
             print(f"Run complete: {latest}")
-            print(f"Evidence ladder: {run_record['aggregate_statistics']['evidence_ladder']}")
+            print("Review state: blinded; labels and control statistics are sealed")
             print(f"Report: {latest / 'report.html'}")
+            return 0
+        if args.command == "unblind":
+            run_record = unblind_latest_run(Path(args.experiment))
+            unblinded_at = run_record.get("review_state", {}).get("unblinded_at") or "legacy run"
+            print(f"Review state: unblinded at {unblinded_at}")
+            print(f"Evidence ladder: {run_record['aggregate_statistics']['evidence_ladder']}")
             return 0
         if args.command == "report":
             manifest = load_manifest(Path(args.experiment))
@@ -112,7 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--all-frames", action="store_true", help="Extract every frame from video sources.")
     init_parser.add_argument("--max-frames", type=int, default=None, help="Optional maximum frames to ingest.")
 
-    run_parser = subparsers.add_parser("run", help="Run blinded detectors and statistical comparison.")
+    run_parser = subparsers.add_parser("run", help="Score a sealed blinded review without source attribution.")
     run_parser.add_argument("--experiment", required=True, help="Experiment directory containing manifest.json.")
     run_parser.add_argument("--profile", default="baseline", help="Preprocessing profile name. Default: baseline.")
     run_parser.add_argument("--blind-seed", type=int, default=1, help="Seed for deterministic blinding.")
@@ -121,6 +127,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--preprocessing-intensity", choices=["standard", "wide"], default=None)
     run_parser.add_argument("--control-generation", choices=["none", "standard", "strict"], default=None)
     run_parser.add_argument("--roi", default=None, help="Optional ROI as x,y,width,height.")
+
+    unblind_parser = subparsers.add_parser("unblind", help="Explicitly reveal the latest run and compute control statistics.")
+    unblind_parser.add_argument("--experiment", required=True, help="Experiment directory containing a sealed run.")
 
     report_parser = subparsers.add_parser("report", help="Regenerate report artifacts for the latest run.")
     report_parser.add_argument("--experiment", required=True, help="Experiment directory containing manifest.json.")

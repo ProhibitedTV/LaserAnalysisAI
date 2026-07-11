@@ -147,31 +147,55 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertGreater(len(run["results"]), 0)
             self.assertIn("permutation_p_value", run["aggregate_statistics"])
             self.assertIn("evidence_ladder", run["aggregate_statistics"])
+            self.assertEqual(run["aggregate_statistics"]["evidence_ladder"], "blinded review")
+            self.assertFalse(run["review_state"]["unblinded"])
 
             report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["run_id"], run["run_id"])
             self.assertIn("top_candidates", report)
-            self.assertIn("source_path", report["top_candidates"][0])
+            self.assertNotIn("source_path", report["top_candidates"][0])
+            self.assertNotIn("unblinded_label", report["top_candidates"][0])
             self.assertIn("primary_metric_score", report["top_candidates"][0])
-            self.assertIn("multiple comparisons corrected", report["badges"])
+            self.assertIn("review blinded", report["badges"])
+            sealed_manifest = load_manifest(experiment)
+            self.assertTrue(all(source.get("sealed") for source in sealed_manifest["sources"]))
+            self.assertTrue(all("path" not in source and "label" not in source for source in sealed_manifest["sources"]))
 
             latest = app_api.load_latest_report(experiment)
             self.assertEqual(latest["run_id"], run["run_id"])
             csv_path = app_api.export_candidates_csv(experiment, root / "candidates.csv")
             self.assertTrue(csv_path.exists())
             header = csv_path.read_text(encoding="utf-8").splitlines()[0]
-            self.assertIn("source_path", header)
+            self.assertNotIn("source_path", header)
+            self.assertNotIn("unblinded_label", header)
             self.assertIn("primary_metric_score", header)
 
             bundle_path = app_api.export_review_bundle(experiment, root / "review_bundle.zip")
             self.assertTrue(bundle_path.exists())
             with zipfile.ZipFile(bundle_path) as bundle:
                 names = set(bundle.namelist())
+                bundled_manifest = json.loads(bundle.read("manifest.json"))
+                bundled_results = bundle.read("results.json").decode("utf-8")
             self.assertIn("manifest.json", names)
             self.assertIn("report.json", names)
             self.assertIn("results.json", names)
             self.assertIn("environment.json", names)
             self.assertIn("README.txt", names)
+            self.assertTrue(any(name.startswith("top_originals/") for name in names))
+            self.assertEqual(bundled_manifest["sources"], [])
+            self.assertNotIn("unblinded_label", bundled_results)
+            self.assertNotIn(str(source_laser), bundled_results)
+            with self.assertRaises(ValueError):
+                app_api.export_review_bundle(experiment, root / "forbidden.zip", include_media=True)
+
+            revealed = app_api.unblind_latest_run(experiment)
+            self.assertTrue(revealed["review_state"]["unblinded"])
+            self.assertIn("source_path", revealed["top_candidates"][0])
+            self.assertIn("unblinded_label", revealed["top_candidates"][0])
+            self.assertIn("multiple comparisons corrected", revealed["badges"])
+            self.assertFalse((run_dir / ".laserlab_unblind.json").exists())
+            restored_manifest = load_manifest(experiment)
+            self.assertTrue(all("path" in source and "label" in source for source in restored_manifest["sources"]))
 
     def test_tesseract_is_optional(self) -> None:
         from laserlab.detectors import run_ocr
@@ -187,7 +211,7 @@ class LaserLabPipelineTests(unittest.TestCase):
 
     def test_matched_null_fixture_cannot_promote_above_control(self) -> None:
         from laserlab.ingest import init_experiment
-        from laserlab.pipeline import run_experiment
+        from laserlab.pipeline import run_experiment, unblind_latest_run
         from laserlab.synthetic import create_synthetic_negative
 
         golden = json.loads(
@@ -203,6 +227,7 @@ class LaserLabPipelineTests(unittest.TestCase):
             init_experiment(laser, "image-set", "laser", experiment, max_frames=1)
             init_experiment(control, "image-set", "control", experiment, max_frames=1)
             run = run_experiment(experiment, profile_name="baseline", blind_seed=314)
+            run = unblind_latest_run(experiment)
 
         ladder = run["aggregate_statistics"]["evidence_ladder"]
         self.assertIn(ladder, golden["allowed_evidence_levels"])
@@ -257,6 +282,15 @@ class LaserLabPipelineTests(unittest.TestCase):
 
             self.assertEqual(report["run_id"], run["run_id"])
             self.assertIn("local_paths", report)
+            self.assertFalse(report["review_state"]["unblinded"])
+            self.assertEqual(report["source_provenance"], [])
+            seal_path = Path(report["local_paths"]["run_dir"]) / ".laserlab_unblind.json"
+            sealed_payload = seal_path.read_bytes()
+            seal_path.write_bytes(sealed_payload + b" ")
+            with self.assertRaises(ValueError):
+                app_api.unblind_latest_run(experiment)
+            seal_path.write_bytes(sealed_payload)
+            report = app_api.unblind_latest_run(experiment)
             self.assertEqual(report["source_provenance"][0]["fixture_id"], "synthetic-test-positive")
             self.assertIn(
                 "Unit-test fixture only",
@@ -290,13 +324,13 @@ class LaserLabGuiTests(unittest.TestCase):
         app = QApplication.instance() or QApplication([])
         window = LabDashboardWindow()
         try:
-            self.assertEqual(window.tabs.count(), 9)
-            self.assertEqual(window.tabs.tabText(0), "Home")
-            self.assertEqual(window.tabs.tabText(1), "Experiment Setup")
-            self.assertEqual(window.tabs.tabText(4), "Review")
+            self.assertEqual(window.tabs.count(), 5)
+            self.assertEqual([window.tabs.tabText(index) for index in range(5)], ["Setup", "Run", "Review", "Compare", "Export"])
             self.assertGreaterEqual(window.fixture_table.rowCount(), 4)
             self.assertEqual(window.home_demo_button.text(), "Run bundled demo")
             self.assertGreater(window.protocol_combo.count(), 3)
+            self.assertEqual(window.candidate_table.columnCount(), 6)
+            self.assertEqual(window.unblind_button.text(), "Unblind and compare")
         finally:
             window.close()
 

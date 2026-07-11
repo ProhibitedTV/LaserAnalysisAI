@@ -37,7 +37,7 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import app_api
-from laserlab.fixtures import list_fixtures
+from laserlab.fixtures import fixture_metadata, list_fixtures
 
 
 class ApiWorker(QThread):
@@ -86,20 +86,53 @@ class LabDashboardWindow(QMainWindow):
         file_menu.addAction(exit_action)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._home_tab(), "Home")
-        self.tabs.addTab(self._experiment_tab(), "Experiment Setup")
-        self.tabs.addTab(self._protocol_tab(), "Protocol")
+        self.tabs.addTab(self._setup_tab(), "Setup")
         self.tabs.addTab(self._run_tab(), "Run")
         self.tabs.addTab(self._review_tab(), "Review")
         self.tabs.addTab(self._compare_tab(), "Compare")
-        self.tabs.addTab(self._fixtures_tab(), "Fixtures")
         self.tabs.addTab(self._export_tab(), "Export")
-        self.tabs.addTab(self._settings_tab(), "Settings")
         self.setCentralWidget(self.tabs)
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self.status.showMessage("Ready")
+
+    def _setup_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        title = QLabel("LaserLab / blinded signal review")
+        title.setObjectName("title")
+        subtitle = QLabel("Observed patterns deserve careful testing. Source roles stay sealed until you explicitly unblind.")
+        subtitle.setObjectName("subtitle")
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+
+        actions = QGroupBox("Start")
+        action_layout = QHBoxLayout(actions)
+        self.home_demo_button = QPushButton("Run bundled demo")
+        self.home_demo_button.clicked.connect(self.run_fixture_demo)
+        self.home_analyze_button = QPushButton("Analyze footage")
+        self.home_analyze_button.clicked.connect(self.analyze_my_footage)
+        self.home_open_button = QPushButton("Open experiment")
+        self.home_open_button.clicked.connect(self.open_existing_experiment)
+        action_layout.addWidget(self.home_demo_button)
+        action_layout.addWidget(self.home_analyze_button)
+        action_layout.addWidget(self.home_open_button)
+        action_layout.addStretch(1)
+        layout.addWidget(actions)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self._experiment_tab())
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(self._protocol_tab(), 2)
+        right_layout.addWidget(self._fixtures_tab(), 1)
+        splitter.addWidget(right)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        layout.addWidget(splitter, 1)
+        return page
 
     def _home_tab(self) -> QWidget:
         page = QWidget()
@@ -188,6 +221,7 @@ class LabDashboardWindow(QMainWindow):
         self.capture_table = QTableWidget(0, 5)
         self.capture_table.setHorizontalHeaderLabels(["Capture ID", "Label", "Kind", "Frames", "Source"])
         self.capture_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.capture_table.verticalHeader().setVisible(False)
         layout.addWidget(self.capture_table, 1)
         return page
 
@@ -203,6 +237,7 @@ class LabDashboardWindow(QMainWindow):
         self.protocol_combo.currentIndexChanged.connect(self._protocol_changed)
         self.protocol_description = QTextEdit()
         self.protocol_description.setReadOnly(True)
+        self.protocol_description.setMaximumHeight(86)
         self.primary_metric_combo = QComboBox()
         self.primary_metric_combo.addItems(["structure_score", "fft_peak_prominence", "speckle_contrast", "ocr_symbol_score"])
         self.preprocessing_intensity = QComboBox()
@@ -243,7 +278,6 @@ class LabDashboardWindow(QMainWindow):
         grid.addWidget(self.roi_h, 2, 3)
         grid.addWidget(self.apply_protocol_button, 3, 0, 1, 4)
         layout.addWidget(advanced)
-        layout.addStretch(1)
         return page
 
     def _run_tab(self) -> QWidget:
@@ -284,6 +318,16 @@ class LabDashboardWindow(QMainWindow):
     def _review_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        state_row = QHBoxLayout()
+        self.review_state_label = QLabel("BLINDED / source roles sealed")
+        self.review_state_label.setObjectName("reviewState")
+        self.unblind_button = QPushButton("Unblind and compare")
+        self.unblind_button.setObjectName("dangerButton")
+        self.unblind_button.clicked.connect(self.unblind_review)
+        state_row.addWidget(self.review_state_label)
+        state_row.addStretch(1)
+        state_row.addWidget(self.unblind_button)
+        layout.addLayout(state_row)
         metrics = QGroupBox("Evidence")
         grid = QGridLayout(metrics)
         self.metric_labels: dict[str, QLabel] = {}
@@ -313,11 +357,10 @@ class LabDashboardWindow(QMainWindow):
         layout.addWidget(self.interpretation_text)
 
         splitter = QSplitter(Qt.Horizontal)
-        self.candidate_table = QTableWidget(0, 9)
-        self.candidate_table.setHorizontalHeaderLabels(
-            ["Blind ID", "Label", "Score", "Persist", "q", "Variant", "Source", "OCR", "Processed"]
-        )
+        self.candidate_table = QTableWidget(0, 6)
+        self.candidate_table.setHorizontalHeaderLabels(["Blind ID", "Score", "Persist", "Variant", "OCR", "Processed"])
         self.candidate_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.candidate_table.verticalHeader().setVisible(False)
         self.candidate_table.setSortingEnabled(True)
         self.candidate_table.itemSelectionChanged.connect(self.show_selected_candidate)
         splitter.addWidget(self.candidate_table)
@@ -350,9 +393,10 @@ class LabDashboardWindow(QMainWindow):
         splitter.setStretchFactor(1, 2)
         layout.addWidget(splitter, 1)
 
-        self.filmstrip_table = QTableWidget(0, 4)
-        self.filmstrip_table.setHorizontalHeaderLabels(["Sample", "Frame", "Label", "Source"])
+        self.filmstrip_table = QTableWidget(0, 2)
+        self.filmstrip_table.setHorizontalHeaderLabels(["Blind ID", "Score"])
         self.filmstrip_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.filmstrip_table.verticalHeader().setVisible(False)
         self.filmstrip_table.setMaximumHeight(130)
         layout.addWidget(self.filmstrip_table)
         return page
@@ -363,6 +407,7 @@ class LabDashboardWindow(QMainWindow):
         self.family_table = QTableWidget(0, 4)
         self.family_table.setHorizontalHeaderLabels(["Detector family", "Mean", "Low", "High"])
         self.family_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.family_table.verticalHeader().setVisible(False)
         layout.addWidget(QLabel("Detector-family comparison across laser samples"))
         layout.addWidget(self.family_table, 1)
         self.compare_notes = QTextEdit()
@@ -378,6 +423,8 @@ class LabDashboardWindow(QMainWindow):
             ["ID", "Title", "Label", "Phenomena", "License", "Expected behavior", "Source"]
         )
         self.fixture_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.fixture_table.verticalHeader().setVisible(False)
+        self.fixture_table.setMaximumHeight(145)
         layout.addWidget(self.fixture_table, 1)
 
         demo = QGroupBox("Demo")
@@ -443,20 +490,32 @@ class LabDashboardWindow(QMainWindow):
     def _apply_style(self) -> None:
         self.setStyleSheet(
             """
-            QMainWindow, QWidget { background: #f7fafc; color: #17202a; font-size: 12px; }
-            QTabWidget::pane, QGroupBox, QTableWidget, QTextEdit, QLineEdit, QComboBox, QSpinBox {
-                border: 1px solid #cbd5e1;
+            QMainWindow, QWidget { background: #070b12; color: #d7e3ed; font-family: "Segoe UI"; font-size: 12px; }
+            QMenuBar, QMenu, QStatusBar { background: #090f18; color: #a9bac8; }
+            QTabWidget::pane { border: 1px solid #1f3344; top: -1px; }
+            QTabBar::tab { background: #0a111b; color: #7f9aaa; border: 1px solid #1f3344; padding: 9px 18px; }
+            QTabBar::tab:selected { color: #72f1b8; border-bottom: 2px solid #35d4d4; background: #0d1520; }
+            QTabBar::tab:disabled { color: #405462; background: #080d14; border-color: #172733; }
+            QGroupBox { border: 1px solid #1f3344; margin-top: 10px; padding: 9px; font-weight: 600; color: #9fb2c0; }
+            QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #35d4d4; }
+            QTableWidget, QTextEdit, QLineEdit, QComboBox, QSpinBox {
+                background: #0b121c; color: #d7e3ed; border: 1px solid #1f3344; selection-background-color: #173747;
             }
-            QGroupBox { margin-top: 10px; padding: 8px; font-weight: 600; }
-            QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }
-            QPushButton { padding: 7px 12px; border: 1px solid #9fb3c8; background: #ffffff; }
-            QPushButton:hover { background: #eef4f9; }
-            QHeaderView::section { background: #d9e2ec; padding: 5px; border: 0; }
-            QLabel#title { font-size: 32px; font-weight: 800; color: #102a43; }
-            QLabel#subtitle { font-size: 15px; color: #52616b; }
-            QLabel#metricValue { font-size: 19px; font-weight: 700; color: #102a43; }
-            QLabel#preview { background: #ffffff; border: 1px solid #cbd5e1; min-height: 220px; }
-            QTextEdit#checklist { background: #ffffff; }
+            QLineEdit, QComboBox, QSpinBox { min-height: 26px; padding: 2px 6px; }
+            QPushButton { padding: 7px 12px; border: 1px solid #2c5965; border-radius: 3px; background: #101c27; color: #d7e3ed; }
+            QPushButton:hover { border-color: #35d4d4; color: #72f1b8; background: #122631; }
+            QPushButton:disabled { color: #4b5f6d; border-color: #1a2934; background: #0a1118; }
+            QPushButton#dangerButton { border-color: #9f396f; color: #f5a6cf; }
+            QPushButton#dangerButton:hover { border-color: #ef4da8; background: #291324; }
+            QHeaderView::section { background: #111d29; color: #7f9aaa; padding: 6px; border: 0; border-right: 1px solid #1f3344; }
+            QProgressBar { border: 1px solid #1f3344; background: #0b121c; text-align: center; color: #d7e3ed; }
+            QProgressBar::chunk { background: #35d4d4; }
+            QLabel#title { font-size: 24px; font-weight: 700; color: #72f1b8; }
+            QLabel#subtitle { font-size: 14px; color: #7f9aaa; }
+            QLabel#metricValue { font-size: 18px; font-weight: 700; color: #35d4d4; }
+            QLabel#reviewState { color: #f5a6cf; font-weight: 700; padding: 6px 0; }
+            QLabel#preview { background: #05080d; border: 1px solid #1f5260; min-height: 220px; color: #607786; }
+            QTextEdit#checklist { background: #091019; color: #9fb2c0; }
             """
         )
 
@@ -468,7 +527,7 @@ class LabDashboardWindow(QMainWindow):
         return label
 
     def analyze_my_footage(self) -> None:
-        self.tabs.setCurrentIndex(1)
+        self.tabs.setCurrentIndex(0)
         self.browse_source()
 
     def open_existing_experiment(self) -> None:
@@ -606,6 +665,7 @@ class LabDashboardWindow(QMainWindow):
                     "laser",
                     all_frames=True,
                     max_frames=max_frames,
+                    capture_metadata=fixture_metadata("commons-young-double-slit"),
                 )
                 app_api.add_capture(
                     self.experiment_dir,
@@ -614,6 +674,7 @@ class LabDashboardWindow(QMainWindow):
                     "control",
                     all_frames=True,
                     max_frames=max_frames,
+                    capture_metadata=fixture_metadata("commons-double-slit-experiment"),
                 )
             preset = next((item for item in self.protocol_presets if item["id"] == protocol), self.protocol_presets[-1])
             run_record = app_api.run_analysis(
@@ -641,6 +702,21 @@ class LabDashboardWindow(QMainWindow):
         except Exception as exc:
             if not silent:
                 self._error(str(exc))
+
+    def unblind_review(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Unblind review",
+            "Reveal source roles and provenance, then compute matched-control statistics? This cannot be reversed for this run.",
+            QMessageBox.Yes | QMessageBox.Cancel,
+            QMessageBox.Cancel,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        self._run_worker("Unblinding review", lambda: app_api.unblind_latest_run(experiment), self._unblind_finished)
 
     def open_report_html(self) -> None:
         if not self.latest_report:
@@ -685,21 +761,36 @@ class LabDashboardWindow(QMainWindow):
             return
         selected = self.candidate_table.currentRow()
         candidates = self.latest_report.get("top_candidates", [])
-        if selected < 0 or selected >= len(candidates):
+        if selected < 0:
             return
-        candidate = candidates[selected]
+        blind_item = self.candidate_table.item(selected, 0)
+        if blind_item is None:
+            return
+        candidate = next(
+            (item for item in candidates if item.get("blind_id") == blind_item.text()),
+            None,
+        )
+        if candidate is None:
+            return
         details = [
-            f"Sample: {candidate.get('sample_id', '')}",
-            f"Source: {candidate.get('source_path', '')}",
-            f"Frame: {candidate.get('frame_index', 'n/a')}",
+            f"Blind ID: {candidate.get('blind_id', '')}",
             f"Primary metric: {candidate.get('primary_metric', 'structure_score')}",
             f"Primary score: {candidate.get('primary_metric_score', candidate.get('structure_score'))}",
-            f"Control: {candidate.get('control_type') or 'n/a'}",
-            f"q-value: {candidate.get('q_value')}",
             f"Families: {candidate.get('detector_family_scores', {})}",
-            "",
-            candidate.get("ocr_text", ""),
         ]
+        if self._review_is_unblinded():
+            details.extend(
+                [
+                    f"Role: {candidate.get('unblinded_label', '')}",
+                    f"Source: {candidate.get('source_path', '')}",
+                    f"Frame: {candidate.get('frame_index', 'n/a')}",
+                    f"Control: {candidate.get('control_type') or 'n/a'}",
+                    f"q-value: {candidate.get('q_value')}",
+                ]
+            )
+        else:
+            details.append("Source role, path, frame attribution, and q-value are sealed.")
+        details.extend(["", candidate.get("ocr_text", "")])
         self.candidate_details.setPlainText("\n".join(str(item) for item in details))
         self._load_candidate_images(candidate)
 
@@ -709,7 +800,7 @@ class LabDashboardWindow(QMainWindow):
             label.setText(text)
         if not self.experiment_dir:
             return
-        source = candidate.get("source_path")
+        source = candidate.get("review_image_path") or candidate.get("source_path")
         if source:
             self._set_pixmap(self.original_preview, self.experiment_dir / source)
         processed = candidate.get("processed_path")
@@ -759,10 +850,19 @@ class LabDashboardWindow(QMainWindow):
     def _analysis_finished(self, run_record: dict[str, Any]) -> None:
         stats = run_record.get("aggregate_statistics", {})
         self.run_log.append(f"Run complete: {run_record.get('run_id')}")
-        self.run_log.append(f"Evidence ladder: {stats.get('evidence_ladder', 'n/a')}")
+        self.run_log.append("Review sealed. Inspect candidates before unblinding.")
         self.refresh_review(silent=True)
-        self.tabs.setCurrentIndex(4)
-        self.status.showMessage("Analysis complete")
+        self.tabs.setCurrentIndex(2)
+        self.status.showMessage("Analysis complete / blinded review locked")
+
+    def _unblind_finished(self, report: dict[str, Any]) -> None:
+        self.latest_report = report
+        self._populate_report(report)
+        if self.experiment_dir:
+            self._populate_captures(app_api.create_experiment(self.experiment_dir))
+        self.tabs.setCurrentIndex(2)
+        self.run_log.append("Review unblinded. Matched-control statistics computed.")
+        self.status.showMessage("Review unblinded")
 
     def _demo_finished(self, payload: dict[str, Any]) -> None:
         self._analysis_finished(payload["run"])
@@ -779,7 +879,7 @@ class LabDashboardWindow(QMainWindow):
                 capture.get("capture_id", ""),
                 capture.get("label", ""),
                 capture.get("kind", ""),
-                str(len(capture.get("frames", []))),
+                str(len(capture.get("frames", [])) or capture.get("frame_count", 0)),
                 capture.get("source_id", ""),
             ]
             for column, value in enumerate(values):
@@ -788,6 +888,18 @@ class LabDashboardWindow(QMainWindow):
     def _populate_report(self, report: dict[str, Any]) -> None:
         stats = report.get("aggregate_statistics", {})
         summary = report.get("summary", {})
+        unblinded = bool(report.get("review_state", {}).get("unblinded", True))
+        self.review_state_label.setText(
+            "UNBLINDED / source roles visible" if unblinded else "BLINDED / source roles sealed"
+        )
+        self.unblind_button.setEnabled(not unblinded)
+        self.unblind_button.setText("Review unblinded" if unblinded else "Unblind and compare")
+        self.tabs.setTabVisible(0, unblinded)
+        self.tabs.setTabVisible(1, unblinded)
+        self.include_media.setEnabled(unblinded)
+        if not unblinded:
+            self.include_media.setChecked(False)
+            self.tabs.setCurrentIndex(2)
         for key, label in self.metric_labels.items():
             value = summary.get(key, stats.get(key))
             label.setText("n/a" if value is None else str(value))
@@ -800,41 +912,56 @@ class LabDashboardWindow(QMainWindow):
 
         self.candidate_table.setSortingEnabled(False)
         candidates = report.get("top_candidates", [])
+        if unblinded:
+            headers = ["Blind ID", "Role", "Score", "Persist", "q", "Variant", "Source", "OCR", "Processed"]
+        else:
+            headers = ["Blind ID", "Score", "Persist", "Variant", "OCR", "Processed"]
+        self.candidate_table.setColumnCount(len(headers))
+        self.candidate_table.setHorizontalHeaderLabels(headers)
         self.candidate_table.setRowCount(len(candidates))
         for row, candidate in enumerate(candidates):
-            values = [
+            common = [
                 candidate.get("blind_id", ""),
-                candidate.get("unblinded_label", ""),
                 str(candidate.get("primary_metric_score", candidate.get("structure_score", ""))),
                 str(candidate.get("persistence_score", "")),
-                str(candidate.get("q_value", "")),
                 candidate.get("preprocessing_variant", ""),
-                candidate.get("source_path", "")[:80],
                 candidate.get("ocr_text", "")[:80],
                 candidate.get("processed_path", ""),
             ]
+            values = (
+                [common[0], candidate.get("unblinded_label", ""), common[1], common[2], str(candidate.get("q_value", "")), common[3], candidate.get("source_path", "")[:80], common[4], common[5]]
+                if unblinded
+                else common
+            )
             for column, value in enumerate(values):
                 self.candidate_table.setItem(row, column, QTableWidgetItem(str(value)))
         self.candidate_table.setSortingEnabled(True)
         if candidates:
+            self.candidate_table.sortItems(2 if unblinded else 1, Qt.DescendingOrder)
             self.candidate_table.selectRow(0)
-        self._populate_filmstrip(report)
-        self._populate_family_table(stats)
+        self._populate_filmstrip(report, unblinded=unblinded)
+        self._populate_family_table(stats, unblinded=unblinded)
 
-    def _populate_filmstrip(self, report: dict[str, Any]) -> None:
+    def _populate_filmstrip(self, report: dict[str, Any], unblinded: bool) -> None:
         candidates = report.get("top_candidates", [])[:8]
+        headers = ["Blind ID", "Score", "Role", "Source"] if unblinded else ["Blind ID", "Score"]
+        self.filmstrip_table.setColumnCount(len(headers))
+        self.filmstrip_table.setHorizontalHeaderLabels(headers)
         self.filmstrip_table.setRowCount(len(candidates))
         for row, candidate in enumerate(candidates):
-            values = [
-                candidate.get("sample_id", ""),
-                str(candidate.get("frame_index", "")),
-                candidate.get("unblinded_label", ""),
-                candidate.get("source_path", ""),
-            ]
+            values = [candidate.get("blind_id", ""), str(candidate.get("primary_metric_score", ""))]
+            if unblinded:
+                values.extend([candidate.get("unblinded_label", ""), candidate.get("source_path", "")])
             for column, value in enumerate(values):
                 self.filmstrip_table.setItem(row, column, QTableWidgetItem(str(value)))
 
-    def _populate_family_table(self, stats: dict[str, Any]) -> None:
+    def _populate_family_table(self, stats: dict[str, Any], unblinded: bool) -> None:
+        if not unblinded:
+            self.family_table.setRowCount(0)
+            self.compare_notes.setPlainText(
+                "Comparisons are sealed during review. Unblind only after candidate inspection is complete."
+            )
+            return
         families = stats.get("detector_family_statistics", {})
         self.family_table.setRowCount(len(families))
         for row, (family, record) in enumerate(families.items()):
@@ -842,8 +969,13 @@ class LabDashboardWindow(QMainWindow):
             for column, value in enumerate(values):
                 self.family_table.setItem(row, column, QTableWidgetItem("n/a" if value is None else str(value)))
         self.compare_notes.setPlainText(
-            "Detector families are summaries, not separate proof claims. Use them to see which scientific lens drove the run."
+            "Detector families summarize measured image structure. They do not establish language, origin, or intent."
         )
+
+    def _review_is_unblinded(self) -> bool:
+        if not self.latest_report:
+            return False
+        return bool(self.latest_report.get("review_state", {}).get("unblinded", True))
 
     def _load_fixtures(self) -> None:
         fixtures = list_fixtures(include_restricted=True)
@@ -927,6 +1059,7 @@ class LabDashboardWindow(QMainWindow):
             self.home_demo_button,
             self.export_csv_button,
             self.export_bundle_button,
+            self.unblind_button,
         ):
             button.setEnabled(enabled)
 

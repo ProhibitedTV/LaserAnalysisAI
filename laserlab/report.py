@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from .artifacts import relative_to, write_json
+from .blinding import is_unblinded
 
 
 def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]) -> dict[str, Any]:
     aggregate = run_record["aggregate_statistics"]
+    unblinded = is_unblinded(run_record)
     primary_metric = aggregate.get("primary_metric", "structure_score")
-    candidates = top_candidates(run_record["results"], score_key="primary_metric_score")
+    candidates = top_candidates(run_record["results"], score_key="primary_metric_score", unblinded=unblinded)
     badges = report_badges(run_record)
     report = {
         "schema_version": 1,
@@ -23,6 +25,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "protocol": run_record.get("protocol", "anomaly"),
         "analysis_plan": run_record.get("analysis_plan", {}),
         "blind_seed": run_record["blind_seed"],
+        "review_state": run_record.get("review_state", {"unblinded": True, "unblinded_at": None}),
         "badges": badges,
         "summary": {
             "evidence_ladder": aggregate["evidence_ladder"],
@@ -38,7 +41,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "interpretation": interpretation_text(aggregate),
         "detector_family_explanations": detector_family_explanations(),
         "aggregate_statistics": aggregate,
-        "source_provenance": source_provenance(run_record.get("samples", [])),
+        "source_provenance": source_provenance(run_record.get("samples", [])) if unblinded else [],
         "top_candidates": candidates,
         "artifacts": {
             "results_json": relative_to(run_dir / "results.json", experiment_dir),
@@ -54,20 +57,23 @@ def top_candidates(
     results: list[dict[str, Any]],
     limit: int = 20,
     score_key: str = "structure_score",
+    unblinded: bool = True,
 ) -> list[dict[str, Any]]:
     best_by_sample: dict[str, dict[str, Any]] = {}
     for result in results:
+        if result.get("unblinded_label") == "synthetic_positive":
+            continue
         current = best_by_sample.get(result["sample_id"])
         if current is None or _candidate_score(result, score_key) > _candidate_score(current, score_key):
             best_by_sample[result["sample_id"]] = result
 
     candidates = sorted(best_by_sample.values(), key=lambda item: _candidate_score(item, score_key), reverse=True)[:limit]
-    return [
-        {
+    records = []
+    for item in candidates:
+        record = {
             "blind_id": item["blind_id"],
             "sample_id": item["sample_id"],
             "blinded_label": item["blinded_label"],
-            "unblinded_label": item["unblinded_label"],
             "structure_score": item["structure_score"],
             "primary_metric": item.get("primary_metric", "structure_score"),
             "primary_metric_score": item.get("primary_metric_score", item["structure_score"]),
@@ -77,16 +83,23 @@ def top_candidates(
             "ocr_confidence": item.get("ocr", {}).get("confidence", 0.0),
             "candidate_rois": item.get("candidate_rois", [])[:3],
             "processed_path": item["processed_path"],
-            "source_path": item.get("source_path", ""),
-            "frame_index": item.get("frame_index"),
-            "timestamp_ms": item.get("timestamp_ms"),
-            "control_type": item.get("control_type", ""),
+            "review_image_path": item.get("review_image_path", ""),
             "q_value": item.get("q_value"),
             "detector_family_scores": item.get("detector_family_scores", {}),
-            "capture_metadata": item.get("capture_metadata", {}),
         }
-        for item in candidates
-    ]
+        if unblinded:
+            record.update(
+                {
+                    "unblinded_label": item.get("unblinded_label", ""),
+                    "source_path": item.get("source_path", ""),
+                    "frame_index": item.get("frame_index"),
+                    "timestamp_ms": item.get("timestamp_ms"),
+                    "control_type": item.get("control_type", ""),
+                    "capture_metadata": item.get("capture_metadata", {}),
+                }
+            )
+        records.append(record)
+    return records
 
 
 def write_report_json(path: Path, report: dict[str, Any]) -> None:
@@ -95,29 +108,51 @@ def write_report_json(path: Path, report: dict[str, Any]) -> None:
 
 def write_html_report(path: Path, report: dict[str, Any]) -> None:
     summary = report["summary"]
+    unblinded = bool(report.get("review_state", {}).get("unblinded", True))
     candidates = report["top_candidates"]
-    rows = "\n".join(_candidate_row(candidate) for candidate in candidates)
+    rows = "\n".join(_candidate_row(candidate, unblinded=unblinded) for candidate in candidates)
     provenance_rows = "\n".join(_provenance_row(record) for record in report.get("source_provenance", []))
     provenance_body = provenance_rows or '<tr><td colspan="5">No catalog fixture metadata was attached.</td></tr>'
     badges = " ".join(f"<span class=\"badge\">{html.escape(badge)}</span>" for badge in report.get("badges", []))
     interpretation = report.get("interpretation", {})
+    if unblinded:
+        metrics_html = f"""
+    <div class="metric"><strong>Laser mean</strong>{_fmt(summary['laser_mean_score'])}</div>
+    <div class="metric"><strong>Control mean</strong>{_fmt(summary['control_mean_score'])}</div>
+    <div class="metric"><strong>Difference</strong>{_fmt(summary['mean_difference'])}</div>
+    <div class="metric"><strong>Cohen d</strong>{_fmt(summary['cohen_d'])}</div>
+    <div class="metric"><strong>Permutation p</strong>{_fmt(summary['permutation_p_value'])}</div>
+    <div class="metric"><strong>Minimum q</strong>{_fmt(summary.get('minimum_q_value'))}</div>"""
+        provenance_html = f"""
+  <h2>Source Provenance</h2>
+  <table><thead><tr><th>Fixture</th><th>Phenomena</th><th>License</th><th>Expected behavior</th><th>Limitations</th></tr></thead>
+    <tbody>{provenance_body}</tbody>
+  </table>"""
+        candidate_headers = "<th>Blind ID</th><th>Role</th><th>Score</th><th>Persistence</th><th>q-value</th><th>Variant</th><th>Source</th><th>OCR</th><th>Image</th>"
+    else:
+        metrics_html = '<div class="sealed">Source roles and control statistics remain sealed until explicit unblind.</div>'
+        provenance_html = ""
+        candidate_headers = "<th>Blind ID</th><th>Score</th><th>Persistence</th><th>Variant</th><th>OCR</th><th>Image</th>"
     html_text = f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>LaserAnalysisAI Report {html.escape(report['run_id'])}</title>
   <style>
-    body {{ font-family: Arial, sans-serif; margin: 32px; color: #1f2933; }}
+    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 32px; background: #070b12; color: #d7e3ed; }}
     h1, h2 {{ margin-bottom: 8px; }}
-    .summary {{ border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px; max-width: 960px; }}
-    .badge {{ display: inline-block; background: #e6f4f1; border: 1px solid #9fc9bf; border-radius: 999px; padding: 4px 10px; margin: 4px 6px 4px 0; font-size: 12px; }}
+    h1 {{ color: #72f1b8; }} h2 {{ color: #35d4d4; }}
+    .summary {{ border: 1px solid #1f5260; border-radius: 4px; padding: 16px; max-width: 1080px; background: #0d1520; }}
+    .badge {{ display: inline-block; background: #10232b; border: 1px solid #35d4d4; border-radius: 3px; padding: 4px 10px; margin: 4px 6px 4px 0; font-size: 12px; }}
+    .sealed {{ border-left: 3px solid #ef4da8; padding: 10px; margin: 12px 0; color: #f5a6cf; }}
     .metric {{ display: inline-block; margin: 8px 18px 8px 0; }}
-    .metric strong {{ display: block; font-size: 12px; color: #52616b; text-transform: uppercase; }}
+    .metric strong {{ display: block; font-size: 12px; color: #7f9aaa; text-transform: uppercase; }}
     table {{ border-collapse: collapse; width: 100%; margin-top: 16px; }}
-    th, td {{ border-bottom: 1px solid #d9e2ec; padding: 8px; text-align: left; vertical-align: top; }}
-    th {{ background: #f0f4f8; font-size: 12px; text-transform: uppercase; color: #52616b; }}
-    code {{ background: #f0f4f8; padding: 2px 4px; border-radius: 4px; }}
-    img {{ max-width: 180px; max-height: 120px; border: 1px solid #d9e2ec; }}
+    th, td {{ border-bottom: 1px solid #1f3344; padding: 8px; text-align: left; vertical-align: top; }}
+    th {{ background: #111d29; font-size: 12px; text-transform: uppercase; color: #7f9aaa; }}
+    code {{ background: #111d29; color: #72f1b8; padding: 2px 4px; border-radius: 3px; }}
+    img {{ max-width: 180px; max-height: 120px; border: 1px solid #1f5260; }}
+    a {{ color: #35d4d4; }}
   </style>
 </head>
 <body>
@@ -126,45 +161,16 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     <p>{badges}</p>
     <div class="metric"><strong>Evidence ladder</strong>{html.escape(str(summary['evidence_ladder']))}</div>
     <div class="metric"><strong>Primary metric</strong>{html.escape(str(summary.get('primary_metric', 'structure_score')))}</div>
-    <div class="metric"><strong>Laser mean</strong>{_fmt(summary['laser_mean_score'])}</div>
-    <div class="metric"><strong>Control mean</strong>{_fmt(summary['control_mean_score'])}</div>
-    <div class="metric"><strong>Difference</strong>{_fmt(summary['mean_difference'])}</div>
-    <div class="metric"><strong>Cohen d</strong>{_fmt(summary['cohen_d'])}</div>
-    <div class="metric"><strong>Permutation p</strong>{_fmt(summary['permutation_p_value'])}</div>
-    <div class="metric"><strong>Minimum q</strong>{_fmt(summary.get('minimum_q_value'))}</div>
+    {metrics_html}
     <p>{html.escape(summary['null_result_language'])}</p>
     <p><strong>What this means:</strong> {html.escape(interpretation.get('what_this_means', ''))}</p>
     <p><strong>What this does not mean:</strong> {html.escape(interpretation.get('what_this_does_not_mean', ''))}</p>
   </div>
-  <h2>Source Provenance</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Fixture</th>
-        <th>Phenomena</th>
-        <th>License</th>
-        <th>Expected behavior</th>
-        <th>Limitations</th>
-      </tr>
-    </thead>
-    <tbody>
-      {provenance_body}
-    </tbody>
-  </table>
+  {provenance_html}
   <h2>Top Candidates</h2>
   <table>
     <thead>
-      <tr>
-        <th>Blind ID</th>
-        <th>Unblinded Label</th>
-        <th>Score</th>
-        <th>Persistence</th>
-        <th>q-value</th>
-        <th>Variant</th>
-        <th>Source</th>
-        <th>OCR</th>
-        <th>Image</th>
-      </tr>
+      <tr>{candidate_headers}</tr>
     </thead>
     <tbody>
       {rows}
@@ -176,18 +182,29 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     path.write_text(html_text, encoding="utf-8")
 
 
-def _candidate_row(candidate: dict[str, Any]) -> str:
+def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
     image_src = html.escape(_relative_from_run(candidate["processed_path"]))
     ocr_text = candidate.get("ocr_text") or ""
-    return f"""
+    if unblinded:
+        return f"""
       <tr>
         <td><code>{html.escape(candidate['blind_id'])}</code></td>
-        <td>{html.escape(candidate['unblinded_label'])}</td>
+        <td>{html.escape(candidate.get('unblinded_label', ''))}</td>
         <td>{_fmt(candidate.get('primary_metric_score', candidate['structure_score']))}</td>
         <td>{_fmt(candidate.get('persistence_score'))}</td>
         <td>{_fmt(candidate.get('q_value'))}</td>
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
         <td>{html.escape(_source_label(candidate))}</td>
+        <td>{html.escape(ocr_text[:120])}</td>
+        <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
+      </tr>
+"""
+    return f"""
+      <tr>
+        <td><code>{html.escape(candidate['blind_id'])}</code></td>
+        <td>{_fmt(candidate.get('primary_metric_score', candidate['structure_score']))}</td>
+        <td>{_fmt(candidate.get('persistence_score'))}</td>
+        <td>{html.escape(candidate['preprocessing_variant'])}</td>
         <td>{html.escape(ocr_text[:120])}</td>
         <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
       </tr>
@@ -267,12 +284,15 @@ def _candidate_score(result: dict[str, Any], score_key: str) -> float:
 def report_badges(run_record: dict[str, Any]) -> list[str]:
     aggregate = run_record.get("aggregate_statistics", {})
     results = run_record.get("results", [])
-    badges = ["multiple comparisons corrected"]
+    if not is_unblinded(run_record):
+        badges = ["review blinded", "source roles sealed"]
+    else:
+        badges = ["multiple comparisons corrected", "review unblinded"]
     if aggregate.get("calibration_passed"):
         badges.append("calibration passed")
     elif aggregate.get("synthetic_positive_count", 0) > 0:
         badges.append("calibration failed")
-    if aggregate.get("control_count", 0) > 0:
+    if is_unblinded(run_record) and aggregate.get("control_count", 0) > 0:
         badges.append("controls matched")
     if results and not any(item.get("ocr", {}).get("available") for item in results):
         badges.append("OCR unavailable")
@@ -282,7 +302,9 @@ def report_badges(run_record: dict[str, Any]) -> list[str]:
 
 def interpretation_text(aggregate: dict[str, Any]) -> dict[str, str]:
     ladder = aggregate.get("evidence_ladder")
-    if ladder in {"above-control candidate", "repeatable candidate"}:
+    if ladder == "blinded review":
+        means = "Candidates are ranked without source roles or control comparisons visible."
+    elif ladder in {"above-control candidate", "repeatable candidate"}:
         means = "The selected protocol found laser-frame scores above matched controls under this run's thresholds."
     elif ladder == "anomaly":
         means = "The run found elevated structure, but not enough to clear the controlled evidence threshold."
@@ -290,7 +312,7 @@ def interpretation_text(aggregate: dict[str, Any]) -> dict[str, str]:
         means = "The selected capture and detector set did not beat matched controls."
     return {
         "what_this_means": means,
-        "what_this_does_not_mean": "This report does not establish origin, intent, or metaphysical proof; it only summarizes controlled image detections.",
+        "what_this_does_not_mean": "A pattern is not proof of language, origin, intent, or metaphysical meaning; unblinding only tests whether it exceeds controls.",
     }
 
 

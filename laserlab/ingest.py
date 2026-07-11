@@ -41,6 +41,8 @@ def init_experiment(
         raise FileNotFoundError(f"Source not found: {source}")
 
     manifest = load_or_create_manifest(experiment_dir)
+    if manifest.get("outputs", {}).get("review_state") == "blinded":
+        raise ValueError("The latest review is still blinded. Explicitly unblind it before changing captures.")
     source_id = f"src-{uuid.uuid4().hex[:10]}"
     capture_id = f"cap-{uuid.uuid4().hex[:10]}"
     capture_dir = ensure_dir(experiment_dir / "frames" / capture_id)
