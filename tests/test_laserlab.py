@@ -66,6 +66,76 @@ class ProtocolPresetTests(unittest.TestCase):
         self.assertIn("speckle", describe_protocol("speckle").lower())
 
 
+@unittest.skipUnless(HAS_IMAGE_STACK, "OpenCV and NumPy are required for sampling tests")
+class SamplingAndProvenanceTests(unittest.TestCase):
+    def test_sampling_profiles_and_duplicate_suppression_are_deterministic(self) -> None:
+        import shutil
+        import cv2
+
+        from laserlab.ingest import init_experiment
+        from laserlab.sampling import SAMPLING_PROFILES, resolve_sampling_plan, scene_change_score
+        from laserlab.synthetic import create_synthetic_negative, create_synthetic_positive
+
+        self.assertEqual(set(SAMPLING_PROFILES), {"quick", "baseline", "wide", "exhaustive"})
+        self.assertEqual(resolve_sampling_plan("exhaustive")["mode"], "all_frames")
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "images"
+            first = create_synthetic_positive(source / "first.png", text="KNOWN")
+            shutil.copy2(first, source / "duplicate.png")
+            create_synthetic_negative(source / "different.png")
+
+            manifests = []
+            for name in ("experiment-a", "experiment-b"):
+                manifests.append(
+                    init_experiment(
+                        source,
+                        "image-set",
+                        "laser",
+                        root / name,
+                        sampling_profile="exhaustive",
+                        deduplicate=True,
+                    )
+                )
+
+            left = manifests[0]["captures"][0]
+            right = manifests[1]["captures"][0]
+            self.assertEqual(len(left["frames"]), 2)
+            self.assertEqual(left["sampling"]["duplicate_frames_skipped"], 1)
+            self.assertEqual(
+                [(item["frame_index"], item["frame_signature"], item["output_sha256"]) for item in left["frames"]],
+                [(item["frame_index"], item["frame_signature"], item["output_sha256"]) for item in right["frames"]],
+            )
+            self.assertEqual(left["frames"][0]["extraction_settings"]["profile"], "exhaustive")
+            self.assertEqual(left["frames"][0]["input_source_sha256"], manifests[0]["sources"][0]["sha256"])
+            self.assertGreater(scene_change_score(None, cv2.imread(str(first))), 0.9)
+
+    def test_provenance_warnings_and_extended_control_role(self) -> None:
+        from laserlab.ingest import init_experiment
+        from laserlab.pipeline import run_experiment, unblind_latest_run
+        from laserlab.synthetic import create_synthetic_negative, create_synthetic_positive
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            laser = root / "laser"
+            control = root / "control"
+            experiment = root / "experiment"
+            create_synthetic_positive(laser / "laser.png")
+            create_synthetic_negative(control / "control.png")
+            manifest = init_experiment(laser, "image-set", "laser", experiment, max_frames=1)
+            manifest = init_experiment(control, "image-set", "matched_control", experiment, max_frames=1)
+
+            capture = manifest["captures"][0]
+            self.assertGreater(capture["media_metadata"]["width"], 0)
+            self.assertGreater(len(capture["provenance_warnings"]), 0)
+            self.assertGreater(len(manifest["validation_warnings"]), 0)
+
+            run_experiment(experiment, profile_name="baseline", blind_seed=41, control_generation="none")
+            revealed = unblind_latest_run(experiment)
+            self.assertEqual(revealed["aggregate_statistics"]["control_count"], 1)
+
+
 @unittest.skipUnless(HAS_IMAGE_STACK, "OpenCV and NumPy are required for image pipeline tests")
 class LaserLabPipelineTests(unittest.TestCase):
     def test_scientific_metrics_detect_synthetic_fixtures(self) -> None:
@@ -170,6 +240,19 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertNotIn("unblinded_label", header)
             self.assertIn("primary_metric_score", header)
 
+            blind_id = latest["top_candidates"][0]["blind_id"]
+            app_api.save_review_annotation(
+                experiment,
+                blind_id=blind_id,
+                note="Repeated edge structure; inspect independently.",
+                flags=["interesting", "persistent"],
+            )
+            app_api.complete_review(experiment)
+            latest = app_api.load_latest_report(experiment)
+            self.assertTrue(latest["review_session"]["complete"])
+            self.assertEqual(latest["review_annotations"][blind_id]["flags"], ["interesting", "persistent"])
+            self.assertNotIn("source_path", latest["top_candidates"][0])
+
             bundle_path = app_api.export_review_bundle(experiment, root / "review_bundle.zip")
             self.assertTrue(bundle_path.exists())
             with zipfile.ZipFile(bundle_path) as bundle:
@@ -185,6 +268,7 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertEqual(bundled_manifest["sources"], [])
             self.assertNotIn("unblinded_label", bundled_results)
             self.assertNotIn(str(source_laser), bundled_results)
+            self.assertIn("Repeated edge structure", bundled_results)
             with self.assertRaises(ValueError):
                 app_api.export_review_bundle(experiment, root / "forbidden.zip", include_media=True)
 
@@ -193,6 +277,10 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertIn("source_path", revealed["top_candidates"][0])
             self.assertIn("unblinded_label", revealed["top_candidates"][0])
             self.assertIn("multiple comparisons corrected", revealed["badges"])
+            self.assertEqual(
+                revealed["review_annotations"][blind_id]["note"],
+                "Repeated edge structure; inspect independently.",
+            )
             self.assertFalse((run_dir / ".laserlab_unblind.json").exists())
             restored_manifest = load_manifest(experiment)
             self.assertTrue(all("path" in source and "label" in source for source in restored_manifest["sources"]))
@@ -329,8 +417,13 @@ class LaserLabGuiTests(unittest.TestCase):
             self.assertGreaterEqual(window.fixture_table.rowCount(), 4)
             self.assertEqual(window.home_demo_button.text(), "Run bundled demo")
             self.assertGreater(window.protocol_combo.count(), 3)
-            self.assertEqual(window.candidate_table.columnCount(), 6)
+            self.assertEqual(window.candidate_table.columnCount(), 7)
             self.assertEqual(window.unblind_button.text(), "Unblind and compare")
+            self.assertEqual(window.sampling_profile.count(), 4)
+            self.assertEqual(
+                set(window.review_flag_checks),
+                {"interesting", "artifact", "ocr_hit", "persistent", "exclude"},
+            )
         finally:
             window.close()
 

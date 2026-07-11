@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -191,15 +192,21 @@ class LabDashboardWindow(QMainWindow):
         self.kind_combo = QComboBox()
         self.kind_combo.addItems(["video", "image-set"])
         self.label_combo = QComboBox()
-        self.label_combo.addItems(["laser", "control"])
+        self.label_combo.addItems(["laser", "matched_control", "control", "sensor_noise", "synthetic_positive", "synthetic_negative"])
+        self.sampling_profile = QComboBox()
+        self.sampling_profile.addItems(["quick", "baseline", "wide", "exhaustive"])
+        self.sampling_profile.setCurrentText("baseline")
         self.all_frames = QCheckBox("All frames")
+        self.deduplicate_frames = QCheckBox("Suppress duplicates")
+        self.deduplicate_frames.setChecked(True)
         self.frame_interval = QSpinBox()
         self.frame_interval.setRange(1, 10000)
         self.frame_interval.setValue(5)
         self.max_frames = QSpinBox()
         self.max_frames.setRange(0, 1000000)
         self.max_frames.setSpecialValueText("No cap")
-        self.max_frames.setValue(24)
+        self.max_frames.setValue(250)
+        self.sampling_profile.currentTextChanged.connect(self._sampling_profile_changed)
         self.add_capture_button = QPushButton("Add Capture")
         self.add_capture_button.clicked.connect(self.add_capture)
 
@@ -216,10 +223,13 @@ class LabDashboardWindow(QMainWindow):
         source_layout.addWidget(self.frame_interval, 2, 1)
         source_layout.addWidget(QLabel("Max frames"), 2, 2)
         source_layout.addWidget(self.max_frames, 2, 3)
+        source_layout.addWidget(QLabel("Sampling profile"), 3, 0)
+        source_layout.addWidget(self.sampling_profile, 3, 1)
+        source_layout.addWidget(self.deduplicate_frames, 3, 2, 1, 2)
         layout.addWidget(source_group)
 
-        self.capture_table = QTableWidget(0, 5)
-        self.capture_table.setHorizontalHeaderLabels(["Capture ID", "Label", "Kind", "Frames", "Source"])
+        self.capture_table = QTableWidget(0, 6)
+        self.capture_table.setHorizontalHeaderLabels(["Capture ID", "Label", "Kind", "Frames", "Warnings", "Source"])
         self.capture_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.capture_table.verticalHeader().setVisible(False)
         layout.addWidget(self.capture_table, 1)
@@ -245,7 +255,7 @@ class LabDashboardWindow(QMainWindow):
         self.control_generation = QComboBox()
         self.control_generation.addItems(["standard", "strict", "none"])
         self.frame_sampling_mode = QComboBox()
-        self.frame_sampling_mode.addItems(["interval", "all_frames", "capped_all_frames"])
+        self.frame_sampling_mode.addItems(["interval", "scene_change", "all_frames", "capped_all_frames"])
         form.addRow("Preset", self.protocol_combo)
         form.addRow("Primary metric", self.primary_metric_combo)
         form.addRow("Preprocessing intensity", self.preprocessing_intensity)
@@ -324,8 +334,11 @@ class LabDashboardWindow(QMainWindow):
         self.unblind_button = QPushButton("Unblind and compare")
         self.unblind_button.setObjectName("dangerButton")
         self.unblind_button.clicked.connect(self.unblind_review)
+        self.complete_review_button = QPushButton("Mark review complete")
+        self.complete_review_button.clicked.connect(self.mark_review_complete)
         state_row.addWidget(self.review_state_label)
         state_row.addStretch(1)
+        state_row.addWidget(self.complete_review_button)
         state_row.addWidget(self.unblind_button)
         layout.addLayout(state_row)
         metrics = QGroupBox("Evidence")
@@ -356,9 +369,40 @@ class LabDashboardWindow(QMainWindow):
         self.interpretation_text.setMaximumHeight(90)
         layout.addWidget(self.interpretation_text)
 
+        filters = QGroupBox("Candidate filters")
+        filter_layout = QHBoxLayout(filters)
+        self.review_family_filter = QComboBox()
+        self.review_family_filter.addItems(["all", "symbol", "diffraction", "speckle", "texture"])
+        self.review_variant_filter = QComboBox()
+        self.review_variant_filter.addItem("all")
+        self.review_ocr_filter = QComboBox()
+        self.review_ocr_filter.addItems(["all", "has OCR output", "no OCR output"])
+        self.review_min_score = QDoubleSpinBox()
+        self.review_min_score.setRange(0.0, 1.0)
+        self.review_min_score.setSingleStep(0.05)
+        self.review_min_persistence = QDoubleSpinBox()
+        self.review_min_persistence.setRange(0.0, 1.0)
+        self.review_min_persistence.setSingleStep(0.05)
+        for label, widget in (
+            ("Family", self.review_family_filter),
+            ("Variant", self.review_variant_filter),
+            ("OCR", self.review_ocr_filter),
+            ("Min score", self.review_min_score),
+            ("Min persistence", self.review_min_persistence),
+        ):
+            filter_layout.addWidget(QLabel(label))
+            filter_layout.addWidget(widget)
+        filter_layout.addStretch(1)
+        self.review_family_filter.currentIndexChanged.connect(self._apply_review_filters)
+        self.review_variant_filter.currentIndexChanged.connect(self._apply_review_filters)
+        self.review_ocr_filter.currentIndexChanged.connect(self._apply_review_filters)
+        self.review_min_score.valueChanged.connect(self._apply_review_filters)
+        self.review_min_persistence.valueChanged.connect(self._apply_review_filters)
+        layout.addWidget(filters)
+
         splitter = QSplitter(Qt.Horizontal)
-        self.candidate_table = QTableWidget(0, 6)
-        self.candidate_table.setHorizontalHeaderLabels(["Blind ID", "Score", "Persist", "Variant", "OCR", "Processed"])
+        self.candidate_table = QTableWidget(0, 7)
+        self.candidate_table.setHorizontalHeaderLabels(["Blind ID", "Score", "Persist", "Variant", "OCR", "Review", "Processed"])
         self.candidate_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.candidate_table.verticalHeader().setVisible(False)
         self.candidate_table.setSortingEnabled(True)
@@ -388,6 +432,22 @@ class LabDashboardWindow(QMainWindow):
         self.candidate_details = QTextEdit()
         self.candidate_details.setReadOnly(True)
         preview_layout.addWidget(self.candidate_details, 1)
+        annotation_group = QGroupBox("Blinded reviewer annotation")
+        annotation_layout = QVBoxLayout(annotation_group)
+        flag_row = QHBoxLayout()
+        self.review_flag_checks: dict[str, QCheckBox] = {}
+        for flag in ("interesting", "artifact", "ocr_hit", "persistent", "exclude"):
+            checkbox = QCheckBox(flag.replace("_", " "))
+            self.review_flag_checks[flag] = checkbox
+            flag_row.addWidget(checkbox)
+        self.review_note = QTextEdit()
+        self.review_note.setMaximumHeight(70)
+        self.save_review_button = QPushButton("Save annotation")
+        self.save_review_button.clicked.connect(self.save_selected_annotation)
+        annotation_layout.addLayout(flag_row)
+        annotation_layout.addWidget(self.review_note)
+        annotation_layout.addWidget(self.save_review_button)
+        preview_layout.addWidget(annotation_group)
         splitter.addWidget(preview_panel)
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
@@ -498,15 +558,16 @@ class LabDashboardWindow(QMainWindow):
             QTabBar::tab:disabled { color: #405462; background: #080d14; border-color: #172733; }
             QGroupBox { border: 1px solid #1f3344; margin-top: 10px; padding: 9px; font-weight: 600; color: #9fb2c0; }
             QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #35d4d4; }
-            QTableWidget, QTextEdit, QLineEdit, QComboBox, QSpinBox {
+            QTableWidget, QTextEdit, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
                 background: #0b121c; color: #d7e3ed; border: 1px solid #1f3344; selection-background-color: #173747;
             }
-            QLineEdit, QComboBox, QSpinBox { min-height: 26px; padding: 2px 6px; }
+            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { min-height: 26px; padding: 2px 6px; }
             QPushButton { padding: 7px 12px; border: 1px solid #2c5965; border-radius: 3px; background: #101c27; color: #d7e3ed; }
             QPushButton:hover { border-color: #35d4d4; color: #72f1b8; background: #122631; }
             QPushButton:disabled { color: #4b5f6d; border-color: #1a2934; background: #0a1118; }
             QPushButton#dangerButton { border-color: #9f396f; color: #f5a6cf; }
             QPushButton#dangerButton:hover { border-color: #ef4da8; background: #291324; }
+            QPushButton#dangerButton:disabled { color: #5b4050; border-color: #382333; background: #0a1118; }
             QHeaderView::section { background: #111d29; color: #7f9aaa; padding: 6px; border: 0; border-right: 1px solid #1f3344; }
             QProgressBar { border: 1px solid #1f3344; background: #0b121c; text-align: center; color: #d7e3ed; }
             QProgressBar::chunk { background: #35d4d4; }
@@ -586,6 +647,9 @@ class LabDashboardWindow(QMainWindow):
                 all_frames=self.all_frames.isChecked(),
                 frame_interval=self.frame_interval.value(),
                 max_frames=max_frames,
+                sampling_profile=self.sampling_profile.currentText(),
+                sampling_mode=self.frame_sampling_mode.currentText(),
+                deduplicate=self.deduplicate_frames.isChecked(),
             )
 
         self._run_worker("Adding capture", task, self._capture_added)
@@ -718,6 +782,41 @@ class LabDashboardWindow(QMainWindow):
             return
         self._run_worker("Unblinding review", lambda: app_api.unblind_latest_run(experiment), self._unblind_finished)
 
+    def mark_review_complete(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        try:
+            app_api.complete_review(experiment)
+            self.refresh_review(silent=True)
+            self.status.showMessage("Blind review marked complete")
+        except Exception as exc:
+            self._error(str(exc))
+
+    def save_selected_annotation(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        row = self.candidate_table.currentRow()
+        blind_item = self.candidate_table.item(row, 0) if row >= 0 else None
+        if blind_item is None:
+            self._error("Select a candidate before saving an annotation.")
+            return
+        flags = [flag for flag, checkbox in self.review_flag_checks.items() if checkbox.isChecked()]
+        try:
+            app_api.save_review_annotation(
+                experiment,
+                blind_id=blind_item.text(),
+                note=self.review_note.toPlainText(),
+                flags=flags,
+            )
+            selected_blind_id = blind_item.text()
+            self.refresh_review(silent=True)
+            self._select_candidate(selected_blind_id)
+            self.status.showMessage(f"Annotation saved for {selected_blind_id}")
+        except Exception as exc:
+            self._error(str(exc))
+
     def open_report_html(self) -> None:
         if not self.latest_report:
             self.refresh_review(silent=True)
@@ -791,7 +890,14 @@ class LabDashboardWindow(QMainWindow):
         else:
             details.append("Source role, path, frame attribution, and q-value are sealed.")
         details.extend(["", candidate.get("ocr_text", "")])
+        annotation = candidate.get("review_annotation") or {}
+        if annotation:
+            details.extend(["", f"Review flags: {', '.join(annotation.get('flags', []))}", annotation.get("note", "")])
         self.candidate_details.setPlainText("\n".join(str(item) for item in details))
+        self.review_note.setPlainText(annotation.get("note", ""))
+        selected_flags = set(annotation.get("flags", []))
+        for flag, checkbox in self.review_flag_checks.items():
+            checkbox.setChecked(flag in selected_flags)
         self._load_candidate_images(candidate)
 
     def _load_candidate_images(self, candidate: dict[str, Any]) -> None:
@@ -880,6 +986,7 @@ class LabDashboardWindow(QMainWindow):
                 capture.get("label", ""),
                 capture.get("kind", ""),
                 str(len(capture.get("frames", [])) or capture.get("frame_count", 0)),
+                str(len(capture.get("provenance_warnings", []))),
                 capture.get("source_id", ""),
             ]
             for column, value in enumerate(values):
@@ -892,8 +999,11 @@ class LabDashboardWindow(QMainWindow):
         self.review_state_label.setText(
             "UNBLINDED / source roles visible" if unblinded else "BLINDED / source roles sealed"
         )
-        self.unblind_button.setEnabled(not unblinded)
+        review_complete = bool(report.get("review_session", {}).get("complete"))
+        self.unblind_button.setEnabled(not unblinded and review_complete)
         self.unblind_button.setText("Review unblinded" if unblinded else "Unblind and compare")
+        self.complete_review_button.setEnabled(not unblinded and not review_complete)
+        self.complete_review_button.setText("Review complete" if review_complete else "Mark review complete")
         self.tabs.setTabVisible(0, unblinded)
         self.tabs.setTabVisible(1, unblinded)
         self.include_media.setEnabled(unblinded)
@@ -910,12 +1020,25 @@ class LabDashboardWindow(QMainWindow):
             "What this does not mean: " + interpretation.get("what_this_does_not_mean", "")
         )
 
+        all_candidates = report.get("top_candidates", [])
+        current_variant = self.review_variant_filter.currentText()
+        variants = sorted({str(item.get("preprocessing_variant", "")) for item in all_candidates if item.get("preprocessing_variant")})
+        self.review_variant_filter.blockSignals(True)
+        self.review_variant_filter.clear()
+        self.review_variant_filter.addItems(["all", *variants])
+        self._set_combo_text(self.review_variant_filter, current_variant)
+        self.review_variant_filter.blockSignals(False)
+        self._populate_candidate_table(report, unblinded=unblinded)
+        self._populate_filmstrip(report, unblinded=unblinded)
+        self._populate_family_table(stats, unblinded=unblinded)
+
+    def _populate_candidate_table(self, report: dict[str, Any], unblinded: bool) -> None:
         self.candidate_table.setSortingEnabled(False)
-        candidates = report.get("top_candidates", [])
+        candidates = self._filtered_candidates(report.get("top_candidates", []))
         if unblinded:
-            headers = ["Blind ID", "Role", "Score", "Persist", "q", "Variant", "Source", "OCR", "Processed"]
+            headers = ["Blind ID", "Role", "Score", "Persist", "q", "Variant", "Source", "OCR", "Review", "Processed"]
         else:
-            headers = ["Blind ID", "Score", "Persist", "Variant", "OCR", "Processed"]
+            headers = ["Blind ID", "Score", "Persist", "Variant", "OCR", "Review", "Processed"]
         self.candidate_table.setColumnCount(len(headers))
         self.candidate_table.setHorizontalHeaderLabels(headers)
         self.candidate_table.setRowCount(len(candidates))
@@ -926,10 +1049,11 @@ class LabDashboardWindow(QMainWindow):
                 str(candidate.get("persistence_score", "")),
                 candidate.get("preprocessing_variant", ""),
                 candidate.get("ocr_text", "")[:80],
+                self._annotation_summary(candidate),
                 candidate.get("processed_path", ""),
             ]
             values = (
-                [common[0], candidate.get("unblinded_label", ""), common[1], common[2], str(candidate.get("q_value", "")), common[3], candidate.get("source_path", "")[:80], common[4], common[5]]
+                [common[0], candidate.get("unblinded_label", ""), common[1], common[2], str(candidate.get("q_value", "")), common[3], candidate.get("source_path", "")[:80], common[4], common[5], common[6]]
                 if unblinded
                 else common
             )
@@ -939,8 +1063,50 @@ class LabDashboardWindow(QMainWindow):
         if candidates:
             self.candidate_table.sortItems(2 if unblinded else 1, Qt.DescendingOrder)
             self.candidate_table.selectRow(0)
-        self._populate_filmstrip(report, unblinded=unblinded)
-        self._populate_family_table(stats, unblinded=unblinded)
+
+    def _filtered_candidates(self, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        family = self.review_family_filter.currentText()
+        variant = self.review_variant_filter.currentText()
+        ocr_filter = self.review_ocr_filter.currentText()
+        filtered = []
+        for candidate in candidates:
+            score = float(candidate.get("primary_metric_score", candidate.get("structure_score", 0.0)) or 0.0)
+            persistence = float(candidate.get("persistence_score", 0.0) or 0.0)
+            if score < self.review_min_score.value() or persistence < self.review_min_persistence.value():
+                continue
+            if variant != "all" and candidate.get("preprocessing_variant") != variant:
+                continue
+            has_ocr = bool(str(candidate.get("ocr_text", "")).strip())
+            if ocr_filter == "has OCR output" and not has_ocr:
+                continue
+            if ocr_filter == "no OCR output" and has_ocr:
+                continue
+            families = candidate.get("detector_family_scores", {})
+            if family != "all" and families:
+                strongest = max(families, key=lambda key: float(families.get(key, 0.0) or 0.0))
+                if strongest != family:
+                    continue
+            filtered.append(candidate)
+        return filtered
+
+    def _apply_review_filters(self, *_args: Any) -> None:
+        if not self.latest_report:
+            return
+        self._populate_candidate_table(self.latest_report, unblinded=self._review_is_unblinded())
+
+    @staticmethod
+    def _annotation_summary(candidate: dict[str, Any]) -> str:
+        annotation = candidate.get("review_annotation") or {}
+        flags = ", ".join(annotation.get("flags", []))
+        note = str(annotation.get("note", "")).strip()
+        return (flags + (" | " if flags and note else "") + note)[:120]
+
+    def _select_candidate(self, blind_id: str) -> None:
+        for row in range(self.candidate_table.rowCount()):
+            item = self.candidate_table.item(row, 0)
+            if item and item.text() == blind_id:
+                self.candidate_table.selectRow(row)
+                return
 
     def _populate_filmstrip(self, report: dict[str, Any], unblinded: bool) -> None:
         candidates = report.get("top_candidates", [])[:8]
@@ -1001,11 +1167,13 @@ class LabDashboardWindow(QMainWindow):
             except Exception:
                 captures = []
         labels = {capture.get("label") for capture in captures}
+        warning_count = sum(len(capture.get("provenance_warnings", [])) for capture in captures)
         lines = [
             ("laser capture", "laser" in labels),
-            ("control capture", "control" in labels),
+            ("control capture", bool(labels & {"control", "matched_control", "sensor_noise", "synthetic_negative"})),
             ("frame count >= 2", estimate.get("sample_count", 0) >= 2),
             ("matched controls enabled", self.control_generation.currentText() != "none"),
+            ("capture provenance complete", warning_count == 0),
             ("multiple comparisons corrected", True),
         ]
         self.quality_checklist.setPlainText("\n".join(("OK  " if ok else "TODO ") + label for label, ok in lines))
@@ -1017,6 +1185,18 @@ class LabDashboardWindow(QMainWindow):
         )
         self._set_combo_text(self.primary_metric_combo, preset["primary_metric"])
         self._set_combo_text(self.preprocessing_intensity, "wide" if preset["profile"] == "wide" else "standard")
+
+    def _sampling_profile_changed(self, profile: str) -> None:
+        defaults = {
+            "quick": (15, 25, False),
+            "baseline": (5, 250, False),
+            "wide": (2, 1000, False),
+            "exhaustive": (1, 0, True),
+        }
+        interval, maximum, all_frames = defaults.get(profile, defaults["baseline"])
+        self.frame_interval.setValue(interval)
+        self.max_frames.setValue(maximum)
+        self.all_frames.setChecked(all_frames)
 
     def _preset(self) -> dict[str, Any]:
         protocol = self._current_protocol()

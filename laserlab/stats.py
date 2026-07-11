@@ -51,8 +51,8 @@ def summarize_results(
     primary_metric: str = "structure_score",
 ) -> dict[str, Any]:
     sample_scores = _sample_scores(sample_results)
-    laser_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "laser"]
-    control_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "control"]
+    laser_scores = [item["score"] for item in sample_scores if _statistical_role(item["unblinded_label"]) == "laser"]
+    control_scores = [item["score"] for item in sample_scores if _statistical_role(item["unblinded_label"]) == "control"]
     positive_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "synthetic_positive"]
     candidate_p_values = _candidate_p_values(sample_scores, control_scores)
     q_values = benjamini_hochberg_q_values([item["p_value"] for item in candidate_p_values])
@@ -64,7 +64,7 @@ def summarize_results(
     control_mean = _mean(control_scores)
     effect = cohen_d(laser_scores, control_scores)
     p_value = permutation_p_value(laser_scores, control_scores, seed=seed, permutations=permutations)
-    persistence = _mean([item.get("persistence_score", 0.0) for item in sample_scores if item["unblinded_label"] == "laser"])
+    persistence = _mean([item.get("persistence_score", 0.0) for item in sample_scores if _statistical_role(item["unblinded_label"]) == "laser"])
 
     stats = {
         "sample_count": len(sample_scores),
@@ -174,11 +174,19 @@ def _candidate_p_values(sample_scores: list[dict[str, Any]], control_scores: lis
 def _family_statistics(sample_results: list[dict[str, Any]]) -> dict[str, Any]:
     grouped: dict[str, list[float]] = {"symbol": [], "diffraction": [], "speckle": [], "texture": []}
     for result in sample_results:
-        if result.get("unblinded_label") != "laser":
+        if _statistical_role(result.get("unblinded_label")) != "laser":
             continue
         for family, value in result.get("detector_family_scores", {}).items():
             grouped.setdefault(family, []).append(float(value))
     return {family: mean_confidence_interval(values) for family, values in grouped.items()}
+
+
+def _statistical_role(label: str | None) -> str:
+    if label == "laser":
+        return "laser"
+    if label in {"control", "matched_control", "sensor_noise", "synthetic_negative"}:
+        return "control"
+    return "calibration" if label == "synthetic_positive" else "other"
 
 
 def evidence_ladder(stats: dict[str, Any]) -> str:

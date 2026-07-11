@@ -106,6 +106,31 @@ def capture_gui(output: Path) -> None:
     image.save(output)
 
 
+def capture_blinded_review(output: Path, experiment_dir: Path) -> None:
+    """Capture the real review surface from a sealed experiment."""
+    qt_mode = os.environ.get("LASERLAB_REAL_QT_SCREENSHOT", "1")
+    if qt_mode == "1":
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    else:
+        os.environ.pop("QT_QPA_PLATFORM", None)
+    from PyQt5.QtWidgets import QApplication
+
+    from gui.lab_dashboard import LabDashboardWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = LabDashboardWindow()
+    window.resize(1420, 900)
+    window.experiment_dir = Path(experiment_dir)
+    window.experiment_path.setText(str(experiment_dir))
+    window.refresh_review(silent=False)
+    window.tabs.setCurrentIndex(2)
+    window.show()
+    app.processEvents()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    window.grab().save(str(output))
+    window.close()
+
+
 def capture_report(summary_path: Path, candidates_path: Path, output: Path) -> None:
     from PIL import Image, ImageDraw, ImageFont
 
@@ -301,10 +326,13 @@ def main() -> int:
     parser.add_argument("--summary", default="release_dumps/release-demo-summary.json")
     parser.add_argument("--candidates", default="release_dumps/release-demo-top-candidates.csv")
     parser.add_argument("--output-dir", default="screenshots")
+    parser.add_argument("--experiment", default=None, help="Optional sealed experiment for the blinded-review screenshot.")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
     capture_gui(output_dir / "release_gui_dashboard.png")
+    if args.experiment:
+        capture_blinded_review(output_dir / "release_blinded_review.png", Path(args.experiment))
     capture_cli(output_dir / "release_cli_surface.png")
     capture_report(Path(args.summary), Path(args.candidates), output_dir / "release_report_summary.png")
     print(output_dir / "release_gui_dashboard.png")

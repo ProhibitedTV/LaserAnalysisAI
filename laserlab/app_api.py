@@ -29,9 +29,13 @@ def add_capture(
     kind: str,
     label: str,
     all_frames: bool = False,
-    frame_interval: int = 5,
+    frame_interval: int | None = None,
     max_frames: int | None = None,
     capture_metadata: dict[str, Any] | None = None,
+    sampling_profile: str = "baseline",
+    sampling_mode: str | None = None,
+    deduplicate: bool = True,
+    scene_change_threshold: float | None = None,
 ) -> dict[str, Any]:
     """Ingest a video or image set into an experiment."""
     return init_experiment(
@@ -42,6 +46,10 @@ def add_capture(
         frame_interval=1 if all_frames else frame_interval,
         max_frames=max_frames,
         capture_metadata=capture_metadata,
+        sampling_profile=sampling_profile,
+        sampling_mode=("capped_all_frames" if max_frames is not None else "all_frames") if all_frames else sampling_mode,
+        deduplicate=deduplicate,
+        scene_change_threshold=scene_change_threshold,
     )
 
 
@@ -201,6 +209,25 @@ def unblind_latest_run(experiment_dir: Path) -> dict[str, Any]:
     return load_latest_report(Path(experiment_dir))
 
 
+def save_review_annotation(
+    experiment_dir: Path,
+    blind_id: str,
+    note: str = "",
+    flags: list[str] | None = None,
+) -> dict[str, Any]:
+    """Persist a source-safe annotation against a blinded candidate ID."""
+    from .review import save_annotation
+
+    return save_annotation(Path(experiment_dir), blind_id=blind_id, note=note, flags=flags)
+
+
+def complete_review(experiment_dir: Path) -> dict[str, Any]:
+    """Mark candidate inspection complete without revealing source roles."""
+    from .review import complete_review as _complete_review
+
+    return _complete_review(Path(experiment_dir))
+
+
 def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
     """Export the latest report's top candidates to CSV."""
     report = load_latest_report(Path(experiment_dir))
@@ -218,6 +245,8 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
         "preprocessing_variant",
         "ocr_confidence",
         "ocr_text",
+        "review_flags",
+        "review_note",
         "q_value",
         "detector_family_scores",
         "processed_path",
@@ -239,6 +268,8 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
                     "preprocessing_variant": item.get("preprocessing_variant", ""),
                     "ocr_confidence": item.get("ocr_confidence", ""),
                     "ocr_text": item.get("ocr_text", ""),
+                    "review_flags": ",".join(item.get("review_annotation", {}).get("flags", [])),
+                    "review_note": item.get("review_annotation", {}).get("note", ""),
                     "q_value": item.get("q_value", ""),
                     "detector_family_scores": item.get("detector_family_scores", ""),
                     "processed_path": item.get("processed_path", ""),

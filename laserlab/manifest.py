@@ -75,8 +75,12 @@ def new_manifest() -> dict[str, Any]:
         "captures": [],
         "controls": [],
         "frame_sampling": {
+            "profile": "baseline",
+            "mode": "interval",
             "frame_interval": 5,
             "max_frames": None,
+            "deduplicate": True,
+            "scene_change_threshold": 0.10,
             "image_extensions": [".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"],
         },
         "preprocessing_profiles": {"baseline": BASELINE_PROFILE, "wide": WIDE_PROFILE},
@@ -86,6 +90,14 @@ def new_manifest() -> dict[str, Any]:
         "capture_metadata": {
             "laser_wavelength_nm": None,
             "camera": None,
+            "capture_device": None,
+            "exposure": None,
+            "iso_gain": None,
+            "shutter": None,
+            "focus_mode": None,
+            "lens_filter_notes": "",
+            "compression_history": None,
+            "camera_fixed": None,
             "notes": "",
         },
         "analysis_plan": {
@@ -100,6 +112,7 @@ def new_manifest() -> dict[str, Any]:
             "last_bundle": None,
             "include_media": False,
         },
+        "validation_warnings": [],
         "outputs": {},
     }
 
@@ -134,9 +147,15 @@ def upgrade_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     """Backfill optional v0.3 keys while keeping schema version stable."""
     updated = dict(manifest)
     defaults = new_manifest()
-    for key in ("protocol", "capture_metadata", "analysis_plan", "community_export"):
+    for key in ("protocol", "capture_metadata", "analysis_plan", "community_export", "validation_warnings"):
         if key not in updated:
             updated[key] = defaults[key]
+    sampling = updated.setdefault("frame_sampling", {})
+    for key, value in defaults["frame_sampling"].items():
+        sampling.setdefault(key, value)
+    capture_metadata = updated.setdefault("capture_metadata", {})
+    for key, value in defaults["capture_metadata"].items():
+        capture_metadata.setdefault(key, value)
     updated.setdefault("detectors", DEFAULT_DETECTORS)
     profiles = updated.setdefault("preprocessing_profiles", {})
     profiles.setdefault("baseline", BASELINE_PROFILE)

@@ -15,6 +15,9 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
     unblinded = is_unblinded(run_record)
     primary_metric = aggregate.get("primary_metric", "structure_score")
     candidates = top_candidates(run_record["results"], score_key="primary_metric_score", unblinded=unblinded)
+    annotations = run_record.get("review_annotations", {})
+    for candidate in candidates:
+        candidate["review_annotation"] = annotations.get(candidate["blind_id"], {})
     badges = report_badges(run_record)
     report = {
         "schema_version": 1,
@@ -26,6 +29,9 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "analysis_plan": run_record.get("analysis_plan", {}),
         "blind_seed": run_record["blind_seed"],
         "review_state": run_record.get("review_state", {"unblinded": True, "unblinded_at": None}),
+        "review_session": run_record.get("review_session", {"complete": False, "completed_at": None}),
+        "review_annotations": annotations,
+        "provenance_summary": run_record.get("provenance_summary", {}),
         "badges": badges,
         "summary": {
             "evidence_ladder": aggregate["evidence_ladder"],
@@ -112,7 +118,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     candidates = report["top_candidates"]
     rows = "\n".join(_candidate_row(candidate, unblinded=unblinded) for candidate in candidates)
     provenance_rows = "\n".join(_provenance_row(record) for record in report.get("source_provenance", []))
-    provenance_body = provenance_rows or '<tr><td colspan="5">No catalog fixture metadata was attached.</td></tr>'
+    provenance_body = provenance_rows or '<tr><td colspan="7">No capture provenance was attached.</td></tr>'
     badges = " ".join(f"<span class=\"badge\">{html.escape(badge)}</span>" for badge in report.get("badges", []))
     interpretation = report.get("interpretation", {})
     if unblinded:
@@ -125,14 +131,14 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     <div class="metric"><strong>Minimum q</strong>{_fmt(summary.get('minimum_q_value'))}</div>"""
         provenance_html = f"""
   <h2>Source Provenance</h2>
-  <table><thead><tr><th>Fixture</th><th>Phenomena</th><th>License</th><th>Expected behavior</th><th>Limitations</th></tr></thead>
+  <table><thead><tr><th>Capture</th><th>Media</th><th>Phenomena</th><th>License</th><th>Expected behavior</th><th>Limitations</th><th>Warnings</th></tr></thead>
     <tbody>{provenance_body}</tbody>
   </table>"""
-        candidate_headers = "<th>Blind ID</th><th>Role</th><th>Score</th><th>Persistence</th><th>q-value</th><th>Variant</th><th>Source</th><th>OCR</th><th>Image</th>"
+        candidate_headers = "<th>Blind ID</th><th>Role</th><th>Score</th><th>Persistence</th><th>q-value</th><th>Variant</th><th>Source</th><th>OCR</th><th>Review</th><th>Image</th>"
     else:
         metrics_html = '<div class="sealed">Source roles and control statistics remain sealed until explicit unblind.</div>'
         provenance_html = ""
-        candidate_headers = "<th>Blind ID</th><th>Score</th><th>Persistence</th><th>Variant</th><th>OCR</th><th>Image</th>"
+        candidate_headers = "<th>Blind ID</th><th>Score</th><th>Persistence</th><th>Variant</th><th>OCR</th><th>Review</th><th>Image</th>"
     html_text = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -185,6 +191,10 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
     image_src = html.escape(_relative_from_run(candidate["processed_path"]))
     ocr_text = candidate.get("ocr_text") or ""
+    annotation = candidate.get("review_annotation") or {}
+    review_text = ", ".join(annotation.get("flags", []))
+    if annotation.get("note"):
+        review_text = (review_text + " | " if review_text else "") + str(annotation["note"])
     if unblinded:
         return f"""
       <tr>
@@ -196,6 +206,7 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
         <td>{html.escape(_source_label(candidate))}</td>
         <td>{html.escape(ocr_text[:120])}</td>
+        <td>{html.escape(review_text[:240])}</td>
         <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
       </tr>
 """
@@ -206,26 +217,37 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
         <td>{_fmt(candidate.get('persistence_score'))}</td>
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
         <td>{html.escape(ocr_text[:120])}</td>
+        <td>{html.escape(review_text[:240])}</td>
         <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
       </tr>
 """
 
 
 def _provenance_row(record: dict[str, Any]) -> str:
-    title = record.get("fixture_title") or record.get("fixture_id") or "Unknown fixture"
+    title = record.get("fixture_title") or record.get("fixture_id") or record.get("capture_id") or "Unknown capture"
     source_page = record.get("source_page")
     if source_page:
         title_html = f'<a href="{html.escape(str(source_page))}">{html.escape(str(title))}</a>'
     else:
         title_html = html.escape(str(title))
     phenomena = ", ".join(str(item) for item in record.get("phenomena", []))
+    media = record.get("media_metadata", {})
+    dimensions = "x".join(str(value) for value in (media.get("width"), media.get("height")) if value)
+    media_parts = [dimensions]
+    if media.get("fps"):
+        media_parts.append(f"{media['fps']:.3g} fps")
+    if media.get("codec"):
+        media_parts.append(str(media["codec"]))
+    warnings = "; ".join(str(item.get("message", item)) for item in record.get("provenance_warnings", []))
     return f"""
       <tr>
         <td>{title_html}</td>
+        <td>{html.escape(' | '.join(part for part in media_parts if part))}</td>
         <td>{html.escape(phenomena)}</td>
         <td>{html.escape(str(record.get('license', '')))}</td>
         <td>{html.escape(str(record.get('expected_behavior', '')))}</td>
         <td>{html.escape(str(record.get('limitations', '')))}</td>
+        <td>{html.escape(warnings)}</td>
       </tr>
 """
 
@@ -265,10 +287,25 @@ def source_provenance(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
     records: dict[str, dict[str, Any]] = {}
     for sample in samples:
         metadata = sample.get("capture_metadata") or {}
+        capture_id = sample.get("capture_id") or sample.get("parent_capture_id")
         fixture_id = metadata.get("fixture_id")
-        if fixture_id:
-            records[str(fixture_id)] = dict(metadata)
-    return [records[key] for key in sorted(records)]
+        if not capture_id and not fixture_id:
+            continue
+        key = str(capture_id or fixture_id or sample.get("sample_id"))
+        record = records.setdefault(key, {"capture_id": capture_id})
+        if metadata:
+            record.update(dict(metadata))
+        if sample.get("media_metadata"):
+            record["media_metadata"] = sample["media_metadata"]
+        if sample.get("provenance_warnings"):
+            record["provenance_warnings"] = sample["provenance_warnings"]
+    return sorted(
+        records.values(),
+        key=lambda record: (
+            0 if record.get("fixture_id") else 1,
+            str(record.get("fixture_id") or record.get("capture_id") or ""),
+        ),
+    )
 
 
 def _candidate_score(result: dict[str, Any], score_key: str) -> float:
@@ -296,6 +333,10 @@ def report_badges(run_record: dict[str, Any]) -> list[str]:
         badges.append("controls matched")
     if results and not any(item.get("ocr", {}).get("available") for item in results):
         badges.append("OCR unavailable")
+    warning_count = int(run_record.get("provenance_summary", {}).get("warning_count", 0) or 0)
+    badges.append("provenance complete" if warning_count == 0 else f"provenance warnings: {warning_count}")
+    if run_record.get("review_session", {}).get("complete"):
+        badges.append("blind review complete")
     badges.append("media not included")
     return badges
 

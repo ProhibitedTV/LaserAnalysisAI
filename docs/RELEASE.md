@@ -76,6 +76,17 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
+## v0.5.0 Release Checklist
+
+- Confirm `quick`, `baseline`, `wide`, and `exhaustive` sampling profiles produce deterministic frame selections.
+- Confirm exact/near duplicates are logged and suppressed without collapsing materially different brightness levels.
+- Confirm ingestion records raw source hashes, output hashes, frame index/timestamp, media metadata, extraction settings, and provenance warnings.
+- Confirm blinded notes/flags contain only blind IDs and appear in JSON, HTML, CSV, and review bundles.
+- Confirm the dashboard keeps unblinding disabled until **Mark review complete** is selected.
+- Confirm `matched_control`, `sensor_noise`, and `synthetic_negative` roles contribute only to the control group.
+- Run the v0.4 blinded source-leak checks below unchanged.
+- Push the `v0.5.0` tag only after tests, executable smoke, blinded leak audit, and bundled fixture smoke pass.
+
 ## v0.4.0 Release Checklist
 
 - Run the bundled demo for `diffraction`, `speckle`, `ocr`, and `anomaly` with `-MaxFrames 2`.

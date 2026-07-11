@@ -35,6 +35,8 @@ Avoid saturated footage. When large regions clip to maximum brightness, texture 
 
 In **Setup**, choose an experiment directory and add both captures. Assign the real roles there; LaserLab derives blinded IDs before scoring.
 
+Choose a sampling profile before ingestion. `quick` is a workflow check, `baseline` is the normal starting point, `wide` samples more densely, and `exhaustive` considers every frame. Near-duplicate suppression prevents a static segment from dominating the run and records every skipped duplicate in the capture diagnostics. Provenance warnings identify missing camera, exposure, focus, compression, resolution, or frame-rate details; warnings do not invalidate a capture, but they limit what can be reproduced.
+
 Before running, confirm the protocol quality checklist shows both laser and control inputs. A run without matched controls is exploratory and should not be interpreted above the `anomaly` level.
 
 ## Choose A Protocol
@@ -48,9 +50,9 @@ Start with the preset that matches the optical setup. Wider preprocessing increa
 
 ## Run And Review
 
-Set a blind seed and save it with the experiment. In **Review**, inspect blind IDs, raw views, processed views, candidate crops, persistence, and detector families without source attribution. Setup and Run are locked while review remains sealed. A readable OCR fragment by itself is not evidence.
+Set a blind seed and save it with the experiment. In **Review**, inspect blind IDs, raw views, processed views, candidate crops, persistence, and detector families without source attribution. Filter by detector family, preprocessing variant, score, persistence, or OCR output. Notes and flags are stored against blind IDs only and are included in reports and bundles. Setup and Run are locked while review remains sealed. A readable OCR fragment by itself is not evidence.
 
-When candidate inspection is complete, choose **Unblind and compare**. This irreversible action restores source roles and provenance, computes q-values and matched-control statistics, and unlocks Setup and Run for the next experiment.
+When candidate inspection is complete, choose **Mark review complete**, then **Unblind and compare**. This irreversible action restores source roles and provenance, computes q-values and matched-control statistics, and unlocks Setup and Run for the next experiment.
 
 Interpret the evidence ladder conservatively:
 
