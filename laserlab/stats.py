@@ -9,6 +9,41 @@ from typing import Any
 from .scientific import benjamini_hochberg_q_values, mean_confidence_interval
 
 
+def summarize_blinded_results(
+    sample_results: list[dict[str, Any]],
+    primary_metric: str = "structure_score",
+) -> dict[str, Any]:
+    sample_scores = _sample_scores(sample_results)
+    positive_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "synthetic_positive"]
+    review_scores = [item for item in sample_scores if item["unblinded_label"] != "synthetic_positive"]
+    return {
+        "sample_count": len(review_scores),
+        "laser_count": None,
+        "control_count": None,
+        "synthetic_positive_count": len(positive_scores),
+        "calibration_passed": bool(positive_scores and max(positive_scores) > 0.05),
+        "primary_metric": primary_metric,
+        "laser_mean_score": None,
+        "control_mean_score": None,
+        "synthetic_positive_mean_score": _mean(positive_scores),
+        "laser_confidence_interval": {"mean": None, "low": None, "high": None, "count": 0},
+        "control_confidence_interval": {"mean": None, "low": None, "high": None, "count": 0},
+        "mean_difference": None,
+        "cohen_d": None,
+        "permutation_p_value": None,
+        "fdr_method": "deferred_until_unblind",
+        "candidate_q_values": {},
+        "minimum_q_value": None,
+        "laser_mean_persistence": None,
+        "detector_family_statistics": {},
+        "evidence_ladder": "blinded review",
+        "null_result_language": (
+            "Source roles are sealed. Review candidate structure without attribution, then explicitly unblind "
+            "to compute matched-control statistics and the evidence ladder."
+        ),
+    }
+
+
 def summarize_results(
     sample_results: list[dict[str, Any]],
     seed: int,

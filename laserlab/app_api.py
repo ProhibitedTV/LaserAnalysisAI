@@ -11,7 +11,7 @@ from .artifacts import load_json
 from .bundle import export_review_bundle as _export_review_bundle
 from .ingest import init_experiment
 from .manifest import latest_run_dir, load_manifest, load_or_create_manifest, write_manifest
-from .pipeline import run_experiment
+from .pipeline import run_experiment, unblind_latest_run as _unblind_latest_run
 from .protocols import describe_protocol, list_protocol_presets as _list_protocol_presets
 from .report import build_report
 
@@ -86,6 +86,8 @@ def update_analysis_plan(
     roi: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     manifest = load_or_create_manifest(Path(experiment_dir))
+    if manifest.get("outputs", {}).get("review_state") == "blinded":
+        raise ValueError("The latest review is still blinded. Explicitly unblind it before changing the plan.")
     manifest["protocol"] = protocol
     manifest.setdefault("analysis_plan", {}).update(
         {
@@ -193,16 +195,22 @@ def load_latest_report(experiment_dir: Path) -> dict[str, Any]:
     return report
 
 
+def unblind_latest_run(experiment_dir: Path) -> dict[str, Any]:
+    """Explicitly reveal source roles and compute control statistics for the latest run."""
+    _unblind_latest_run(Path(experiment_dir))
+    return load_latest_report(Path(experiment_dir))
+
+
 def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
     """Export the latest report's top candidates to CSV."""
     report = load_latest_report(Path(experiment_dir))
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    unblinded = bool(report.get("review_state", {}).get("unblinded", True))
     fields = [
         "rank",
         "blind_id",
         "sample_id",
-        "unblinded_label",
         "primary_metric",
         "primary_metric_score",
         "structure_score",
@@ -210,23 +218,20 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
         "preprocessing_variant",
         "ocr_confidence",
         "ocr_text",
-        "source_path",
-        "frame_index",
-        "control_type",
         "q_value",
         "detector_family_scores",
         "processed_path",
     ]
+    if unblinded:
+        fields[3:3] = ["unblinded_label", "source_path", "frame_index", "control_type"]
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         for rank, item in enumerate(report.get("top_candidates", []), 1):
-            writer.writerow(
-                {
+            record = {
                     "rank": rank,
                     "blind_id": item.get("blind_id", ""),
                     "sample_id": item.get("sample_id", ""),
-                    "unblinded_label": item.get("unblinded_label", ""),
                     "primary_metric": item.get("primary_metric", ""),
                     "primary_metric_score": item.get("primary_metric_score", ""),
                     "structure_score": item.get("structure_score", ""),
@@ -234,14 +239,20 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
                     "preprocessing_variant": item.get("preprocessing_variant", ""),
                     "ocr_confidence": item.get("ocr_confidence", ""),
                     "ocr_text": item.get("ocr_text", ""),
-                    "source_path": item.get("source_path", ""),
-                    "frame_index": item.get("frame_index", ""),
-                    "control_type": item.get("control_type", ""),
                     "q_value": item.get("q_value", ""),
                     "detector_family_scores": item.get("detector_family_scores", ""),
                     "processed_path": item.get("processed_path", ""),
                 }
-            )
+            if unblinded:
+                record.update(
+                    {
+                        "unblinded_label": item.get("unblinded_label", ""),
+                        "source_path": item.get("source_path", ""),
+                        "frame_index": item.get("frame_index", ""),
+                        "control_type": item.get("control_type", ""),
+                    }
+                )
+            writer.writerow(record)
     return output_path
 
 

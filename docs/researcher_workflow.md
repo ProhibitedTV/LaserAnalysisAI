@@ -33,7 +33,7 @@ Avoid saturated footage. When large regions clip to maximum brightness, texture 
 
 ## Create The Experiment
 
-In **Experiment Setup**, choose an experiment directory and add both captures. Assign the real roles there; LaserLab derives blinded IDs before scoring.
+In **Setup**, choose an experiment directory and add both captures. Assign the real roles there; LaserLab derives blinded IDs before scoring.
 
 Before running, confirm the protocol quality checklist shows both laser and control inputs. A run without matched controls is exploratory and should not be interpreted above the `anomaly` level.
 
@@ -48,7 +48,9 @@ Start with the preset that matches the optical setup. Wider preprocessing increa
 
 ## Run And Review
 
-Set a blind seed and save it with the experiment. In **Review**, inspect the raw frame, processed frame, candidate crop, source attribution, q-value, persistence, and detector family together. A readable OCR fragment by itself is not evidence.
+Set a blind seed and save it with the experiment. In **Review**, inspect blind IDs, raw views, processed views, candidate crops, persistence, and detector families without source attribution. Setup and Run are locked while review remains sealed. A readable OCR fragment by itself is not evidence.
+
+When candidate inspection is complete, choose **Unblind and compare**. This irreversible action restores source roles and provenance, computes q-values and matched-control statistics, and unlocks Setup and Run for the next experiment.
 
 Interpret the evidence ladder conservatively:
 
@@ -62,7 +64,7 @@ A null result is a valid result for this footage, protocol, and detector version
 
 ## Export And Share
 
-Use **Export Review Bundle** to create a local-first archive containing the manifest, reports, settings, hashes, environment details, and top evidence crops. Leave raw media excluded unless redistribution is lawful and participants have consented to sharing it.
+Use **Export Review Bundle** to create a local-first archive containing the manifest, reports, settings, hashes, environment details, and top evidence crops. A blinded bundle remains attribution-safe and cannot include source media. After unblind, leave raw media excluded unless redistribution is lawful and participants have consented to sharing it.
 
 The bundle is designed for independent review. Share the archive unchanged so hashes and provenance remain useful.
 

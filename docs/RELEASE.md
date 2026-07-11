@@ -76,11 +76,13 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
-## v0.3.x Release Checklist
+## v0.4.0 Release Checklist
 
 - Run the bundled demo for `diffraction`, `speckle`, `ocr`, and `anomaly` with `-MaxFrames 2`.
 - Confirm JSON/HTML reports include badges, q-values, protocol, detector-family summaries, and conservative interpretation text.
 - Export a review bundle and inspect `manifest.json`, `report.json`, `results.json`, `environment.json`, `hashes.json`, top crops, and `README.txt`.
+- Confirm blinded manifest/report/results/CSV/bundle contain no labels, source paths, provenance, or raw media.
+- Explicitly unblind and confirm roles, provenance, q-values, effect sizes, and permutation statistics appear afterward.
 - Build all four native archives through the `Cross-platform Release` workflow.
 - Verify each platform's GUI `--smoke` and CLI `--help` checks pass.
-- Push the matching `v0.3.x` tag only after tests, executable smoke, and bundled fixture smoke pass.
+- Push the `v0.4.0` tag only after tests, executable smoke, blinded leak audit, and bundled fixture smoke pass.

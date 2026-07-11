@@ -7,15 +7,25 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .artifacts import ensure_dir, relative_to, resolve_experiment_path, sha256_file, utc_now_iso, write_json
+from .artifacts import ensure_dir, load_json, relative_to, resolve_experiment_path, sha256_file, utc_now_iso, write_json
+from .blinding import (
+    UNBLIND_FILENAME,
+    build_unblind_payload,
+    is_unblinded,
+    restore_manifest,
+    restore_run_record,
+    seal_manifest,
+    seal_results,
+    seal_samples,
+)
 from .controls import generate_matched_controls
 from .detectors import DetectorContext, run_detectors
-from .manifest import load_manifest, upgrade_manifest, write_manifest
+from .manifest import latest_run_dir, load_manifest, upgrade_manifest, write_manifest
 from .preprocessing import apply_profile_variants
 from .protocols import get_protocol_preset
 from .report import build_report
 from .scientific import metric_score, phase_registration_metrics
-from .stats import summarize_results
+from .stats import summarize_blinded_results, summarize_results
 from .synthetic import create_synthetic_positive
 
 
@@ -35,6 +45,8 @@ def run_experiment(
         raise RuntimeError("Running experiments requires opencv-python.") from exc
 
     manifest = upgrade_manifest(load_manifest(experiment_dir))
+    if manifest.get("outputs", {}).get("review_state") == "blinded":
+        raise ValueError("The latest review is still blinded. Explicitly unblind it before starting another run.")
     plan = manifest.setdefault("analysis_plan", {})
     preset = get_protocol_preset(protocol or plan.get("protocol") or manifest.get("protocol"))
     protocol_id = preset["id"]
@@ -66,6 +78,7 @@ def run_experiment(
     blinded_samples = _blind_samples(samples, blind_seed)
 
     processed_dir = ensure_dir(run_dir / "processed")
+    review_original_dir = ensure_dir(run_dir / "review_originals")
     results: list[dict[str, Any]] = []
     masks_for_persistence: dict[tuple[str, str], list[tuple[int, str, Any]]] = {}
     previous_images: dict[tuple[str, str], Any] = {}
@@ -76,6 +89,9 @@ def run_experiment(
         if image is None:
             raise FileNotFoundError(f"Could not read sample image: {image_path}")
         image = _apply_roi(image, roi)
+        review_image_path = review_original_dir / f"{sample['blind_id']}.png"
+        if not cv2.imwrite(str(review_image_path), image):
+            raise RuntimeError(f"Failed to write blinded review image: {review_image_path}")
 
         for processed in apply_profile_variants(image, profile):
             processed_path = processed_dir / f"{sample['blind_id']}_{processed.variant_name}.png"
@@ -113,6 +129,7 @@ def run_experiment(
                 "source_path": sample["path"],
                 "source_sha256": sample["source_sha256"],
                 "processed_path": relative_to(processed_path, experiment_dir),
+                "review_image_path": relative_to(review_image_path, experiment_dir),
                 "processed_sha256": sha256_file(processed_path),
                 "preprocessing_profile": profile_name,
                 "preprocessing_variant": processed.variant_name,
@@ -142,9 +159,8 @@ def run_experiment(
             )
 
     _apply_persistence_scores(results, masks_for_persistence)
-    aggregate = summarize_results(results, seed=blind_seed, primary_metric=primary_metric)
-    for result in results:
-        result["q_value"] = aggregate.get("candidate_q_values", {}).get(result["sample_id"])
+    aggregate = summarize_blinded_results(results, primary_metric=primary_metric)
+    unblind_payload = build_unblind_payload(blinded_samples, results, manifest)
     run_record = {
         "schema_version": 1,
         "run_id": run_id,
@@ -154,20 +170,89 @@ def run_experiment(
         "protocol": protocol_id,
         "analysis_plan": plan,
         "blind_seed": blind_seed,
-        "samples": blinded_samples,
-        "results": results,
+        "samples": seal_samples(blinded_samples),
+        "results": seal_results(results, blinded_samples),
         "aggregate_statistics": aggregate,
+        "review_state": {
+            "unblinded": False,
+            "unblinded_at": None,
+        },
     }
 
+    unblind_path = run_dir / UNBLIND_FILENAME
+    write_json(unblind_path, unblind_payload)
     write_json(run_dir / "results.json", run_record)
     report = build_report(experiment_dir, run_dir, run_record)
     write_json(run_dir / "report.json", report)
-    manifest["outputs"]["latest_run"] = relative_to(run_dir, experiment_dir)
-    manifest["outputs"]["latest_results"] = relative_to(run_dir / "results.json", experiment_dir)
-    manifest["outputs"]["latest_report_json"] = relative_to(run_dir / "report.json", experiment_dir)
-    manifest["outputs"]["latest_report_html"] = relative_to(run_dir / "report.html", experiment_dir)
-    write_manifest(experiment_dir, manifest)
+    sealed_manifest = seal_manifest(manifest)
+    sealed_manifest["outputs"]["latest_run"] = relative_to(run_dir, experiment_dir)
+    sealed_manifest["outputs"]["latest_results"] = relative_to(run_dir / "results.json", experiment_dir)
+    sealed_manifest["outputs"]["latest_report_json"] = relative_to(run_dir / "report.json", experiment_dir)
+    sealed_manifest["outputs"]["latest_report_html"] = relative_to(run_dir / "report.html", experiment_dir)
+    sealed_manifest["outputs"]["review_state"] = "blinded"
+    sealed_manifest["outputs"].pop("unblinded_at", None)
+    sealed_manifest["outputs"]["unblind_seal_sha256"] = sha256_file(unblind_path)
+    write_manifest(experiment_dir, sealed_manifest)
     return run_record
+
+
+def unblind_latest_run(experiment_dir: Path) -> dict[str, Any]:
+    """Explicitly reveal the latest run and compute matched-control statistics."""
+    experiment_dir = Path(experiment_dir)
+    manifest = load_manifest(experiment_dir)
+    run_dir = latest_run_dir(experiment_dir, manifest)
+    run_record = load_json(run_dir / "results.json")
+    if is_unblinded(run_record):
+        if manifest.get("outputs", {}).get("review_state") == "blinded":
+            unblind_path = run_dir / UNBLIND_FILENAME
+            if not unblind_path.exists():
+                raise FileNotFoundError("The run is revealed but its manifest recovery map is missing.")
+            expected_hash = manifest.get("outputs", {}).get("unblind_seal_sha256")
+            if expected_hash and sha256_file(unblind_path) != expected_hash:
+                raise ValueError("The manifest recovery map failed its integrity check.")
+            payload = load_json(unblind_path)
+            report = build_report(experiment_dir, run_dir, run_record)
+            write_json(run_dir / "report.json", report)
+            restored_manifest = restore_manifest(manifest, payload)
+            restored_manifest["outputs"]["review_state"] = "unblinded"
+            restored_manifest["outputs"]["unblinded_at"] = run_record.get("review_state", {}).get("unblinded_at")
+            restored_manifest["outputs"].pop("unblind_seal_sha256", None)
+            write_manifest(experiment_dir, restored_manifest)
+            unblind_path.unlink()
+        return run_record
+
+    unblind_path = run_dir / UNBLIND_FILENAME
+    if not unblind_path.exists():
+        raise FileNotFoundError("The sealed unblind map is missing; this run cannot be safely revealed.")
+    expected_hash = manifest.get("outputs", {}).get("unblind_seal_sha256")
+    if expected_hash and sha256_file(unblind_path) != expected_hash:
+        raise ValueError("The sealed unblind map failed its integrity check; source roles were not revealed.")
+    payload = load_json(unblind_path)
+    restored = restore_run_record(run_record, payload)
+    primary_metric = restored.get("aggregate_statistics", {}).get("primary_metric", "structure_score")
+    aggregate = summarize_results(
+        restored["results"],
+        seed=int(restored.get("blind_seed", 1)),
+        primary_metric=primary_metric,
+    )
+    for result in restored["results"]:
+        result["q_value"] = aggregate.get("candidate_q_values", {}).get(result["sample_id"])
+    restored["aggregate_statistics"] = aggregate
+    restored["review_state"] = {
+        "unblinded": True,
+        "unblinded_at": utc_now_iso(),
+    }
+
+    write_json(run_dir / "results.json", restored)
+    report = build_report(experiment_dir, run_dir, restored)
+    write_json(run_dir / "report.json", report)
+    restored_manifest = restore_manifest(manifest, payload)
+    restored_manifest["outputs"]["review_state"] = "unblinded"
+    restored_manifest["outputs"]["unblinded_at"] = restored["review_state"]["unblinded_at"]
+    restored_manifest["outputs"].pop("unblind_seal_sha256", None)
+    write_manifest(experiment_dir, restored_manifest)
+    unblind_path.unlink()
+    return restored
 
 
 def _build_samples(

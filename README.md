@@ -9,7 +9,7 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.3 Dashboard
+## LaserLab v0.4 Dashboard
 
 Native release bundles contain:
 
@@ -18,19 +18,16 @@ Native release bundles contain:
 - `sample_media/`: redistributable public optical/interference fixture clips.
 - `BUILD-INFO.json`: exact version, target, Python, operating system, and CPU architecture used for the build.
 
-Dashboard tabs:
+The desktop workflow is deliberately narrow:
 
-- `Home`: first-run actions for a bundled demo, your own footage, or an existing experiment.
-- `Experiment Setup`: create/open experiments and ingest laser/control captures.
-- `Protocol`: choose diffraction, speckle, OCR/symbol recovery, or general anomaly presets.
-- `Run`: check protocol quality, estimate runtime, set the blind seed, and run analysis.
-- `Review`: inspect evidence stats, top candidates, side-by-side images, crops, and OCR text.
-- `Compare`: compare detector-family summaries across optics, texture, speckle, and symbol scores.
-- `Fixtures`: review bundled known-outcome media and run a capped fixture demo.
-- `Export`: create CSVs and local-first community review bundles.
-- `Settings`: inspect local runtime and output paths.
+- `Setup`: open an experiment, ingest captures, choose a protocol, ROI, and bundled fixtures.
+- `Run`: check protocol quality, estimate work, set the blind seed, and score sealed samples.
+- `Review`: inspect blind IDs, images, crops, OCR output, and detector scores without attribution.
+- `Compare`: unlock matched-control and detector-family statistics only after explicit unblind.
+- `Export`: create attribution-safe blinded bundles or complete unblinded research bundles.
 
 ![LaserLab dashboard](screenshots/release_gui_dashboard.png)
+![LaserLab blinded review](screenshots/release_blinded_review.png)
 ![LaserLab report summary](screenshots/release_report_summary.png)
 
 ## Quick Start
@@ -69,7 +66,7 @@ Run the bundled demo through the same API layer used by the dashboard:
 - `OCR / symbol recovery`: OCR plus connected components and synthetic known-text calibration.
 - `General anomaly scan`: broad texture, edge, OCR, and persistence sweep with strict false-positive language.
 
-Each preset keeps labels blinded during detector scoring and unblinds only for matched-control statistics.
+Each preset writes a sealed review first. The manifest, report, results, CSV, HTML, and review bundle omit labels, source paths, provenance, and raw media. Setup and Run remain locked until the reviewer explicitly chooses **Unblind and compare**.
 
 ## CLI Workflow
 
@@ -90,6 +87,12 @@ Run blinded analysis:
 
 ```powershell
 & $PY -m laserlab.cli run --experiment experiments\trial-001 --profile baseline --blind-seed 123
+```
+
+After candidate review is complete, explicitly reveal attribution and compute matched-control statistics:
+
+```powershell
+& $PY -m laserlab.cli unblind --experiment experiments\trial-001
 ```
 
 Run a wider preprocessing sweep:
@@ -129,13 +132,10 @@ List or fetch fixture media:
 - `manifest.json`: stable experiment record with sources, captures, frame
   sampling, preprocessing profiles, detector settings, protocol plan, ROI,
   blinding seed, and output paths.
-- `runs/<run-id>/results.json`: per-frame/per-variant detector records,
-  OCR status, FFT/speckle/texture metrics, ROI crops, hashes, blinded IDs,
-  unblinded labels, q-values, and aggregate statistics.
+- `runs/<run-id>/results.json`: sealed detector records before unblind; after explicit unblind it gains source roles, attribution, q-values, and aggregate comparison statistics.
 - `runs/<run-id>/report.html`: human-readable evidence summary with top
   candidates and null-result language.
-- `*.zip` review bundle: manifest, reports, top crops, thumbnails, hashes,
-  detector settings, environment info, and optional raw media.
+- `*.zip` review bundle: blinded bundles exclude source attribution and media; unblinded bundles can include provenance and optional raw media.
 
 ## Evidence Ladder
 

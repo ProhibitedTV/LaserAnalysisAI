@@ -16,9 +16,13 @@ if str(ROOT) not in sys.path:
 
 
 def capture_gui(output: Path) -> None:
-    if os.environ.get("LASERLAB_REAL_QT_SCREENSHOT") == "1":
+    qt_mode = os.environ.get("LASERLAB_REAL_QT_SCREENSHOT")
+    if qt_mode in {"1", "native"}:
         try:
-            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            if qt_mode == "1":
+                os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            else:
+                os.environ.pop("QT_QPA_PLATFORM", None)
             from PyQt5.QtWidgets import QApplication
 
             from gui.lab_dashboard import LabDashboardWindow
@@ -41,27 +45,27 @@ def capture_gui(output: Path) -> None:
 
     width = 1400
     height = 900
-    image = Image.new("RGB", (width, height), "#f7fafc")
+    image = Image.new("RGB", (width, height), "#070b12")
     draw = ImageDraw.Draw(image)
     font_title = _font(28, bold=True)
     font_h = _font(17, bold=True)
     font = _font(15)
     font_small = _font(13)
 
-    tabs = ["Home", "Experiment", "Protocol", "Run", "Review", "Compare", "Fixtures", "Export", "Settings"]
+    tabs = ["Setup", "Run", "Review", "Compare", "Export"]
     x = 32
     for index, tab in enumerate(tabs):
-        tab_width = 140 if index != 1 else 164
-        fill = "#ffffff" if index == 0 else "#e6eef5"
-        draw.rounded_rectangle((x, 26, x + tab_width, 70), radius=6, fill=fill, outline="#b8c8d8")
-        draw.text((x + 18, 40), tab, fill="#102a43", font=font_h)
+        tab_width = 132
+        fill = "#0d1520" if index == 0 else "#0a111b"
+        draw.rounded_rectangle((x, 26, x + tab_width, 70), radius=3, fill=fill, outline="#1f3344")
+        draw.text((x + 18, 40), tab, fill="#72f1b8" if index == 0 else "#7f9aaa", font=font_h)
         x += tab_width - 1
 
-    draw.text((42, 105), "LaserLab", fill="#102a43", font=font_title)
+    draw.text((42, 105), "LaserLab / blinded signal review", fill="#72f1b8", font=font_title)
     draw.text(
         (42, 143),
-        "Community science dashboard for blinded laser, diffraction, speckle, and symbol experiments",
-        fill="#52616b",
+        "Observed patterns deserve careful testing. Source roles stay sealed until explicit unblind.",
+        fill="#7f9aaa",
         font=font,
     )
 
@@ -69,7 +73,7 @@ def capture_gui(output: Path) -> None:
     _button(draw, (82, 238, 318, 288), "Run bundled demo", font)
     _button(draw, (350, 238, 586, 288), "Analyze my footage", font)
     _button(draw, (618, 238, 884, 288), "Open existing experiment", font)
-    draw.text((930, 248), "Local-first sharing, no accounts, no telemetry", fill="#334e68", font=font)
+    draw.text((930, 248), "Local-first / no accounts / no telemetry", fill="#7f9aaa", font=font)
 
     _panel(draw, (42, 350, 1358, 536), "Protocol Preset", font_h, font)
     draw.text((68, 396), "Preset", fill="#334e68", font=font)
@@ -113,7 +117,7 @@ def capture_report(summary_path: Path, candidates_path: Path, output: Path) -> N
 
     width = 1400
     height = 900
-    image = Image.new("RGB", (width, height), "#f7fafc")
+    image = Image.new("RGB", (width, height), "#070b12")
     draw = ImageDraw.Draw(image)
     font_title = _font(34, bold=True)
     font_h = _font(20, bold=True)
@@ -121,37 +125,40 @@ def capture_report(summary_path: Path, candidates_path: Path, output: Path) -> N
     font_small = _font(14)
 
     stats = summary["aggregate_statistics"]
-    draw.text((48, 38), "LaserAnalysisAI Release Demo Report", fill="#16202a", font=font_title)
-    draw.text((50, 90), f"Run: {summary['run_id']}  |  Profile: {summary['profile']}  |  Seed: {summary['blind_seed']}", fill="#52616b", font=font)
+    draw.text((48, 38), "LaserLab Blinded Review", fill="#72f1b8", font=font_title)
+    draw.text((50, 90), f"Run: {summary['run_id']}  |  Profile: {summary['profile']}  |  Seed: {summary['blind_seed']}", fill="#7f9aaa", font=font)
 
     cards = [
         ("Evidence", stats["evidence_ladder"]),
         ("Protocol", str(summary.get("protocol", "anomaly"))),
         ("Primary", str(stats.get("primary_metric", "structure_score"))),
         ("Samples", str(summary["sample_count"])),
-        ("Laser Mean", f"{stats['laser_mean_score']:.4f}"),
-        ("Control Mean", f"{stats['control_mean_score']:.4f}"),
-        ("Min q", "n/a" if stats.get("minimum_q_value") is None else f"{stats['minimum_q_value']:.4f}"),
+        ("Laser Mean", _metric_text(stats.get("laser_mean_score"))),
+        ("Control Mean", _metric_text(stats.get("control_mean_score"))),
     ]
     x = 48
     y = 136
     for label, value in cards:
-        draw.rounded_rectangle((x, y, x + 200, y + 92), radius=8, fill="#ffffff", outline="#cbd5e1")
-        draw.text((x + 16, y + 16), label.upper(), fill="#627d98", font=font_small)
-        draw.text((x + 16, y + 48), value, fill="#102a43", font=font_h)
+        draw.rounded_rectangle((x, y, x + 200, y + 92), radius=4, fill="#0d1520", outline="#1f3344")
+        draw.text((x + 16, y + 16), label.upper(), fill="#7f9aaa", font=font_small)
+        draw.text((x + 16, y + 48), value, fill="#35d4d4", font=font_h)
         x += 218
 
-    draw.text((48, 270), "Null Result Language", fill="#102a43", font=font_h)
-    draw.multiline_text((48, 304), _wrap(stats["null_result_language"], 128), fill="#334e68", font=font, spacing=6)
+    draw.text((48, 270), "Review State", fill="#35d4d4", font=font_h)
+    draw.multiline_text((48, 304), _wrap(stats["null_result_language"], 128), fill="#d7e3ed", font=font, spacing=6)
 
     table_y = 410
-    draw.text((48, table_y - 44), "Top Candidates", fill="#102a43", font=font_h)
-    headers = ["Rank", "Blind ID", "Label", "Primary", "Persist", "q", "Variant", "OCR"]
-    widths = [70, 130, 150, 90, 90, 90, 180, 480]
+    draw.text((48, table_y - 44), "Top Candidates", fill="#35d4d4", font=font_h)
+    unblinded = bool(rows and "unblinded_label" in rows[0])
+    headers = ["Rank", "Blind ID", "Primary", "Persist", "Variant", "OCR"]
+    widths = [70, 150, 120, 120, 220, 600]
+    if unblinded:
+        headers.insert(2, "Role")
+        widths = [70, 130, 150, 100, 100, 180, 530]
     x = 48
     for header, col_width in zip(headers, widths):
-        draw.rectangle((x, table_y, x + col_width, table_y + 34), fill="#d9e2ec")
-        draw.text((x + 8, table_y + 8), header, fill="#243b53", font=font_small)
+        draw.rectangle((x, table_y, x + col_width, table_y + 34), fill="#111d29")
+        draw.text((x + 8, table_y + 8), header, fill="#7f9aaa", font=font_small)
         x += col_width
 
     y = table_y + 34
@@ -160,16 +167,16 @@ def capture_report(summary_path: Path, candidates_path: Path, output: Path) -> N
         values = [
             row["rank"],
             row["blind_id"],
-            row["unblinded_label"],
             row.get("primary_metric_score", row["structure_score"]),
             row["persistence_score"],
-            row.get("q_value", ""),
             row["preprocessing_variant"],
             (row["ocr_text"] or "").replace("\n", " ")[:80],
         ]
+        if unblinded:
+            values.insert(2, row.get("unblinded_label", ""))
         for value, col_width in zip(values, widths):
-            draw.rectangle((x, y, x + col_width, y + 42), fill="#ffffff", outline="#e6eef5")
-            draw.text((x + 8, y + 11), str(value), fill="#334e68", font=font_small)
+            draw.rectangle((x, y, x + col_width, y + 42), fill="#0b121c", outline="#1f3344")
+            draw.text((x + 8, y + 11), str(value), fill="#d7e3ed", font=font_small)
             x += col_width
         y += 42
 
@@ -206,7 +213,7 @@ def capture_cli(output: Path) -> None:
         lines = block.splitlines()
         draw.rounded_rectangle((44, y, width - 44, min(height - 44, y + 360)), radius=8, fill="#111827", outline="#334155")
         yy = y + 20
-        for line in lines[:18]:
+        for line in lines[:13]:
             color = "#7dd3fc" if line.startswith(">") else "#dbeafe"
             draw.text((64, yy), line[:132], fill=color, font=font_small)
             yy += 24
@@ -217,18 +224,18 @@ def capture_cli(output: Path) -> None:
 
 
 def _panel(draw, box: tuple[int, int, int, int], title: str, font_h, font) -> None:
-    draw.rounded_rectangle(box, radius=6, fill="#ffffff", outline="#cbd5e1")
-    draw.text((box[0] + 22, box[1] + 18), title, fill="#102a43", font=font_h)
+    draw.rounded_rectangle(box, radius=4, fill="#0d1520", outline="#1f3344")
+    draw.text((box[0] + 22, box[1] + 18), title, fill="#35d4d4", font=font_h)
 
 
 def _field(draw, box: tuple[int, int, int, int], text: str, font) -> None:
-    draw.rounded_rectangle(box, radius=4, fill="#f8fbfd", outline="#9fb3c8")
-    draw.text((box[0] + 12, box[1] + 10), text, fill="#243b53", font=font)
+    draw.rounded_rectangle(box, radius=3, fill="#0b121c", outline="#1f3344")
+    draw.text((box[0] + 12, box[1] + 10), text, fill="#d7e3ed", font=font)
 
 
 def _button(draw, box: tuple[int, int, int, int], text: str, font) -> None:
-    draw.rounded_rectangle(box, radius=4, fill="#ffffff", outline="#9fb3c8")
-    draw.text((box[0] + 14, box[1] + 10), text, fill="#102a43", font=font)
+    draw.rounded_rectangle(box, radius=3, fill="#101c27", outline="#2c5965")
+    draw.text((box[0] + 14, box[1] + 10), text, fill="#d7e3ed", font=font)
 
 
 def _table(draw, box: tuple[int, int, int, int], headers: list[str], rows: list[list[str]], font) -> None:
@@ -238,19 +245,19 @@ def _table(draw, box: tuple[int, int, int, int], headers: list[str], rows: list[
     else:
         widths = [190, 120, 120, 100, right - left - 530]
     x = left
-    draw.rectangle((left, top, right, top + 38), fill="#d9e2ec")
+    draw.rectangle((left, top, right, top + 38), fill="#111d29")
     for header, width in zip(headers, widths):
-        draw.text((x + 10, top + 11), header, fill="#243b53", font=font)
+        draw.text((x + 10, top + 11), header, fill="#7f9aaa", font=font)
         x += width
     y = top + 38
     for row in rows:
         x = left
         for value, width in zip(row, widths):
-            draw.rectangle((x, y, x + width, y + 46), fill="#ffffff", outline="#e6eef5")
-            draw.text((x + 10, y + 14), value[:72], fill="#334e68", font=font)
+            draw.rectangle((x, y, x + width, y + 46), fill="#0b121c", outline="#1f3344")
+            draw.text((x + 10, y + 14), value[:72], fill="#d7e3ed", font=font)
             x += width
         y += 46
-    draw.rectangle((left, top, right, bottom), outline="#cbd5e1")
+    draw.rectangle((left, top, right, bottom), outline="#1f3344")
 
 
 def _font(size: int, bold: bool = False):
@@ -279,6 +286,14 @@ def _wrap(text: str, width: int) -> str:
     if current:
         lines.append(" ".join(current))
     return "\n".join(lines)
+
+
+def _metric_text(value) -> str:
+    if value is None:
+        return "sealed"
+    if isinstance(value, float):
+        return f"{value:.4f}"
+    return str(value)
 
 
 def main() -> int:
