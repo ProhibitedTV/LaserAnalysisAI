@@ -23,4 +23,4 @@ Every catalog entry must include an ID, title, media kind, analysis label, licen
 
 ## Interpretation
 
-These fixtures prove that the software can process known optical structure and preserve provenance. They do not validate a claim about a user's footage. Evidence-bearing experiments still require controls recorded with the same camera and optical conditions as the laser capture.
+These are `calibration_fixture`, `regression_fixture`, or `demo_fixture` inputs. They prove that the software can process known optical structure and preserve provenance, but they are not the primary wall-projection research footage model and do not validate a claim about user footage. Evidence-bearing experiments still require controls recorded with the same camera, target, geometry, and optical conditions as the laser capture.

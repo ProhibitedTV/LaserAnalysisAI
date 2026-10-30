@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .artifacts import ensure_dir, relative_to
-from .scientific import fft_spectrum_metrics, glcm_texture_metrics, speckle_contrast_metrics
+from .scientific import cross_pattern_metrics, fft_spectrum_metrics, glcm_texture_metrics, speckle_contrast_metrics
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,9 @@ def run_detectors(processed_image: Any, context: DetectorContext) -> dict[str, A
     fft = fft_spectrum_metrics(processed_image)
     speckle = speckle_contrast_metrics(processed_image)
     glcm = glcm_texture_metrics(processed_image)
+    cross = cross_pattern_metrics(processed_image)
     rois = extract_candidate_rois(processed_image, context)
+    rois.extend(extract_cross_rois(processed_image, context, cross))
     structure = structure_score(ocr, components, texture, edge_lines, rois)
     return {
         "ocr": ocr,
@@ -38,8 +40,9 @@ def run_detectors(processed_image: Any, context: DetectorContext) -> dict[str, A
         "fft_spectrum": fft,
         "speckle_contrast": speckle,
         "texture_features": glcm,
+        "cross_pattern": cross,
         "candidate_rois": rois,
-        "detector_family_scores": detector_family_scores(ocr, components, texture, edge_lines, fft, speckle, glcm, rois),
+        "detector_family_scores": detector_family_scores(ocr, components, texture, edge_lines, fft, speckle, glcm, rois, cross),
         "structure_score": structure,
     }
 
@@ -242,6 +245,48 @@ def extract_candidate_rois(image: Any, context: DetectorContext, limit: int = 5)
     return records
 
 
+def extract_cross_rois(image: Any, context: DetectorContext, cross: dict[str, Any]) -> list[dict[str, Any]]:
+    import cv2
+
+    if not cross.get("detected") or cross.get("center_x") is None or cross.get("center_y") is None:
+        return []
+    processed_height, processed_width = image.shape[:2]
+    original_height, original_width = context.original_image.shape[:2]
+    scale_x = original_width / max(1, processed_width)
+    scale_y = original_height / max(1, processed_height)
+    cx = int(float(cross["center_x"]) * scale_x)
+    cy = int(float(cross["center_y"]) * scale_y)
+    half_band = max(5, int(min(original_width, original_height) * 0.04))
+    half_center = max(10, int(min(original_width, original_height) * 0.10))
+    regions = [
+        ("cross_center", cx - half_center, cy - half_center, cx + half_center, cy + half_center),
+        ("horizontal_arm", 0, cy - half_band, original_width, cy + half_band),
+        ("vertical_arm", cx - half_band, 0, cx + half_band, original_height),
+    ]
+    crop_dir = ensure_dir(context.run_dir / "candidates" / context.blind_id)
+    records = []
+    for index, (region_type, x0, y0, x1, y1) in enumerate(regions):
+        x0, y0 = max(0, x0), max(0, y0)
+        x1, y1 = min(original_width, x1), min(original_height, y1)
+        crop = context.original_image[y0:y1, x0:x1]
+        if crop.size == 0:
+            continue
+        crop_path = crop_dir / f"{context.variant_name}_cross_{index:02d}.png"
+        cv2.imwrite(str(crop_path), crop)
+        records.append(
+            {
+                "x": x0,
+                "y": y0,
+                "width": x1 - x0,
+                "height": y1 - y0,
+                "area": (x1 - x0) * (y1 - y0),
+                "region_type": region_type,
+                "crop_path": relative_to(crop_path, context.experiment_dir),
+            }
+        )
+    return records
+
+
 def structure_score(
     ocr: dict[str, Any],
     components: dict[str, Any],
@@ -279,6 +324,7 @@ def detector_family_scores(
     speckle: dict[str, Any],
     glcm: dict[str, Any],
     rois: list[dict[str, Any]],
+    cross: dict[str, Any] | None = None,
 ) -> dict[str, float]:
     symbol = 0.0
     if ocr.get("available"):
@@ -290,7 +336,8 @@ def detector_family_scores(
     diffraction = min(
         1.0,
         float(fft.get("peak_prominence", 0.0)) / 8.0 * 0.75
-        + float(fft.get("ring_energy_ratio", 0.0)) * 0.25,
+        + float(fft.get("ring_energy_ratio", 0.0)) * 0.15
+        + float((cross or {}).get("confidence", 0.0)) * 0.10,
     )
     speckle_score = min(1.0, float(speckle.get("spatial_contrast_mean", 0.0)) * 2.0)
     texture_score = min(

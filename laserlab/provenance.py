@@ -29,9 +29,18 @@ def inspect_source(source: Path, kind: str) -> dict[str, Any]:
 
 def provenance_warnings(capture_metadata: dict[str, Any], media: dict[str, Any]) -> list[dict[str, str]]:
     warnings: list[dict[str, str]] = []
-    for field, message in RECOMMENDED_CAPTURE_FIELDS.items():
-        if not capture_metadata.get(field):
-            warnings.append({"code": f"missing_{field}", "severity": "warning", "message": message})
+    if capture_metadata.get("footage_class") == "primary_wall_projection":
+        for field, message in RECOMMENDED_CAPTURE_FIELDS.items():
+            if not capture_metadata.get(field):
+                warnings.append({"code": f"missing_{field}", "severity": "warning", "message": message})
+    else:
+        warnings.append(
+            {
+                "code": "fixture_or_non_primary_footage",
+                "severity": "info",
+                "message": "This input is calibration/demo context, not primary matched wall-projection footage.",
+            }
+        )
     if not media.get("width") or not media.get("height"):
         warnings.append({"code": "unknown_resolution", "severity": "warning", "message": "Media resolution could not be determined."})
     if media.get("source_kind") == "video" and not media.get("fps"):

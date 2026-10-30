@@ -136,6 +136,79 @@ def phase_registration_metrics(reference: Any, moving: Any) -> dict[str, Any]:
     }
 
 
+def cross_pattern_metrics(image: Any) -> dict[str, Any]:
+    """Register a visible line cross using long near-orthogonal Hough segments."""
+    import cv2
+    import numpy as np
+
+    gray = to_gray_float(image).clip(0, 255).astype("uint8")
+    height, width = gray.shape[:2]
+    edges = cv2.Canny(gray, 40, 140)
+    lines = cv2.HoughLinesP(
+        edges,
+        rho=1,
+        theta=np.pi / 180,
+        threshold=max(20, min(height, width) // 8),
+        minLineLength=max(20, min(height, width) // 4),
+        maxLineGap=max(6, min(height, width) // 20),
+    )
+    horizontal: list[tuple[float, tuple[int, int, int, int], float]] = []
+    vertical: list[tuple[float, tuple[int, int, int, int], float]] = []
+    if lines is not None:
+        for raw in lines[:300]:
+            x1, y1, x2, y2 = (int(value) for value in raw[0])
+            angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
+            normalized_angle = ((angle + 90.0) % 180.0) - 90.0
+            length = math.hypot(x2 - x1, y2 - y1)
+            record = (length, (x1, y1, x2, y2), normalized_angle)
+            if abs(normalized_angle) <= 18.0:
+                horizontal.append(record)
+            if abs(abs(normalized_angle) - 90.0) <= 18.0:
+                vertical.append(record)
+
+    best_h = max(horizontal, default=None, key=lambda item: item[0])
+    best_v = max(vertical, default=None, key=lambda item: item[0])
+    center_x = center_y = None
+    confidence = 0.0
+    if best_h and best_v:
+        intersection = _line_intersection(best_h[1], best_v[1])
+        if intersection is not None:
+            center_x, center_y = intersection
+            horizontal_coverage = min(1.0, best_h[0] / max(1.0, width))
+            vertical_coverage = min(1.0, best_v[0] / max(1.0, height))
+            orthogonality = 1.0 - min(1.0, abs(abs(best_h[2] - best_v[2]) - 90.0) / 20.0)
+            in_frame = 0.0 <= center_x < width and 0.0 <= center_y < height
+            confidence = min(horizontal_coverage, vertical_coverage) * orthogonality if in_frame else 0.0
+    saturation_fraction = float(np.count_nonzero(gray >= 250) / max(1, gray.size))
+    return {
+        "detected": confidence >= 0.25,
+        "confidence": round(float(confidence), 6),
+        "center_x": None if center_x is None else round(float(center_x), 3),
+        "center_y": None if center_y is None else round(float(center_y), 3),
+        "horizontal_angle_degrees": None if best_h is None else round(float(best_h[2]), 3),
+        "vertical_angle_degrees": None if best_v is None else round(float(best_v[2]), 3),
+        "horizontal_length_fraction": 0.0 if best_h is None else round(float(min(1.0, best_h[0] / max(1.0, width))), 6),
+        "vertical_length_fraction": 0.0 if best_v is None else round(float(min(1.0, best_v[0] / max(1.0, height))), 6),
+        "saturated_fraction": round(saturation_fraction, 6),
+    }
+
+
+def _line_intersection(
+    first: tuple[int, int, int, int],
+    second: tuple[int, int, int, int],
+) -> tuple[float, float] | None:
+    x1, y1, x2, y2 = first
+    x3, y3, x4, y4 = second
+    denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(denominator) < 1e-9:
+        return None
+    determinant_a = x1 * y2 - y1 * x2
+    determinant_b = x3 * y4 - y3 * x4
+    x = (determinant_a * (x3 - x4) - (x1 - x2) * determinant_b) / denominator
+    y = (determinant_a * (y3 - y4) - (y1 - y2) * determinant_b) / denominator
+    return float(x), float(y)
+
+
 def benjamini_hochberg_q_values(p_values: list[float]) -> list[float]:
     """Return q-values in original order using the BH step-up procedure."""
     m = len(p_values)

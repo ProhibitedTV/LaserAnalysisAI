@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPushButton,
     QProgressBar,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QStatusBar,
@@ -122,17 +123,12 @@ class LabDashboardWindow(QMainWindow):
         action_layout.addStretch(1)
         layout.addWidget(actions)
 
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(self._experiment_tab())
-        right = QWidget()
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.addWidget(self._protocol_tab(), 2)
-        right_layout.addWidget(self._fixtures_tab(), 1)
-        splitter.addWidget(right)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        layout.addWidget(splitter, 1)
+        self.setup_steps = QTabWidget()
+        self.setup_steps.addTab(self._experiment_tab(), "1  Experiment")
+        self.setup_steps.addTab(self._capture_tab(), "2  Add Capture")
+        self.setup_steps.addTab(self._protocol_tab(), "3  Analysis Plan")
+        self.setup_steps.addTab(self._fixtures_tab(), "Demo")
+        layout.addWidget(self.setup_steps, 1)
         return page
 
     def _home_tab(self) -> QWidget:
@@ -184,7 +180,30 @@ class LabDashboardWindow(QMainWindow):
         experiment_layout.addWidget(open_exp, 0, 3)
         layout.addWidget(experiment_group)
 
-        source_group = QGroupBox("Sources")
+        guidance = QLabel("Open a directory, then add at least one laser capture and one matched control.")
+        guidance.setObjectName("subtitle")
+        layout.addWidget(guidance)
+
+        self.capture_table = QTableWidget(0, 6)
+        self.capture_table.setHorizontalHeaderLabels(["Capture", "Role", "Footage class", "Pattern", "Frames", "Warnings"])
+        self.capture_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.capture_table.verticalHeader().setVisible(False)
+        layout.addWidget(self.capture_table, 1)
+
+        continue_button = QPushButton("Continue to Add Capture")
+        continue_button.clicked.connect(lambda: self.setup_steps.setCurrentIndex(1))
+        layout.addWidget(continue_button)
+        return page
+
+    def _capture_tab(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+
+        source_group = QGroupBox("Source")
         source_layout = QGridLayout(source_group)
         self.source_path = QLineEdit()
         browse_source = QPushButton("Browse")
@@ -193,6 +212,29 @@ class LabDashboardWindow(QMainWindow):
         self.kind_combo.addItems(["video", "image-set"])
         self.label_combo = QComboBox()
         self.label_combo.addItems(["laser", "matched_control", "control", "sensor_noise", "synthetic_positive", "synthetic_negative"])
+        self.footage_class_combo = QComboBox()
+        for label, value in (
+            ("Wall-projection experiment", "primary_wall_projection"),
+            ("Calibration fixture", "calibration_fixture"),
+            ("Regression fixture", "regression_fixture"),
+            ("Demo fixture", "demo_fixture"),
+            ("Other footage", "other"),
+        ):
+            self.footage_class_combo.addItem(label, value)
+        self.laser_pattern_combo = QComboBox()
+        self.laser_pattern_combo.addItems(["cross", "dot", "line", "grid", "fan", "unknown"])
+        self.wavelength_nm = QDoubleSpinBox()
+        self.wavelength_nm.setRange(0.0, 2000.0)
+        self.wavelength_nm.setDecimals(1)
+        self.wavelength_nm.setValue(650.0)
+        self.wavelength_nm.setSuffix(" nm")
+        self.surface_combo = QComboBox()
+        self.surface_combo.addItems(["matte_wall", "painted_drywall", "textured_paper", "fabric", "other", "unknown"])
+        self.camera_fixed_check = QCheckBox("Camera fixed")
+        self.beam_fixed_check = QCheckBox("Beam path fixed")
+        self.non_reflective_check = QCheckBox("Non-reflective target")
+        self.not_saturated_check = QCheckBox("Projected region not saturated")
+        self.safety_ack_check = QCheckBox("Laser safety reviewed")
         self.sampling_profile = QComboBox()
         self.sampling_profile.addItems(["quick", "baseline", "wide", "exhaustive"])
         self.sampling_profile.setCurrentText("baseline")
@@ -213,32 +255,112 @@ class LabDashboardWindow(QMainWindow):
         source_layout.addWidget(QLabel("Path"), 0, 0)
         source_layout.addWidget(self.source_path, 0, 1, 1, 4)
         source_layout.addWidget(browse_source, 0, 5)
-        source_layout.addWidget(QLabel("Kind"), 1, 0)
+        source_layout.addWidget(QLabel("Media"), 1, 0)
         source_layout.addWidget(self.kind_combo, 1, 1)
-        source_layout.addWidget(QLabel("Label"), 1, 2)
+        source_layout.addWidget(QLabel("Role"), 1, 2)
         source_layout.addWidget(self.label_combo, 1, 3)
-        source_layout.addWidget(self.all_frames, 1, 4)
-        source_layout.addWidget(self.add_capture_button, 1, 5)
-        source_layout.addWidget(QLabel("Frame interval"), 2, 0)
-        source_layout.addWidget(self.frame_interval, 2, 1)
-        source_layout.addWidget(QLabel("Max frames"), 2, 2)
-        source_layout.addWidget(self.max_frames, 2, 3)
-        source_layout.addWidget(QLabel("Sampling profile"), 3, 0)
-        source_layout.addWidget(self.sampling_profile, 3, 1)
-        source_layout.addWidget(self.deduplicate_frames, 3, 2, 1, 2)
+        source_layout.addWidget(QLabel("Footage type"), 2, 0)
+        source_layout.addWidget(self.footage_class_combo, 2, 1, 1, 3)
         layout.addWidget(source_group)
 
-        self.capture_table = QTableWidget(0, 6)
-        self.capture_table.setHorizontalHeaderLabels(["Capture ID", "Label", "Kind", "Frames", "Warnings", "Source"])
-        self.capture_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.capture_table.verticalHeader().setVisible(False)
-        layout.addWidget(self.capture_table, 1)
+        essentials = QGroupBox("Capture essentials")
+        essential_layout = QGridLayout(essentials)
+        essential_layout.addWidget(QLabel("Laser pattern"), 0, 0)
+        essential_layout.addWidget(self.laser_pattern_combo, 0, 1)
+        essential_layout.addWidget(QLabel("Wavelength"), 0, 2)
+        essential_layout.addWidget(self.wavelength_nm, 0, 3)
+        essential_layout.addWidget(QLabel("Projection surface"), 1, 0)
+        essential_layout.addWidget(self.surface_combo, 1, 1)
+        essential_layout.addWidget(self.camera_fixed_check, 2, 0)
+        essential_layout.addWidget(self.beam_fixed_check, 2, 1)
+        essential_layout.addWidget(self.non_reflective_check, 2, 2)
+        essential_layout.addWidget(self.not_saturated_check, 2, 3)
+        essential_layout.addWidget(self.safety_ack_check, 3, 0, 1, 2)
+        layout.addWidget(essentials)
+        safety_notice = QLabel(
+            "Use a fixed mount, beam stop, non-reflective target, and trained handling. Never view or align a beam at eye level."
+        )
+        safety_notice.setWordWrap(True)
+        safety_notice.setObjectName("warning")
+        layout.addWidget(safety_notice)
+
+        self.capture_advanced_button = QPushButton("Show advanced capture details")
+        self.capture_advanced_button.setCheckable(True)
+        layout.addWidget(self.capture_advanced_button)
+        self.capture_advanced = QWidget()
+        advanced_layout = QGridLayout(self.capture_advanced)
+        self.projection_distance = QDoubleSpinBox()
+        self.projection_distance.setRange(0.0, 10000.0)
+        self.projection_distance.setDecimals(2)
+        self.projection_distance.setSuffix(" m")
+        self.rated_power = QDoubleSpinBox()
+        self.rated_power.setRange(0.0, 100000.0)
+        self.rated_power.setDecimals(2)
+        self.rated_power.setSuffix(" mW")
+        self.laser_class = QLineEdit()
+        self.manufacturer_model = QLineEdit()
+        self.diffraction_optic = QLineEdit()
+        self.mount_type = QComboBox()
+        self.mount_type.addItems(["tripod", "clamp", "lab_stand", "handheld", "unknown"])
+        self.cross_center_visible = QCheckBox("Cross center visible")
+        self.entire_cross_visible = QCheckBox("Entire cross visible")
+        self.surface_texture_visible = QCheckBox("Surface texture visible")
+        self.geometry_notes = QLineEdit()
+        self.intermediate_notes = QLineEdit()
+        self.room_lighting_notes = QLineEdit()
+        self.external_dataset_reference = QLineEdit()
+        self.external_dataset_reference.setPlaceholderText("Optional corpus/archive reference")
+        self.symbol_corpus_compared = QCheckBox("Compared with a symbol corpus")
+        advanced_layout.addWidget(QLabel("Projection distance"), 0, 0)
+        advanced_layout.addWidget(self.projection_distance, 0, 1)
+        advanced_layout.addWidget(QLabel("Rated power"), 0, 2)
+        advanced_layout.addWidget(self.rated_power, 0, 3)
+        advanced_layout.addWidget(QLabel("Laser class"), 1, 0)
+        advanced_layout.addWidget(self.laser_class, 1, 1)
+        advanced_layout.addWidget(QLabel("Diffraction optic"), 1, 2)
+        advanced_layout.addWidget(self.diffraction_optic, 1, 3)
+        advanced_layout.addWidget(QLabel("Manufacturer / model"), 2, 0)
+        advanced_layout.addWidget(self.manufacturer_model, 2, 1)
+        advanced_layout.addWidget(QLabel("Mount"), 2, 2)
+        advanced_layout.addWidget(self.mount_type, 2, 3)
+        advanced_layout.addWidget(self.cross_center_visible, 3, 0)
+        advanced_layout.addWidget(self.entire_cross_visible, 3, 1)
+        advanced_layout.addWidget(self.surface_texture_visible, 3, 2)
+        advanced_layout.addWidget(QLabel("Geometry notes"), 4, 0)
+        advanced_layout.addWidget(self.geometry_notes, 4, 1, 1, 3)
+        advanced_layout.addWidget(QLabel("Intermediate layer"), 5, 0)
+        advanced_layout.addWidget(self.intermediate_notes, 5, 1, 1, 3)
+        advanced_layout.addWidget(QLabel("Room lighting"), 6, 0)
+        advanced_layout.addWidget(self.room_lighting_notes, 6, 1, 1, 3)
+        advanced_layout.addWidget(QLabel("External corpus/reference"), 7, 0)
+        advanced_layout.addWidget(self.external_dataset_reference, 7, 1, 1, 2)
+        advanced_layout.addWidget(self.symbol_corpus_compared, 7, 3)
+        advanced_layout.addWidget(QLabel("Sampling profile"), 8, 0)
+        advanced_layout.addWidget(self.sampling_profile, 8, 1)
+        advanced_layout.addWidget(QLabel("Frame interval"), 8, 2)
+        advanced_layout.addWidget(self.frame_interval, 8, 3)
+        advanced_layout.addWidget(QLabel("Max frames"), 9, 0)
+        advanced_layout.addWidget(self.max_frames, 9, 1)
+        advanced_layout.addWidget(self.all_frames, 9, 2)
+        advanced_layout.addWidget(self.deduplicate_frames, 9, 3)
+        self.capture_advanced.setVisible(False)
+        self.capture_advanced_button.toggled.connect(self.capture_advanced.setVisible)
+        self.capture_advanced_button.toggled.connect(
+            lambda checked: self.capture_advanced_button.setText(
+                "Hide advanced capture details" if checked else "Show advanced capture details"
+            )
+        )
+        layout.addWidget(self.capture_advanced)
+        layout.addWidget(self.add_capture_button)
+        layout.addStretch(1)
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
         return page
 
     def _protocol_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        protocol_group = QGroupBox("Protocol Preset")
+        protocol_group = QGroupBox("Analysis preset")
         form = QFormLayout(protocol_group)
         self.protocol_combo = QComboBox()
         for preset in self.protocol_presets:
@@ -247,7 +369,18 @@ class LabDashboardWindow(QMainWindow):
         self.protocol_combo.currentIndexChanged.connect(self._protocol_changed)
         self.protocol_description = QTextEdit()
         self.protocol_description.setReadOnly(True)
-        self.protocol_description.setMaximumHeight(86)
+        self.protocol_description.setMaximumHeight(120)
+        form.addRow("Preset", self.protocol_combo)
+        form.addRow("Purpose", self.protocol_description)
+        layout.addWidget(protocol_group)
+
+        self.protocol_advanced_button = QPushButton("Show advanced analysis controls")
+        self.protocol_advanced_button.setCheckable(True)
+        layout.addWidget(self.protocol_advanced_button)
+        self.protocol_advanced = QWidget()
+        advanced_layout = QVBoxLayout(self.protocol_advanced)
+        detector_group = QGroupBox("Detector and sampling controls")
+        detector_form = QFormLayout(detector_group)
         self.primary_metric_combo = QComboBox()
         self.primary_metric_combo.addItems(["structure_score", "fft_peak_prominence", "speckle_contrast", "ocr_symbol_score"])
         self.preprocessing_intensity = QComboBox()
@@ -256,13 +389,11 @@ class LabDashboardWindow(QMainWindow):
         self.control_generation.addItems(["standard", "strict", "none"])
         self.frame_sampling_mode = QComboBox()
         self.frame_sampling_mode.addItems(["interval", "scene_change", "all_frames", "capped_all_frames"])
-        form.addRow("Preset", self.protocol_combo)
-        form.addRow("Primary metric", self.primary_metric_combo)
-        form.addRow("Preprocessing intensity", self.preprocessing_intensity)
-        form.addRow("Control generation", self.control_generation)
-        form.addRow("Frame sampling mode", self.frame_sampling_mode)
-        form.addRow("Description", self.protocol_description)
-        layout.addWidget(protocol_group)
+        detector_form.addRow("Primary metric", self.primary_metric_combo)
+        detector_form.addRow("Preprocessing intensity", self.preprocessing_intensity)
+        detector_form.addRow("Control generation", self.control_generation)
+        detector_form.addRow("Frame sampling mode", self.frame_sampling_mode)
+        advanced_layout.addWidget(detector_group)
 
         advanced = QGroupBox("Advanced ROI")
         grid = QGridLayout(advanced)
@@ -275,8 +406,6 @@ class LabDashboardWindow(QMainWindow):
             spin.setRange(0, 100000)
         self.roi_w.setValue(0)
         self.roi_h.setValue(0)
-        self.apply_protocol_button = QPushButton("Save Protocol Plan")
-        self.apply_protocol_button.clicked.connect(self.apply_protocol_plan)
         grid.addWidget(self.roi_enabled, 0, 0, 1, 2)
         grid.addWidget(QLabel("x"), 1, 0)
         grid.addWidget(self.roi_x, 1, 1)
@@ -286,8 +415,52 @@ class LabDashboardWindow(QMainWindow):
         grid.addWidget(self.roi_w, 2, 1)
         grid.addWidget(QLabel("height"), 2, 2)
         grid.addWidget(self.roi_h, 2, 3)
-        grid.addWidget(self.apply_protocol_button, 3, 0, 1, 4)
-        layout.addWidget(advanced)
+        advanced_layout.addWidget(advanced)
+        self.protocol_advanced.setVisible(False)
+        self.protocol_advanced_button.toggled.connect(self.protocol_advanced.setVisible)
+        self.protocol_advanced_button.toggled.connect(
+            lambda checked: self.protocol_advanced_button.setText(
+                "Hide advanced analysis controls" if checked else "Show advanced analysis controls"
+            )
+        )
+        layout.addWidget(self.protocol_advanced)
+
+        study = QGroupBox("Study context")
+        study_form = QFormLayout(study)
+        self.study_mode = QComboBox()
+        self.study_mode.addItem("Footage only", "footage_only")
+        self.study_mode.addItem("Retrospective report attached", "retrospective_report")
+        self.study_mode.addItem("Externally approved study metadata", "externally_approved_study")
+        study_form.addRow("Context", self.study_mode)
+        self.subjective_fields = QWidget()
+        subjective_form = QFormLayout(self.subjective_fields)
+        self.session_id = QLineEdit()
+        self.session_id.setPlaceholderText("Pseudonymous ID only")
+        self.perception_notes = QTextEdit()
+        self.perception_notes.setMaximumHeight(80)
+        self.subjective_confidence = QDoubleSpinBox()
+        self.subjective_confidence.setRange(0.0, 1.0)
+        self.subjective_confidence.setSingleStep(0.05)
+        self.ethics_reference = QLineEdit()
+        self.privacy_ack = QCheckBox("No direct identifiers; sharing risk reviewed")
+        subjective_form.addRow("Session ID", self.session_id)
+        subjective_form.addRow("Context notes", self.perception_notes)
+        subjective_form.addRow("Self-rating", self.subjective_confidence)
+        subjective_form.addRow("Ethics reference", self.ethics_reference)
+        subjective_form.addRow(self.privacy_ack)
+        privacy_notice = QLabel("Subjective context is stored separately and never contributes to detector scores.")
+        privacy_notice.setWordWrap(True)
+        privacy_notice.setObjectName("warning")
+        subjective_form.addRow(privacy_notice)
+        self.subjective_fields.setVisible(False)
+        self.study_mode.currentIndexChanged.connect(self._study_mode_changed)
+        study_form.addRow(self.subjective_fields)
+        layout.addWidget(study)
+
+        self.apply_protocol_button = QPushButton("Save Analysis Plan")
+        self.apply_protocol_button.clicked.connect(self.apply_protocol_plan)
+        layout.addWidget(self.apply_protocol_button)
+        layout.addStretch(1)
         return page
 
     def _run_tab(self) -> QWidget:
@@ -575,6 +748,7 @@ class LabDashboardWindow(QMainWindow):
             QLabel#subtitle { font-size: 14px; color: #7f9aaa; }
             QLabel#metricValue { font-size: 18px; font-weight: 700; color: #35d4d4; }
             QLabel#reviewState { color: #f5a6cf; font-weight: 700; padding: 6px 0; }
+            QLabel#warning { color: #f5a6cf; padding: 6px 2px; }
             QLabel#preview { background: #05080d; border: 1px solid #1f5260; min-height: 220px; color: #607786; }
             QTextEdit#checklist { background: #091019; color: #9fb2c0; }
             """
@@ -589,9 +763,11 @@ class LabDashboardWindow(QMainWindow):
 
     def analyze_my_footage(self) -> None:
         self.tabs.setCurrentIndex(0)
+        self.setup_steps.setCurrentIndex(1)
         self.browse_source()
 
     def open_existing_experiment(self) -> None:
+        self.setup_steps.setCurrentIndex(0)
         self.browse_experiment()
         self.open_experiment()
 
@@ -622,6 +798,14 @@ class LabDashboardWindow(QMainWindow):
             self._set_combo_text(self.control_generation, plan.get("control_generation", "standard"))
             self._set_combo_text(self.preprocessing_intensity, plan.get("preprocessing_intensity", "standard"))
             self._set_combo_text(self.frame_sampling_mode, plan.get("frame_sampling_mode", "interval"))
+            context = manifest.get("study_context", {})
+            self._set_combo_data(self.study_mode, context.get("mode", "footage_only"))
+            self.session_id.setText(str(context.get("pseudonymous_session_id") or ""))
+            self.perception_notes.setPlainText(str(context.get("perception_notes") or ""))
+            self.subjective_confidence.setValue(float(context.get("confidence") or 0.0))
+            self.ethics_reference.setText(str(context.get("ethics_review_reference") or ""))
+            self.privacy_ack.setChecked(bool(context.get("privacy_acknowledged")))
+            self._study_mode_changed()
             self.status.showMessage(f"Experiment open: {self.experiment_dir}")
             self.refresh_review(silent=True)
             self.update_estimate()
@@ -650,6 +834,7 @@ class LabDashboardWindow(QMainWindow):
                 sampling_profile=self.sampling_profile.currentText(),
                 sampling_mode=self.frame_sampling_mode.currentText(),
                 deduplicate=self.deduplicate_frames.isChecked(),
+                capture_metadata=self._capture_metadata(),
             )
 
         self._run_worker("Adding capture", task, self._capture_added)
@@ -659,6 +844,7 @@ class LabDashboardWindow(QMainWindow):
         if not experiment:
             return
         try:
+            app_api.update_study_context(experiment, self._study_context())
             manifest = app_api.update_analysis_plan(
                 experiment,
                 protocol=self._current_protocol(),
@@ -876,6 +1062,7 @@ class LabDashboardWindow(QMainWindow):
             f"Primary metric: {candidate.get('primary_metric', 'structure_score')}",
             f"Primary score: {candidate.get('primary_metric_score', candidate.get('structure_score'))}",
             f"Families: {candidate.get('detector_family_scores', {})}",
+            f"Cross registration: {candidate.get('cross_pattern', {})}",
         ]
         if self._review_is_unblinded():
             details.extend(
@@ -952,6 +1139,9 @@ class LabDashboardWindow(QMainWindow):
         self.run_log.append("Capture added.")
         self.update_estimate()
         self.status.showMessage("Capture added")
+        self.source_path.clear()
+        if self.label_combo.currentText() == "laser":
+            self.label_combo.setCurrentText("matched_control")
 
     def _analysis_finished(self, run_record: dict[str, Any]) -> None:
         stats = run_record.get("aggregate_statistics", {})
@@ -984,10 +1174,10 @@ class LabDashboardWindow(QMainWindow):
             values = [
                 capture.get("capture_id", ""),
                 capture.get("label", ""),
-                capture.get("kind", ""),
+                capture.get("metadata", {}).get("footage_class", ""),
+                capture.get("metadata", {}).get("laser_pattern_type", ""),
                 str(len(capture.get("frames", [])) or capture.get("frame_count", 0)),
                 str(len(capture.get("provenance_warnings", []))),
-                capture.get("source_id", ""),
             ]
             for column, value in enumerate(values):
                 self.capture_table.setItem(row, column, QTableWidgetItem(str(value)))
@@ -1168,9 +1358,25 @@ class LabDashboardWindow(QMainWindow):
                 captures = []
         labels = {capture.get("label") for capture in captures}
         warning_count = sum(len(capture.get("provenance_warnings", [])) for capture in captures)
+        laser_captures = [capture for capture in captures if capture.get("label") == "laser"]
+        wall_projection = any(
+            capture.get("metadata", {}).get("footage_class") == "primary_wall_projection"
+            for capture in laser_captures
+        )
+        camera_fixed = bool(laser_captures) and all(
+            capture.get("metadata", {}).get("camera_fixed") is True for capture in laser_captures
+        )
+        safe_target = bool(laser_captures) and all(
+            capture.get("metadata", {}).get("non_reflective_surface") is True
+            and capture.get("metadata", {}).get("projected_region_not_saturated") is True
+            for capture in laser_captures
+        )
         lines = [
             ("laser capture", "laser" in labels),
             ("control capture", bool(labels & {"control", "matched_control", "sensor_noise", "synthetic_negative"})),
+            ("wall or flat projection target", wall_projection),
+            ("fixed camera and geometry", camera_fixed),
+            ("non-reflective, non-saturated target", safe_target),
             ("frame count >= 2", estimate.get("sample_count", 0) >= 2),
             ("matched controls enabled", self.control_generation.currentText() != "none"),
             ("capture provenance complete", warning_count == 0),
@@ -1185,6 +1391,46 @@ class LabDashboardWindow(QMainWindow):
         )
         self._set_combo_text(self.primary_metric_combo, preset["primary_metric"])
         self._set_combo_text(self.preprocessing_intensity, "wide" if preset["profile"] == "wide" else "standard")
+
+    def _study_mode_changed(self, *_args: Any) -> None:
+        self.subjective_fields.setVisible((self.study_mode.currentData() or "footage_only") != "footage_only")
+
+    def _study_context(self) -> dict[str, Any]:
+        return {
+            "mode": self.study_mode.currentData() or "footage_only",
+            "pseudonymous_session_id": self.session_id.text().strip() or None,
+            "perception_notes": self.perception_notes.toPlainText().strip(),
+            "confidence": self.subjective_confidence.value(),
+            "privacy_acknowledged": self.privacy_ack.isChecked(),
+            "ethics_review_reference": self.ethics_reference.text().strip() or None,
+        }
+
+    def _capture_metadata(self) -> dict[str, Any]:
+        return {
+            "footage_class": self.footage_class_combo.currentData() or "other",
+            "laser_pattern_type": self.laser_pattern_combo.currentText(),
+            "wavelength_nm": self.wavelength_nm.value() or None,
+            "projection_surface_type": self.surface_combo.currentText(),
+            "camera_fixed": self.camera_fixed_check.isChecked(),
+            "beam_path_fixed": self.beam_fixed_check.isChecked(),
+            "non_reflective_surface": self.non_reflective_check.isChecked(),
+            "projected_region_not_saturated": self.not_saturated_check.isChecked(),
+            "safety_acknowledged": self.safety_ack_check.isChecked(),
+            "projection_distance_meters": self.projection_distance.value() or None,
+            "rated_power_mw": self.rated_power.value() or None,
+            "laser_class_label": self.laser_class.text().strip() or None,
+            "manufacturer_model": self.manufacturer_model.text().strip() or None,
+            "diffraction_optic_type": self.diffraction_optic.text().strip() or None,
+            "mount_type": self.mount_type.currentText(),
+            "cross_center_visible": self.cross_center_visible.isChecked(),
+            "entire_cross_visible": self.entire_cross_visible.isChecked(),
+            "surface_texture_visible": self.surface_texture_visible.isChecked(),
+            "laser_to_target_geometry_notes": self.geometry_notes.text().strip(),
+            "intermediate_material_notes": self.intermediate_notes.text().strip(),
+            "room_lighting_notes": self.room_lighting_notes.text().strip(),
+            "external_dataset_reference": self.external_dataset_reference.text().strip() or None,
+            "symbol_corpus_compared": self.symbol_corpus_compared.isChecked(),
+        }
 
     def _sampling_profile_changed(self, profile: str) -> None:
         defaults = {

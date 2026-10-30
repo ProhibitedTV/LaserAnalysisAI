@@ -31,9 +31,17 @@ Record a laser capture and a matched control with the same camera, lens, distanc
 
 Avoid saturated footage. When large regions clip to maximum brightness, texture and edge detectors can measure camera clipping rather than optical structure. Stabilize the camera and record enough frames for comparison; two-frame runs are packaging smokes, not evidence-bearing experiments.
 
+### Wall-Projection Template
+
+The primary footage model is: fixed laser → optional diffraction optic/material → non-reflective wall or flat target → fixed camera. Record wavelength, reported power/class, projected pattern type, target surface, distances, geometry, room lighting, camera settings, intermediate material, and saturation status when known.
+
+Use trained laser handling, a fixed mount, a beam stop, and a controlled non-reflective path. Never view the beam directly or align it at eye level. Treat device power/class labels as unverified until checked under the applicable safety standard. Reflective surfaces, glass, jewelry, mirrors, glossy paint, and unexpected secondary beams require separate safety review.
+
+Useful matched controls keep camera, target, focus, exposure, and geometry fixed while changing one planned variable: laser off; intermediate layer absent; neutral optical path; sensor/dark capture; repeated session; or alternate non-glossy target. Do not change several variables and call the result matched.
+
 ## Create The Experiment
 
-In **Setup**, choose an experiment directory and add both captures. Assign the real roles there; LaserLab derives blinded IDs before scoring.
+In **Setup**, use the four short subtasks: **Experiment**, **Add Capture**, **Analysis Plan**, and **Demo**. Assign real roles during capture ingestion; LaserLab derives blinded IDs before scoring. Advanced hardware, sampling, ROI, and subjective-context fields are hidden by default.
 
 Choose a sampling profile before ingestion. `quick` is a workflow check, `baseline` is the normal starting point, `wide` samples more densely, and `exhaustive` considers every frame. Near-duplicate suppression prevents a static segment from dominating the run and records every skipped duplicate in the capture diagnostics. Provenance warnings identify missing camera, exposure, focus, compression, resolution, or frame-rate details; warnings do not invalidate a capture, but they limit what can be reproduced.
 
@@ -63,6 +71,8 @@ Interpret the evidence ladder conservatively:
 - `repeatable candidate`: above-control behavior also persists across frames or captures.
 
 A null result is a valid result for this footage, protocol, and detector version. It does not prove that every possible signal is absent.
+
+Subjective perception notes are optional context, not image evidence. Use only pseudonymous session IDs, review privacy before sharing, and keep participant work under appropriate legal, ethical, consent, and safety review outside LaserLab. The app provides no substance procurement, dosing, administration, or intoxication instructions.
 
 ## Export And Share
 

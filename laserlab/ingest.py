@@ -17,6 +17,7 @@ from .artifacts import (
 )
 from .manifest import load_or_create_manifest, write_manifest
 from .provenance import inspect_source, provenance_warnings
+from .capture_protocol import capture_protocol_warnings, normalize_capture_metadata
 from .sampling import DuplicateTracker, frame_signature, resolve_sampling_plan, scene_change_score
 
 
@@ -61,8 +62,8 @@ def init_experiment(
     capture_dir = ensure_dir(experiment_dir / "frames" / capture_id)
 
     media_metadata = inspect_source(source, kind)
-    metadata = dict(capture_metadata or {})
-    warnings = provenance_warnings(metadata, media_metadata)
+    metadata = normalize_capture_metadata(capture_metadata)
+    warnings = provenance_warnings(metadata, media_metadata) + capture_protocol_warnings(metadata)
 
     if kind == "image-set":
         frame_records, source_hash, sampling_diagnostics = _ingest_image_set(

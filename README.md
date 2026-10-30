@@ -9,7 +9,7 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.5 Dashboard
+## LaserLab v0.6 Dashboard
 
 Native release bundles contain:
 
@@ -20,7 +20,7 @@ Native release bundles contain:
 
 The desktop workflow is deliberately narrow:
 
-- `Setup`: open an experiment, ingest captures with deterministic sampling and provenance checks, choose a protocol, ROI, and bundled fixtures.
+- `Setup`: follow Experiment → Add Capture → Analysis Plan → Demo. Wall-projection essentials stay visible; sampling, ROI, hardware detail, and subjective context remain collapsed until requested.
 - `Run`: check protocol quality, estimate work, set the blind seed, and score sealed samples.
 - `Review`: filter blind IDs, inspect images/crops/OCR/metrics, and save source-safe notes and flags without attribution.
 - `Compare`: unlock matched-control and detector-family statistics only after explicit unblind.
@@ -67,6 +67,16 @@ Run the bundled demo through the same API layer used by the dashboard:
 - `General anomaly scan`: broad texture, edge, OCR, and persistence sweep with strict false-positive language.
 
 Each preset writes a sealed review first. The manifest, report, results, CSV, HTML, and review bundle omit labels, source paths, provenance, and raw media. Setup and Run remain locked until the reviewer marks inspection complete and explicitly chooses **Unblind and compare**.
+
+## Primary Capture Model
+
+LaserLab is designed first for already-recorded wall-projection experiments: a fixed laser and optional diffraction layer projecting onto a wall or flat non-reflective target, recorded by a fixed camera alongside matched controls. Public educational clips and bundled optical videos are calibration, regression, and demo fixtures; they are not substitutes for matched wall-projection footage.
+
+Capture metadata records the projection surface, laser pattern, wavelength, fixed geometry, saturation status, optical layer, room lighting, power/class labels, and safety acknowledgement. `cross` is a first-class pattern type, with presets for commonly reported 650, 532, 488, 450, and 405 nm hardware metadata. Entered labels are reports, not verified measurements.
+
+The detector now registers visible cross arms, center, rotation, arm coverage, saturation, and center/horizontal/vertical ROIs. These are image measurements, not evidence that a pattern is language or has an external origin.
+
+Optional subjective context is kept in a separate `context_only` record. It remains sealed during candidate review and never contributes to detector scores, p-values, or the evidence ladder.
 
 ## CLI Workflow
 

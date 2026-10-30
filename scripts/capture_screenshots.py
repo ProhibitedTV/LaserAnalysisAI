@@ -24,6 +24,7 @@ def capture_gui(output: Path) -> None:
             else:
                 os.environ.pop("QT_QPA_PLATFORM", None)
             from PyQt5.QtWidgets import QApplication
+            from PyQt5.QtTest import QTest
 
             from gui.lab_dashboard import LabDashboardWindow
 
@@ -32,6 +33,10 @@ def capture_gui(output: Path) -> None:
             window.resize(1420, 900)
             window.show()
             app.processEvents()
+            QTest.qWait(250)
+            window.repaint()
+            app.processEvents()
+            QTest.qWait(100)
             output.parent.mkdir(parents=True, exist_ok=True)
             window.grab().save(str(output))
             window.close()
@@ -114,6 +119,7 @@ def capture_blinded_review(output: Path, experiment_dir: Path) -> None:
     else:
         os.environ.pop("QT_QPA_PLATFORM", None)
     from PyQt5.QtWidgets import QApplication
+    from PyQt5.QtTest import QTest
 
     from gui.lab_dashboard import LabDashboardWindow
 
@@ -126,6 +132,10 @@ def capture_blinded_review(output: Path, experiment_dir: Path) -> None:
     window.tabs.setCurrentIndex(2)
     window.show()
     app.processEvents()
+    QTest.qWait(250)
+    window.repaint()
+    app.processEvents()
+    QTest.qWait(100)
     output.parent.mkdir(parents=True, exist_ok=True)
     window.grab().save(str(output))
     window.close()

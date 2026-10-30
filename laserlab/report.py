@@ -32,6 +32,10 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "review_session": run_record.get("review_session", {"complete": False, "completed_at": None}),
         "review_annotations": annotations,
         "provenance_summary": run_record.get("provenance_summary", {}),
+        "capture_protocol_summary": run_record.get("capture_protocol_summary", {}),
+        "study_context": run_record.get("study_context", {"sealed": not unblinded}),
+        "subjective_reports": run_record.get("subjective_reports", []) if unblinded else [],
+        "external_dataset_references": run_record.get("external_dataset_references", []) if unblinded else [],
         "badges": badges,
         "summary": {
             "evidence_ladder": aggregate["evidence_ladder"],
@@ -92,6 +96,7 @@ def top_candidates(
             "review_image_path": item.get("review_image_path", ""),
             "q_value": item.get("q_value"),
             "detector_family_scores": item.get("detector_family_scores", {}),
+            "cross_pattern": item.get("cross_pattern", {}),
         }
         if unblinded:
             record.update(
@@ -118,6 +123,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     candidates = report["top_candidates"]
     rows = "\n".join(_candidate_row(candidate, unblinded=unblinded) for candidate in candidates)
     provenance_rows = "\n".join(_provenance_row(record) for record in report.get("source_provenance", []))
+    protocol_rows = "\n".join(_capture_protocol_row(record) for record in report.get("source_provenance", []))
     provenance_body = provenance_rows or '<tr><td colspan="7">No capture provenance was attached.</td></tr>'
     badges = " ".join(f"<span class=\"badge\">{html.escape(badge)}</span>" for badge in report.get("badges", []))
     interpretation = report.get("interpretation", {})
@@ -130,14 +136,28 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     <div class="metric"><strong>Permutation p</strong>{_fmt(summary['permutation_p_value'])}</div>
     <div class="metric"><strong>Minimum q</strong>{_fmt(summary.get('minimum_q_value'))}</div>"""
         provenance_html = f"""
+  <h2>Capture Protocol</h2>
+  <table><thead><tr><th>Capture</th><th>Footage class</th><th>Pattern</th><th>Wavelength</th><th>Surface</th><th>Geometry</th><th>Safety / quality</th></tr></thead>
+    <tbody>{protocol_rows or '<tr><td colspan="7">No structured capture protocol was attached.</td></tr>'}</tbody>
+  </table>
   <h2>Source Provenance</h2>
   <table><thead><tr><th>Capture</th><th>Media</th><th>Phenomena</th><th>License</th><th>Expected behavior</th><th>Limitations</th><th>Warnings</th></tr></thead>
     <tbody>{provenance_body}</tbody>
   </table>"""
+        study_context = report.get("study_context", {})
+        subjective_html = f"""
+  <h2>Subjective Context</h2>
+  <div class="summary">
+    <p><strong>Evidence role:</strong> Context only; excluded from detector scores and control statistics.</p>
+    <p><strong>Mode:</strong> {html.escape(str(study_context.get('mode', 'footage_only')))}</p>
+    <p><strong>Session:</strong> {html.escape(str(study_context.get('pseudonymous_session_id') or 'not attached'))}</p>
+    <p>{html.escape(str(study_context.get('perception_notes', '')))}</p>
+  </div>"""
         candidate_headers = "<th>Blind ID</th><th>Role</th><th>Score</th><th>Persistence</th><th>q-value</th><th>Variant</th><th>Source</th><th>OCR</th><th>Review</th><th>Image</th>"
     else:
         metrics_html = '<div class="sealed">Source roles and control statistics remain sealed until explicit unblind.</div>'
         provenance_html = ""
+        subjective_html = ""
         candidate_headers = "<th>Blind ID</th><th>Score</th><th>Persistence</th><th>Variant</th><th>OCR</th><th>Review</th><th>Image</th>"
     html_text = f"""<!doctype html>
 <html lang="en">
@@ -173,6 +193,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     <p><strong>What this does not mean:</strong> {html.escape(interpretation.get('what_this_does_not_mean', ''))}</p>
   </div>
   {provenance_html}
+  {subjective_html}
   <h2>Top Candidates</h2>
   <table>
     <thead>
@@ -248,6 +269,39 @@ def _provenance_row(record: dict[str, Any]) -> str:
         <td>{html.escape(str(record.get('expected_behavior', '')))}</td>
         <td>{html.escape(str(record.get('limitations', '')))}</td>
         <td>{html.escape(warnings)}</td>
+      </tr>
+"""
+
+
+def _capture_protocol_row(record: dict[str, Any]) -> str:
+    wavelength = record.get("wavelength_nm")
+    wavelength_text = "n/a" if wavelength is None else f"{wavelength:g} nm {record.get('color_label') or ''}".strip()
+    geometry = " | ".join(
+        str(value)
+        for value in (
+            record.get("projection_distance_meters") and f"{record['projection_distance_meters']} m",
+            record.get("laser_to_target_geometry_notes"),
+            record.get("intermediate_material_notes"),
+        )
+        if value
+    )
+    safety = []
+    if record.get("camera_fixed") is True:
+        safety.append("camera fixed")
+    if record.get("beam_path_fixed") is True:
+        safety.append("beam fixed")
+    if record.get("projected_region_not_saturated") is True:
+        safety.append("not saturated")
+    safety.extend(str(item.get("message", item)) for item in record.get("provenance_warnings", []))
+    return f"""
+      <tr>
+        <td>{html.escape(str(record.get('capture_id') or record.get('fixture_id') or 'unknown'))}</td>
+        <td>{html.escape(str(record.get('footage_class', 'other')))}</td>
+        <td>{html.escape(str(record.get('laser_pattern_type', 'unknown')))}</td>
+        <td>{html.escape(wavelength_text)}</td>
+        <td>{html.escape(str(record.get('projection_surface_type', 'unknown')))}</td>
+        <td>{html.escape(geometry)}</td>
+        <td>{html.escape('; '.join(safety))}</td>
       </tr>
 """
 
@@ -337,6 +391,11 @@ def report_badges(run_record: dict[str, Any]) -> list[str]:
     badges.append("provenance complete" if warning_count == 0 else f"provenance warnings: {warning_count}")
     if run_record.get("review_session", {}).get("complete"):
         badges.append("blind review complete")
+    protocol_summary = run_record.get("capture_protocol_summary", {})
+    if protocol_summary.get("primary_wall_projection"):
+        badges.append("wall-projection footage")
+    elif protocol_summary.get("fixture_only"):
+        badges.append("fixture/demo footage only")
     badges.append("media not included")
     return badges
 
