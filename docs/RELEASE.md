@@ -76,6 +76,16 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
+## v0.6.0 Release Checklist
+
+- Confirm Setup presents only Experiment, Add Capture, Analysis Plan, and Demo subtasks, with advanced fields hidden by default.
+- Confirm wall-projection metadata and cross-laser wavelength/pattern fields persist through manifest and unblinded reports.
+- Confirm subjective context stays sealed during review and remains `context_only` after unblind.
+- Confirm synthetic cross fixtures register center/arms and produce center, horizontal-arm, and vertical-arm ROIs.
+- Confirm fixture/demo inputs are labeled separately from primary wall-projection footage.
+- Confirm safety, reflectivity, fixed-geometry, matched-control, and saturation warnings remain visible and conservative.
+- Run the v0.5 and v0.4 leak/package checks unchanged.
+
 ## v0.5.0 Release Checklist
 
 - Confirm `quick`, `baseline`, `wide`, and `exhaustive` sampling profiles produce deterministic frame selections.

@@ -27,6 +27,7 @@ from .report import build_report
 from .scientific import metric_score, phase_registration_metrics
 from .stats import summarize_blinded_results, summarize_results
 from .synthetic import create_synthetic_positive
+from .capture_protocol import capture_protocol_summary
 
 
 def run_experiment(
@@ -144,6 +145,7 @@ def run_experiment(
                 "fft_spectrum": detector_result["fft_spectrum"],
                 "speckle_contrast": detector_result["speckle_contrast"],
                 "texture_features": detector_result["texture_features"],
+                "cross_pattern": detector_result["cross_pattern"],
                 "frame_registration": registration,
                 "detector_family_scores": detector_result["detector_family_scores"],
                 "candidate_rois": detector_result["candidate_rois"],
@@ -165,6 +167,7 @@ def run_experiment(
     _apply_persistence_scores(results, masks_for_persistence)
     aggregate = summarize_blinded_results(results, primary_metric=primary_metric)
     unblind_payload = build_unblind_payload(blinded_samples, results, manifest)
+    protocol_summary = capture_protocol_summary(manifest.get("captures", []))
     run_record = {
         "schema_version": 1,
         "run_id": run_id,
@@ -183,6 +186,14 @@ def run_experiment(
                 len(record.get("warnings", [])) for record in manifest.get("validation_warnings", [])
             ),
         },
+        "capture_protocol_summary": {
+            "capture_count": protocol_summary["capture_count"],
+            "warning_count": protocol_summary["warning_count"],
+            "sealed": True,
+        },
+        "study_context": {"sealed": True},
+        "subjective_reports": [],
+        "external_dataset_references": [],
         "review_annotations": {},
         "review_session": {"complete": False, "completed_at": None},
         "review_state": {

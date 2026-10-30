@@ -66,6 +66,44 @@ class ProtocolPresetTests(unittest.TestCase):
         self.assertIn("speckle", describe_protocol("speckle").lower())
 
 
+class CaptureProtocolTests(unittest.TestCase):
+    def test_wall_projection_metadata_and_subjective_context_validation(self) -> None:
+        from laserlab.capture_protocol import (
+            capture_protocol_warnings,
+            normalize_capture_metadata,
+            normalize_study_context,
+        )
+
+        metadata = normalize_capture_metadata(
+            {
+                "footage_class": "primary_wall_projection",
+                "laser_pattern_type": "cross",
+                "wavelength_nm": 650,
+                "projection_surface_type": "matte_wall",
+                "camera_fixed": True,
+                "beam_path_fixed": True,
+                "non_reflective_surface": True,
+                "projected_region_not_saturated": True,
+                "cross_center_visible": True,
+                "entire_cross_visible": True,
+                "laser_class_label": "reported class",
+                "safety_acknowledged": True,
+            }
+        )
+        self.assertEqual(metadata["color_label"], "red")
+        self.assertEqual(capture_protocol_warnings(metadata), [])
+        with self.assertRaises(ValueError):
+            normalize_study_context({"mode": "retrospective_report", "privacy_acknowledged": False})
+        context = normalize_study_context(
+            {
+                "mode": "retrospective_report",
+                "privacy_acknowledged": True,
+                "pseudonymous_session_id": "session-7",
+            }
+        )
+        self.assertTrue(context["subjective_report_attached"])
+
+
 @unittest.skipUnless(HAS_IMAGE_STACK, "OpenCV and NumPy are required for sampling tests")
 class SamplingAndProvenanceTests(unittest.TestCase):
     def test_sampling_profiles_and_duplicate_suppression_are_deterministic(self) -> None:
@@ -143,6 +181,7 @@ class LaserLabPipelineTests(unittest.TestCase):
 
         from laserlab.scientific import (
             benjamini_hochberg_q_values,
+            cross_pattern_metrics,
             fft_spectrum_metrics,
             glcm_texture_metrics,
             phase_registration_metrics,
@@ -150,6 +189,7 @@ class LaserLabPipelineTests(unittest.TestCase):
         )
         from laserlab.synthetic import (
             create_shifted_copy,
+            create_synthetic_cross,
             create_synthetic_grating,
             create_synthetic_positive,
             create_synthetic_speckle,
@@ -164,6 +204,8 @@ class LaserLabPipelineTests(unittest.TestCase):
             speckle = cv2.imread(str(create_synthetic_speckle(root / "speckle.png")), cv2.IMREAD_COLOR)
             positive = create_synthetic_positive(root / "positive.png")
             shifted = create_shifted_copy(positive, root / "shifted.png", shift_x=7, shift_y=4)
+            cross_path = create_synthetic_cross(root / "cross.png", rotation_degrees=7)
+            cross_image = cv2.imread(str(cross_path), cv2.IMREAD_COLOR)
 
             fft = fft_spectrum_metrics(grating)
             speckle_metrics = speckle_contrast_metrics(speckle)
@@ -171,6 +213,14 @@ class LaserLabPipelineTests(unittest.TestCase):
             registration = phase_registration_metrics(
                 cv2.imread(str(positive), cv2.IMREAD_COLOR),
                 cv2.imread(str(shifted), cv2.IMREAD_COLOR),
+            )
+            cross = cross_pattern_metrics(cross_image)
+            from laserlab.detectors import DetectorContext, extract_cross_rois
+
+            cross_rois = extract_cross_rois(
+                cross_image,
+                DetectorContext(root, root / "run", "B000001", "grayscale", cross_image),
+                cross,
             )
 
         self.assertGreater(fft["peak_prominence"], golden["fft_peak_prominence_min"])
@@ -182,6 +232,12 @@ class LaserLabPipelineTests(unittest.TestCase):
         self.assertAlmostEqual(registration["shift_x"], 7.0, delta=tolerance)
         self.assertAlmostEqual(registration["shift_y"], 4.0, delta=tolerance)
         self.assertGreater(registration["response"], golden["phase_registration_response_min"])
+        self.assertTrue(cross["detected"])
+        self.assertGreater(cross["confidence"], 0.5)
+        self.assertEqual(
+            {item["region_type"] for item in cross_rois},
+            {"cross_center", "horizontal_arm", "vertical_arm"},
+        )
         self.assertEqual(benjamini_hochberg_q_values([0.01, 0.04, 0.03]), [0.03, 0.04, 0.04])
 
     def test_image_set_ingest_run_and_report(self) -> None:
@@ -352,6 +408,16 @@ class LaserLabPipelineTests(unittest.TestCase):
 
             manifest = app_api.create_experiment(experiment)
             self.assertIn("experiment_id", manifest)
+            app_api.update_study_context(
+                experiment,
+                {
+                    "mode": "retrospective_report",
+                    "pseudonymous_session_id": "session-test",
+                    "perception_notes": "Context only.",
+                    "confidence": 0.5,
+                    "privacy_acknowledged": True,
+                },
+            )
             app_api.add_capture(
                 experiment,
                 laser,
@@ -371,6 +437,8 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertEqual(report["run_id"], run["run_id"])
             self.assertIn("local_paths", report)
             self.assertFalse(report["review_state"]["unblinded"])
+            self.assertTrue(report["study_context"].get("sealed"))
+            self.assertEqual(report["subjective_reports"], [])
             self.assertEqual(report["source_provenance"], [])
             seal_path = Path(report["local_paths"]["run_dir"]) / ".laserlab_unblind.json"
             sealed_payload = seal_path.read_bytes()
@@ -379,6 +447,8 @@ class LaserLabPipelineTests(unittest.TestCase):
                 app_api.unblind_latest_run(experiment)
             seal_path.write_bytes(sealed_payload)
             report = app_api.unblind_latest_run(experiment)
+            self.assertEqual(report["study_context"]["mode"], "retrospective_report")
+            self.assertEqual(report["subjective_reports"][0]["evidence_role"], "context_only")
             self.assertEqual(report["source_provenance"][0]["fixture_id"], "synthetic-test-positive")
             self.assertIn(
                 "Unit-test fixture only",
@@ -419,6 +489,13 @@ class LaserLabGuiTests(unittest.TestCase):
             self.assertGreater(window.protocol_combo.count(), 3)
             self.assertEqual(window.candidate_table.columnCount(), 7)
             self.assertEqual(window.unblind_button.text(), "Unblind and compare")
+            self.assertEqual(
+                [window.setup_steps.tabText(index) for index in range(window.setup_steps.count())],
+                ["1  Experiment", "2  Add Capture", "3  Analysis Plan", "Demo"],
+            )
+            self.assertFalse(window.capture_advanced.isVisible())
+            self.assertFalse(window.protocol_advanced.isVisible())
+            self.assertEqual(window.footage_class_combo.currentData(), "primary_wall_projection")
             self.assertEqual(window.sampling_profile.count(), 4)
             self.assertEqual(
                 set(window.review_flag_checks),

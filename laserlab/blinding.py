@@ -33,6 +33,9 @@ def build_unblind_payload(
             "captures": manifest.get("captures", []),
             "controls": manifest.get("controls", []),
             "capture_metadata": manifest.get("capture_metadata", {}),
+            "study_context": manifest.get("study_context", {}),
+            "subjective_reports": manifest.get("subjective_reports", []),
+            "external_dataset_references": manifest.get("external_dataset_references", []),
         },
     }
 
@@ -70,6 +73,13 @@ def restore_run_record(run_record: dict[str, Any], payload: dict[str, Any]) -> d
         restored_results.append(_restore_result(result, sample))
     restored_results.extend(dict(result) for result in payload.get("calibration_results", []))
     restored["results"] = restored_results
+    sensitive = payload.get("manifest_sensitive", {})
+    from .capture_protocol import capture_protocol_summary
+
+    restored["capture_protocol_summary"] = capture_protocol_summary(sensitive.get("captures", []))
+    restored["study_context"] = sensitive.get("study_context", {})
+    restored["subjective_reports"] = sensitive.get("subjective_reports", [])
+    restored["external_dataset_references"] = sensitive.get("external_dataset_references", [])
     return restored
 
 
@@ -95,6 +105,9 @@ def seal_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     ]
     sealed["controls"] = []
     sealed["capture_metadata"] = {"sealed": True}
+    sealed["study_context"] = {"sealed": True}
+    sealed["subjective_reports"] = []
+    sealed["external_dataset_references"] = []
     return sealed
 
 
@@ -125,6 +138,7 @@ def _seal_result(result: dict[str, Any]) -> dict[str, Any]:
         "fft_spectrum",
         "speckle_contrast",
         "texture_features",
+        "cross_pattern",
         "frame_registration",
         "detector_family_scores",
         "candidate_rois",

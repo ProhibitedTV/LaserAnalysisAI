@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .artifacts import ensure_dir, load_json, utc_now_iso, write_json
+from .capture_protocol import default_capture_metadata, default_study_context
 
 SCHEMA_VERSION = 1
 MANIFEST_NAME = "manifest.json"
@@ -58,6 +59,7 @@ DEFAULT_DETECTORS = [
     "speckle_contrast",
     "texture_features",
     "frame_registration",
+    "cross_pattern_registration",
     "frame_persistence",
 ]
 
@@ -88,6 +90,7 @@ def new_manifest() -> dict[str, Any]:
         "blind_seed": None,
         "protocol": "anomaly",
         "capture_metadata": {
+            **default_capture_metadata(),
             "laser_wavelength_nm": None,
             "camera": None,
             "capture_device": None,
@@ -100,6 +103,9 @@ def new_manifest() -> dict[str, Any]:
             "camera_fixed": None,
             "notes": "",
         },
+        "study_context": default_study_context(),
+        "subjective_reports": [],
+        "external_dataset_references": [],
         "analysis_plan": {
             "protocol": "anomaly",
             "roi": None,
@@ -147,7 +153,16 @@ def upgrade_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     """Backfill optional v0.3 keys while keeping schema version stable."""
     updated = dict(manifest)
     defaults = new_manifest()
-    for key in ("protocol", "capture_metadata", "analysis_plan", "community_export", "validation_warnings"):
+    for key in (
+        "protocol",
+        "capture_metadata",
+        "analysis_plan",
+        "community_export",
+        "validation_warnings",
+        "study_context",
+        "subjective_reports",
+        "external_dataset_references",
+    ):
         if key not in updated:
             updated[key] = defaults[key]
     sampling = updated.setdefault("frame_sampling", {})
@@ -156,6 +171,9 @@ def upgrade_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     capture_metadata = updated.setdefault("capture_metadata", {})
     for key, value in defaults["capture_metadata"].items():
         capture_metadata.setdefault(key, value)
+    study_context = updated.setdefault("study_context", {})
+    for key, value in defaults["study_context"].items():
+        study_context.setdefault(key, value)
     updated.setdefault("detectors", DEFAULT_DETECTORS)
     profiles = updated.setdefault("preprocessing_profiles", {})
     profiles.setdefault("baseline", BASELINE_PROFILE)

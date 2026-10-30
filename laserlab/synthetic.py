@@ -76,6 +76,23 @@ def create_synthetic_laser_like_control(path: Path, size: tuple[int, int] = (320
     return path
 
 
+def create_synthetic_cross(path: Path, size: tuple[int, int] = (320, 180), rotation_degrees: float = 0.0) -> Path:
+    import cv2
+    import numpy as np
+
+    ensure_dir(path.parent)
+    width, height = size
+    image = np.full((height, width, 3), 18, dtype=np.uint8)
+    center = (width // 2, height // 2)
+    cv2.line(image, (24, center[1]), (width - 24, center[1]), (40, 230, 80), 4, cv2.LINE_AA)
+    cv2.line(image, (center[0], 18), (center[0], height - 18), (40, 230, 80), 4, cv2.LINE_AA)
+    if rotation_degrees:
+        matrix = cv2.getRotationMatrix2D(center, rotation_degrees, 1.0)
+        image = cv2.warpAffine(image, matrix, (width, height), borderValue=(18, 18, 18))
+    cv2.imwrite(str(path), image)
+    return path
+
+
 def create_shifted_copy(source: Path, destination: Path, shift_x: int = 7, shift_y: int = 4) -> Path:
     import cv2
     import numpy as np

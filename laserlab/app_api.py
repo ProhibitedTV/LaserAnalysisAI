@@ -14,6 +14,7 @@ from .manifest import latest_run_dir, load_manifest, load_or_create_manifest, wr
 from .pipeline import run_experiment, unblind_latest_run as _unblind_latest_run
 from .protocols import describe_protocol, list_protocol_presets as _list_protocol_presets
 from .report import build_report
+from .capture_protocol import normalize_study_context
 
 
 def create_experiment(experiment_dir: Path) -> dict[str, Any]:
@@ -108,6 +109,32 @@ def update_analysis_plan(
         }
     )
     write_manifest(Path(experiment_dir), manifest)
+    return manifest
+
+
+def update_study_context(experiment_dir: Path, context: dict[str, Any]) -> dict[str, Any]:
+    """Store optional subjective context separately from detector evidence."""
+    experiment_dir = Path(experiment_dir)
+    manifest = load_or_create_manifest(experiment_dir)
+    if manifest.get("outputs", {}).get("review_state") == "blinded":
+        raise ValueError("The latest review is still blinded. Explicitly unblind it before changing study context.")
+    normalized = normalize_study_context(context)
+    manifest["study_context"] = normalized
+    if normalized["mode"] == "footage_only":
+        manifest["subjective_reports"] = []
+    else:
+        manifest["subjective_reports"] = [
+            {
+                "pseudonymous_session_id": normalized.get("pseudonymous_session_id"),
+                "observation_context": normalized["mode"],
+                "perception_notes": normalized.get("perception_notes", ""),
+                "confidence": normalized.get("confidence"),
+                "privacy_acknowledged": normalized.get("privacy_acknowledged", False),
+                "ethics_review_reference": normalized.get("ethics_review_reference"),
+                "evidence_role": "context_only",
+            }
+        ]
+    write_manifest(experiment_dir, manifest)
     return manifest
 
 

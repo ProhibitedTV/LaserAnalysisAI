@@ -128,6 +128,8 @@ def get_fixture(fixture_id: str) -> dict[str, Any]:
 def fixture_metadata(fixture_id: str) -> dict[str, Any]:
     item = get_fixture(fixture_id)
     return {
+        "footage_class": "demo_fixture",
+        "laser_pattern_type": "unknown",
         "fixture_id": item["id"],
         "fixture_title": item["title"],
         "source_page": item["source_page"],
