@@ -15,7 +15,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-def capture_gui(output: Path) -> None:
+def capture_gui(
+    output: Path,
+    *,
+    tab_index: int = 0,
+    setup_step: int | None = None,
+    expand_analysis: bool = False,
+    expand_community: bool = False,
+) -> None:
     qt_mode = os.environ.get("LASERLAB_REAL_QT_SCREENSHOT")
     if qt_mode in {"1", "native"}:
         try:
@@ -31,6 +38,13 @@ def capture_gui(output: Path) -> None:
             app = QApplication.instance() or QApplication([])
             window = LabDashboardWindow()
             window.resize(1420, 900)
+            window.tabs.setCurrentIndex(tab_index)
+            if setup_step is not None:
+                window.setup_steps.setCurrentIndex(setup_step)
+            if expand_analysis:
+                window.protocol_advanced_button.setChecked(True)
+            if expand_community:
+                window.community_tools_button.setChecked(True)
             window.show()
             app.processEvents()
             QTest.qWait(250)
@@ -341,6 +355,10 @@ def main() -> int:
 
     output_dir = Path(args.output_dir)
     capture_gui(output_dir / "release_gui_dashboard.png")
+    capture_gui(output_dir / "release_analysis_plan.png", setup_step=2)
+    capture_gui(output_dir / "release_analysis_advanced.png", setup_step=2, expand_analysis=True)
+    capture_gui(output_dir / "release_export.png", tab_index=4)
+    capture_gui(output_dir / "release_export_community.png", tab_index=4, expand_community=True)
     if args.experiment:
         capture_blinded_review(output_dir / "release_blinded_review.png", Path(args.experiment))
     capture_cli(output_dir / "release_cli_surface.png")

@@ -9,7 +9,7 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.6 Dashboard
+## LaserLab v0.7 Dashboard
 
 Native release bundles contain:
 
@@ -20,7 +20,7 @@ Native release bundles contain:
 
 The desktop workflow is deliberately narrow:
 
-- `Setup`: follow Experiment → Add Capture → Analysis Plan → Demo. Wall-projection essentials stay visible; sampling, ROI, hardware detail, and subjective context remain collapsed until requested.
+- `Setup`: follow Experiment → Add Capture → Analysis Plan → Demo. Wall-projection essentials stay visible; sampling, ROI, hardware detail, psychophysics, and subjective context remain collapsed until requested.
 - `Run`: check protocol quality, estimate work, set the blind seed, and score sealed samples.
 - `Review`: filter blind IDs, inspect images/crops/OCR/metrics, and save source-safe notes and flags without attribution.
 - `Compare`: unlock matched-control and detector-family statistics only after explicit unblind.
@@ -78,6 +78,14 @@ The detector now registers visible cross arms, center, rotation, arm coverage, s
 
 Optional subjective context is kept in a separate `context_only` record. It remains sealed during candidate review and never contributes to detector scores, p-values, or the evidence ladder.
 
+## Falsification And Community Data
+
+The advanced Analysis Plan can import a pre-declared yes/no trial file in JSON or CSV format. LaserLab reports hit, miss, false-alarm, and correct-rejection rates, d-prime, response criterion, balanced accuracy, Wilson intervals, and the correction used for extreme rates. Psychophysics results remain sealed until unblind and never alter image-detector scores.
+
+Every unblinded report includes an explicit falsification matrix. Tested and not-tested rows cover participant sensitivity and bias, matched-control detector evidence, gaze/wall stability, parallax, focus, binocular consistency, polarization, carrier grids, wavelength/surface controls, transcription null models, cross-domain correspondence, and independent replication. A successful row is a bounded test result, not proof of origin.
+
+Export contains an optional collapsed local-data panel for user-supplied community JSON/CSV and pseudonymous symbol transcriptions. Imports are hashed, allow-listed, privacy-labeled, and context-only. Network URLs are rejected; substance/dose fields are filtered rather than converted into guidance; no account, upload, scraping, API key, or Veilbreak dependency is required.
+
 ## CLI Workflow
 
 Create or append captures to an experiment:
@@ -132,6 +140,8 @@ Export a local-first community review bundle:
 & $PY -m laserlab.cli bundle --experiment experiments\trial-001 --output exports\trial-001-review.zip
 ```
 
+For an unblinded experiment containing participant, subjective, or imported community context, review privacy and redaction first, then add `--acknowledge-privacy`.
+
 List or fetch fixture media:
 
 ```powershell
@@ -141,7 +151,7 @@ List or fetch fixture media:
 
 ## Outputs
 
-- `manifest.json`: stable experiment record with sources, captures, raw/frame hashes, media metadata, provenance warnings, deterministic sampling settings, preprocessing profiles, detector settings, protocol plan, ROI, blinding seed, and output paths.
+- `manifest.json`: stable experiment record with sources, captures, raw/frame hashes, media metadata, provenance warnings, deterministic sampling settings, preprocessing profiles, detector settings, protocol plan, ROI, optional sealed psychophysics/community context, blinding seed, and output paths.
 - `runs/<run-id>/results.json`: sealed detector records before unblind; after explicit unblind it gains source roles, attribution, q-values, and aggregate comparison statistics.
 - `runs/<run-id>/report.html`: human-readable evidence summary with top candidates, blinded reviewer annotations, provenance after unblind, and null-result language.
 - `*.zip` review bundle: blinded bundles exclude source attribution and media; unblinded bundles can include provenance and optional raw media.

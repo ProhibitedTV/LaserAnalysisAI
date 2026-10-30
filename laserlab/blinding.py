@@ -35,7 +35,10 @@ def build_unblind_payload(
             "capture_metadata": manifest.get("capture_metadata", {}),
             "study_context": manifest.get("study_context", {}),
             "subjective_reports": manifest.get("subjective_reports", []),
+            "psychophysics_trials": manifest.get("psychophysics_trials"),
+            "psychophysics_analysis": manifest.get("psychophysics_analysis"),
             "external_dataset_references": manifest.get("external_dataset_references", []),
+            "symbol_transcriptions": manifest.get("symbol_transcriptions"),
         },
     }
 
@@ -79,7 +82,10 @@ def restore_run_record(run_record: dict[str, Any], payload: dict[str, Any]) -> d
     restored["capture_protocol_summary"] = capture_protocol_summary(sensitive.get("captures", []))
     restored["study_context"] = sensitive.get("study_context", {})
     restored["subjective_reports"] = sensitive.get("subjective_reports", [])
+    restored["psychophysics_trials"] = sensitive.get("psychophysics_trials")
+    restored["psychophysics_analysis"] = sensitive.get("psychophysics_analysis")
     restored["external_dataset_references"] = sensitive.get("external_dataset_references", [])
+    restored["symbol_transcriptions"] = sensitive.get("symbol_transcriptions")
     return restored
 
 
@@ -107,7 +113,10 @@ def seal_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     sealed["capture_metadata"] = {"sealed": True}
     sealed["study_context"] = {"sealed": True}
     sealed["subjective_reports"] = []
+    sealed["psychophysics_trials"] = None
+    sealed["psychophysics_analysis"] = {"sealed": True}
     sealed["external_dataset_references"] = []
+    sealed["symbol_transcriptions"] = None
     return sealed
 
 

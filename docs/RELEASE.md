@@ -76,6 +76,18 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
+## v0.7.0 Release Checklist
+
+- Confirm normal setup still exposes only Experiment, Add Capture, Analysis Plan, and Demo, with psychophysics and community-data tools collapsed.
+- Import pre-declared signal-present and signal-absent trials and verify d-prime, criterion, false-alarm rates, Wilson intervals, and extreme-rate correction.
+- Confirm psychophysics trials, external references, and symbol transcriptions remain absent from every blinded artifact.
+- Explicitly unblind and confirm reports keep detector, subjective, psychophysics, and external community evidence in separate sections.
+- Confirm the falsification matrix includes tested and `not tested` rows for major confounds.
+- Import local JSON/CSV references and symbol transcriptions; verify source hashes, attribution/license, privacy state, and context-only labels.
+- Confirm URL imports are rejected and substance/dose fields do not survive as operational guidance.
+- Confirm symbol and unblinded review-bundle exports require an explicit privacy acknowledgement when participant or community context is attached.
+- Run the v0.6, v0.5, and v0.4 leak/package checks unchanged.
+
 ## v0.6.0 Release Checklist
 
 - Confirm Setup presents only Experiment, Add Capture, Analysis Plan, and Demo subtasks, with advanced fields hidden by default.

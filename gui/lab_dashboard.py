@@ -416,6 +416,15 @@ class LabDashboardWindow(QMainWindow):
         grid.addWidget(QLabel("height"), 2, 2)
         grid.addWidget(self.roi_h, 2, 3)
         advanced_layout.addWidget(advanced)
+
+        experimental = QGroupBox("Experimental psychophysics modules")
+        experimental_layout = QHBoxLayout(experimental)
+        self.import_trials_button = QPushButton("Import yes/no trials")
+        self.import_trials_button.clicked.connect(self.import_trial_file)
+        self.psychophysics_status = QLabel("Not attached")
+        experimental_layout.addWidget(self.import_trials_button)
+        experimental_layout.addWidget(self.psychophysics_status, 1)
+        advanced_layout.addWidget(experimental)
         self.protocol_advanced.setVisible(False)
         self.protocol_advanced_button.toggled.connect(self.protocol_advanced.setVisible)
         self.protocol_advanced_button.toggled.connect(
@@ -699,6 +708,31 @@ class LabDashboardWindow(QMainWindow):
         grid.addWidget(self.export_bundle_button, 0, 2)
         grid.addWidget(self.include_media, 1, 0, 1, 3)
         layout.addWidget(actions)
+
+        self.community_tools_button = QPushButton("Show community data tools")
+        self.community_tools_button.setCheckable(True)
+        layout.addWidget(self.community_tools_button)
+        self.community_tools = QGroupBox("Community data / local files")
+        community_grid = QGridLayout(self.community_tools)
+        self.import_reference_button = QPushButton("Import reference metadata")
+        self.import_reference_button.clicked.connect(self.import_reference_file)
+        self.import_symbols_button = QPushButton("Import symbol transcriptions")
+        self.import_symbols_button.clicked.connect(self.import_symbol_file)
+        self.export_symbols_button = QPushButton("Export symbol transcriptions")
+        self.export_symbols_button.clicked.connect(self.export_symbol_file)
+        self.community_data_status = QLabel("No local community data attached")
+        community_grid.addWidget(self.import_reference_button, 0, 0)
+        community_grid.addWidget(self.import_symbols_button, 0, 1)
+        community_grid.addWidget(self.export_symbols_button, 0, 2)
+        community_grid.addWidget(self.community_data_status, 1, 0, 1, 3)
+        self.community_tools.setVisible(False)
+        self.community_tools_button.toggled.connect(self.community_tools.setVisible)
+        self.community_tools_button.toggled.connect(
+            lambda checked: self.community_tools_button.setText(
+                "Hide community data tools" if checked else "Show community data tools"
+            )
+        )
+        layout.addWidget(self.community_tools)
         self.export_log = QTextEdit()
         self.export_log.setReadOnly(True)
         self.export_log.setPlainText("Bundles include manifest, reports, top crops, hashes, environment info, and optional source media.")
@@ -805,6 +839,20 @@ class LabDashboardWindow(QMainWindow):
             self.subjective_confidence.setValue(float(context.get("confidence") or 0.0))
             self.ethics_reference.setText(str(context.get("ethics_review_reference") or ""))
             self.privacy_ack.setChecked(bool(context.get("privacy_acknowledged")))
+            psychophysics = manifest.get("psychophysics_analysis") or {}
+            trial_count = (manifest.get("psychophysics_trials") or {}).get("source", {}).get("record_count", 0)
+            self.psychophysics_status.setText(
+                f"{trial_count} trials attached / d-prime {psychophysics.get('metrics', {}).get('d_prime', 'n/a')}"
+                if trial_count
+                else "Not attached"
+            )
+            reference_count = len(manifest.get("external_dataset_references", []))
+            symbol_count = len((manifest.get("symbol_transcriptions") or {}).get("records", []))
+            self.community_data_status.setText(
+                f"References: {reference_count} / symbol transcriptions: {symbol_count}"
+                if reference_count or symbol_count
+                else "No local community data attached"
+            )
             self._study_mode_changed()
             self.status.showMessage(f"Experiment open: {self.experiment_dir}")
             self.refresh_review(silent=True)
@@ -857,6 +905,30 @@ class LabDashboardWindow(QMainWindow):
             self._populate_captures(manifest)
             self.update_estimate()
             self.status.showMessage("Protocol plan saved")
+        except Exception as exc:
+            self._error(str(exc))
+
+    def import_trial_file(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Pre-declared Yes/No Trials",
+            "",
+            "Trial data (*.json *.csv)",
+        )
+        if not path:
+            return
+        try:
+            payload = app_api.import_psychophysics_trials(experiment, Path(path))
+            analysis = payload["analysis"]
+            d_prime = analysis["metrics"].get("d_prime")
+            d_prime_text = "n/a" if d_prime is None else f"{d_prime:.3f}"
+            self.psychophysics_status.setText(
+                f"{payload['source']['record_count']} trials / d-prime {d_prime_text}"
+            )
+            self.status.showMessage("Psychophysics trials attached; detector scoring remains separate")
         except Exception as exc:
             self._error(str(exc))
 
@@ -1031,13 +1103,111 @@ class LabDashboardWindow(QMainWindow):
         experiment = self._require_experiment()
         if not experiment:
             return
+        privacy_acknowledged = False
+        try:
+            report = self.latest_report or app_api.load_latest_report(experiment)
+        except Exception:
+            report = {}
+        if report.get("review_state", {}).get("unblinded") and (
+            report.get("subjective_reports")
+            or (report.get("psychophysics_analysis") or {}).get("analysis_status") == "tested"
+            or report.get("external_dataset_references")
+            or report.get("symbol_transcription_summary", {}).get("record_count", 0)
+        ):
+            answer = QMessageBox.question(
+                self,
+                "Privacy review",
+                "Confirm that participant IDs, subjective context, community metadata, and sharing risk were reviewed.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return
+            privacy_acknowledged = True
         path, _ = QFileDialog.getSaveFileName(self, "Export Review Bundle", "laserlab-review-bundle.zip", "ZIP (*.zip)")
         if not path:
             return
         try:
-            exported = app_api.export_review_bundle(experiment, Path(path), include_media=self.include_media.isChecked())
+            exported = app_api.export_review_bundle(
+                experiment,
+                Path(path),
+                include_media=self.include_media.isChecked(),
+                privacy_acknowledged=privacy_acknowledged,
+            )
             self.export_log.append(f"Exported bundle: {exported}")
             self.status.showMessage(f"Exported {exported}")
+        except Exception as exc:
+            self._error(str(exc))
+
+    def import_reference_file(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Local Community Reference",
+            "",
+            "Community data (*.json *.csv)",
+        )
+        if not path:
+            return
+        try:
+            payload = app_api.import_external_dataset_reference(experiment, Path(path))
+            self.community_data_status.setText(
+                f"Imported {len(payload['records'])} context-only reference record(s); privacy not reviewed"
+            )
+            self.export_log.append(f"Imported local reference hash: {payload['source_sha256']}")
+        except Exception as exc:
+            self._error(str(exc))
+
+    def import_symbol_file(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Symbol Transcriptions",
+            "",
+            "Symbol data (*.json *.csv)",
+        )
+        if not path:
+            return
+        try:
+            payload = app_api.import_symbol_transcriptions(experiment, Path(path))
+            self.community_data_status.setText(
+                f"Imported {len(payload['records'])} context-only symbol transcription(s); privacy not reviewed"
+            )
+        except Exception as exc:
+            self._error(str(exc))
+
+    def export_symbol_file(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Privacy review",
+            "Confirm that pseudonymous IDs, transcriptions, and sharing risk were reviewed.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Symbol Transcriptions",
+            "symbol-transcriptions.csv",
+            "CSV (*.csv)",
+        )
+        if not path:
+            return
+        try:
+            exported = app_api.export_symbol_transcriptions_csv(
+                experiment,
+                Path(path),
+                privacy_acknowledged=True,
+            )
+            self.export_log.append(f"Exported symbol transcriptions: {exported}")
         except Exception as exc:
             self._error(str(exc))
 
