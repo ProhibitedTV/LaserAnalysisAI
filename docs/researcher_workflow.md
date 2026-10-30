@@ -74,11 +74,19 @@ A null result is a valid result for this footage, protocol, and detector version
 
 Subjective perception notes are optional context, not image evidence. Use only pseudonymous session IDs, review privacy before sharing, and keep participant work under appropriate legal, ethical, consent, and safety review outside LaserLab. The app provides no substance procurement, dosing, administration, or intoxication instructions.
 
+## Optional Falsification Modules
+
+Open **Show advanced analysis controls** only when the protocol declares a separate yes/no discrimination task. Import JSON or CSV with stimulus truth, yes/no response, confidence from 0 to 1, and optional pseudonymous trial IDs and timestamps. Include both signal-present and signal-absent trials; without false-alarm controls, LaserLab will not calculate d-prime or criterion.
+
+Imported trials remain sealed during image review. After unblind, the report shows participant sensitivity and response bias in a psychophysics section separate from camera detectors, and lists untested confounds instead of silently omitting them.
+
+The collapsed community-data tools under **Export** accept local JSON/CSV only. External metadata and symbol transcriptions are hashed and labeled `context_only`; they cannot affect detector scores. Review pseudonymous IDs, licensing, attribution, and privacy before export. LaserLab does not connect to or scrape Veilbreak or any other service automatically.
+
 ## Export And Share
 
 Use **Export Review Bundle** to create a local-first archive containing the manifest, reports, settings, hashes, environment details, and top evidence crops. A blinded bundle remains attribution-safe and cannot include source media. After unblind, leave raw media excluded unless redistribution is lawful and participants have consented to sharing it.
 
-The bundle is designed for independent review. Share the archive unchanged so hashes and provenance remain useful.
+The bundle is designed for independent review. Share the archive unchanged so hashes and provenance remain useful. Unblinded exports containing subjective, psychophysics, or imported community context require an explicit privacy acknowledgement in the GUI or `--acknowledge-privacy` in the CLI.
 
 ## Troubleshooting
 

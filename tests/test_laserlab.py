@@ -418,6 +418,55 @@ class LaserLabPipelineTests(unittest.TestCase):
                     "privacy_acknowledged": True,
                 },
             )
+            trials_path = root / "trials.json"
+            trials_path.write_text(
+                json.dumps(
+                    [
+                        {"trial_id": "s1", "stimulus_truth": True, "response": "yes", "confidence": 0.8},
+                        {"trial_id": "s2", "stimulus_truth": True, "response": "no", "confidence": 0.6},
+                        {"trial_id": "n1", "stimulus_truth": False, "response": "yes", "confidence": 0.5},
+                        {"trial_id": "n2", "stimulus_truth": False, "response": "no", "confidence": 0.9},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            app_api.import_psychophysics_trials(experiment, trials_path)
+            reference_path = root / "community-reference.json"
+            reference_path.write_text(
+                json.dumps(
+                    {
+                        "records": [
+                            {
+                                "id": "reference-secret",
+                                "laser_wavelength": 532,
+                                "pattern": "cross",
+                                "observed_code": "context-secret",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            app_api.import_external_dataset_reference(experiment, reference_path)
+            symbols_path = root / "symbol-transcriptions.json"
+            symbols_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "pseudonymous_id": "observer-secret",
+                            "coordinate_x": 12,
+                            "coordinate_y": 8,
+                            "coordinate_space": "pixels",
+                            "timestamp_seconds": 2.5,
+                            "wavelength_nm": 532,
+                            "laser_pattern_type": "cross",
+                            "transcription": "K-7-secret",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            app_api.import_symbol_transcriptions(experiment, symbols_path)
             app_api.add_capture(
                 experiment,
                 laser,
@@ -439,7 +488,29 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertFalse(report["review_state"]["unblinded"])
             self.assertTrue(report["study_context"].get("sealed"))
             self.assertEqual(report["subjective_reports"], [])
+            self.assertTrue(report["psychophysics_analysis"].get("sealed"))
+            self.assertTrue(report["falsification_matrix"].get("sealed"))
+            self.assertEqual(report["external_dataset_references"], [])
+            self.assertEqual(report["symbol_transcription_summary"]["record_count"], 0)
             self.assertEqual(report["source_provenance"], [])
+            public_text = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in (
+                    experiment / "manifest.json",
+                    Path(report["local_paths"]["results_json"]),
+                    Path(report["local_paths"]["report_json"]),
+                )
+            )
+            for secret in ("s1", "reference-secret", "context-secret", "observer-secret", "K-7-secret"):
+                self.assertNotIn(secret, public_text)
+            bundle_path = app_api.export_review_bundle(experiment, root / "sealed-research-bundle.zip")
+            with zipfile.ZipFile(bundle_path) as bundle:
+                bundled_public_text = "\n".join(
+                    bundle.read(name).decode("utf-8")
+                    for name in ("manifest.json", "results.json", "report.json")
+                )
+            for secret in ("s1", "reference-secret", "context-secret", "observer-secret", "K-7-secret"):
+                self.assertNotIn(secret, bundled_public_text)
             seal_path = Path(report["local_paths"]["run_dir"]) / ".laserlab_unblind.json"
             sealed_payload = seal_path.read_bytes()
             seal_path.write_bytes(sealed_payload + b" ")
@@ -449,7 +520,23 @@ class LaserLabPipelineTests(unittest.TestCase):
             report = app_api.unblind_latest_run(experiment)
             self.assertEqual(report["study_context"]["mode"], "retrospective_report")
             self.assertEqual(report["subjective_reports"][0]["evidence_role"], "context_only")
+            self.assertEqual(report["psychophysics_analysis"]["analysis_status"], "tested")
+            matrix = {row["id"]: row for row in report["falsification_matrix"]["rows"]}
+            self.assertEqual(matrix["participant_discrimination"]["status"], "tested")
+            self.assertEqual(matrix["wall_coordinate_stability"]["status"], "not_tested")
+            self.assertEqual(len(report["external_dataset_references"]), 1)
+            self.assertEqual(report["symbol_transcription_summary"]["record_count"], 1)
+            self.assertIn("external metadata context only", report["badges"])
+            self.assertIn("symbol transcriptions context only", report["badges"])
             self.assertEqual(report["source_provenance"][0]["fixture_id"], "synthetic-test-positive")
+            with self.assertRaises(ValueError):
+                app_api.export_review_bundle(experiment, root / "unreviewed-context.zip")
+            reviewed_bundle = app_api.export_review_bundle(
+                experiment,
+                root / "reviewed-context.zip",
+                privacy_acknowledged=True,
+            )
+            self.assertTrue(reviewed_bundle.exists())
             self.assertIn(
                 "Unit-test fixture only",
                 Path(report["local_paths"]["report_html"]).read_text(encoding="utf-8"),
@@ -495,6 +582,8 @@ class LaserLabGuiTests(unittest.TestCase):
             )
             self.assertFalse(window.capture_advanced.isVisible())
             self.assertFalse(window.protocol_advanced.isVisible())
+            self.assertFalse(window.community_tools.isVisible())
+            self.assertEqual(window.psychophysics_status.text(), "Not attached")
             self.assertEqual(window.footage_class_combo.currentData(), "primary_wall_projection")
             self.assertEqual(window.sampling_profile.count(), 4)
             self.assertEqual(

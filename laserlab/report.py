@@ -8,6 +8,7 @@ from typing import Any
 
 from .artifacts import relative_to, write_json
 from .blinding import is_unblinded
+from .psychophysics import build_falsification_matrix
 
 
 def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]) -> dict[str, Any]:
@@ -19,6 +20,19 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
     for candidate in candidates:
         candidate["review_annotation"] = annotations.get(candidate["blind_id"], {})
     badges = report_badges(run_record)
+    psychophysics = run_record.get("psychophysics_analysis") if unblinded else {"sealed": True}
+    falsification_matrix = (
+        build_falsification_matrix(
+            psychophysics_analysis=psychophysics,
+            detector_evidence={
+                "tested": bool(aggregate.get("control_count", 0)),
+                "outcome": aggregate.get("evidence_ladder", "no signal"),
+            },
+        )
+        if unblinded
+        else {"sealed": True}
+    )
+    symbol_transcriptions = run_record.get("symbol_transcriptions") if unblinded else None
     report = {
         "schema_version": 1,
         "experiment_id": run_record["experiment_id"],
@@ -35,7 +49,10 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "capture_protocol_summary": run_record.get("capture_protocol_summary", {}),
         "study_context": run_record.get("study_context", {"sealed": not unblinded}),
         "subjective_reports": run_record.get("subjective_reports", []) if unblinded else [],
+        "psychophysics_analysis": psychophysics,
+        "falsification_matrix": falsification_matrix,
         "external_dataset_references": run_record.get("external_dataset_references", []) if unblinded else [],
+        "symbol_transcription_summary": _symbol_transcription_summary(symbol_transcriptions),
         "badges": badges,
         "summary": {
             "evidence_ladder": aggregate["evidence_ladder"],
@@ -153,11 +170,44 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     <p><strong>Session:</strong> {html.escape(str(study_context.get('pseudonymous_session_id') or 'not attached'))}</p>
     <p>{html.escape(str(study_context.get('perception_notes', '')))}</p>
   </div>"""
+        psychophysics = report.get("psychophysics_analysis") or {}
+        psych_metrics = psychophysics.get("metrics", {})
+        if psychophysics.get("analysis_status") == "tested":
+            psychophysics_html = f"""
+  <h2>Signal-Detection Trial Analysis</h2>
+  <div class="summary">
+    <p><strong>Evidence role:</strong> Psychophysics only; kept separate from camera detector evidence.</p>
+    <div class="metric"><strong>d-prime</strong>{_fmt(psych_metrics.get('d_prime'))}</div>
+    <div class="metric"><strong>Criterion</strong>{_fmt(psych_metrics.get('criterion'))}</div>
+    <div class="metric"><strong>Balanced accuracy</strong>{_fmt(psych_metrics.get('balanced_accuracy'))}</div>
+    <p>{html.escape(str(psychophysics.get('interpretation_limit', '')))}</p>
+  </div>"""
+        else:
+            psychophysics_html = ""
+        matrix_rows = "\n".join(
+            _falsification_row(row) for row in report.get("falsification_matrix", {}).get("rows", [])
+        )
+        falsification_html = f"""
+  <h2>Falsification Matrix</h2>
+  <table><thead><tr><th>Question</th><th>Evidence domain</th><th>Status</th><th>Outcome</th></tr></thead>
+    <tbody>{matrix_rows or '<tr><td colspan="4">No falsification modules were declared.</td></tr>'}</tbody>
+  </table>"""
+        community_summary = report.get("symbol_transcription_summary", {})
+        community_html = f"""
+  <h2>Community Data Context</h2>
+  <div class="summary">
+    <p><strong>External imports:</strong> {len(report.get('external_dataset_references', []))}</p>
+    <p><strong>Symbol transcriptions:</strong> {int(community_summary.get('record_count', 0))}</p>
+    <p><strong>Evidence role:</strong> Context only; excluded from detector scores.</p>
+  </div>"""
         candidate_headers = "<th>Blind ID</th><th>Role</th><th>Score</th><th>Persistence</th><th>q-value</th><th>Variant</th><th>Source</th><th>OCR</th><th>Review</th><th>Image</th>"
     else:
         metrics_html = '<div class="sealed">Source roles and control statistics remain sealed until explicit unblind.</div>'
         provenance_html = ""
         subjective_html = ""
+        psychophysics_html = ""
+        falsification_html = ""
+        community_html = ""
         candidate_headers = "<th>Blind ID</th><th>Score</th><th>Persistence</th><th>Variant</th><th>OCR</th><th>Review</th><th>Image</th>"
     html_text = f"""<!doctype html>
 <html lang="en">
@@ -194,6 +244,9 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
   </div>
   {provenance_html}
   {subjective_html}
+  {psychophysics_html}
+  {falsification_html}
+  {community_html}
   <h2>Top Candidates</h2>
   <table>
     <thead>
@@ -242,6 +295,33 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
         <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
       </tr>
 """
+
+
+def _falsification_row(row: dict[str, Any]) -> str:
+    outcome = row.get("outcome")
+    if isinstance(outcome, dict):
+        outcome_text = ", ".join(f"{key}: {_fmt(value)}" for key, value in outcome.items())
+    else:
+        outcome_text = str(outcome or "")
+    return (
+        "<tr>"
+        f"<td>{html.escape(str(row.get('question', '')))}</td>"
+        f"<td>{html.escape(str(row.get('evidence_domain', '')))}</td>"
+        f"<td>{html.escape(str(row.get('status', 'not_tested')).replace('_', ' '))}</td>"
+        f"<td>{html.escape(outcome_text)}</td>"
+        "</tr>"
+    )
+
+
+def _symbol_transcription_summary(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {"record_count": 0, "evidence_role": "context_only"}
+    return {
+        "record_count": len(payload.get("records", [])),
+        "evidence_role": "context_only",
+        "privacy": payload.get("privacy", {}),
+        "source_sha256": payload.get("source_sha256"),
+    }
 
 
 def _provenance_row(record: dict[str, Any]) -> str:
@@ -396,6 +476,12 @@ def report_badges(run_record: dict[str, Any]) -> list[str]:
         badges.append("wall-projection footage")
     elif protocol_summary.get("fixture_only"):
         badges.append("fixture/demo footage only")
+    if is_unblinded(run_record) and (run_record.get("psychophysics_analysis") or {}).get("analysis_status") == "tested":
+        badges.append("psychophysics analyzed separately")
+    if is_unblinded(run_record) and run_record.get("external_dataset_references"):
+        badges.append("external metadata context only")
+    if is_unblinded(run_record) and (run_record.get("symbol_transcriptions") or {}).get("records"):
+        badges.append("symbol transcriptions context only")
     badges.append("media not included")
     return badges
 

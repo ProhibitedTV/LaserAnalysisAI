@@ -193,7 +193,10 @@ def run_experiment(
         },
         "study_context": {"sealed": True},
         "subjective_reports": [],
+        "psychophysics_trials": None,
+        "psychophysics_analysis": {"sealed": True},
         "external_dataset_references": [],
+        "symbol_transcriptions": None,
         "review_annotations": {},
         "review_session": {"complete": False, "completed_at": None},
         "review_state": {

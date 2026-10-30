@@ -101,7 +101,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(describe_protocol(args.preset))
                 return 0
         if args.command == "bundle":
-            path = export_review_bundle(Path(args.experiment), Path(args.output), include_media=args.include_media)
+            path = export_review_bundle(
+                Path(args.experiment),
+                Path(args.output),
+                include_media=args.include_media,
+                privacy_acknowledged=args.acknowledge_privacy,
+            )
             print(path)
             return 0
     except Exception as exc:
@@ -169,6 +174,11 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_parser.add_argument("--experiment", required=True, help="Experiment directory containing a completed run.")
     bundle_parser.add_argument("--output", required=True, help="Output zip path.")
     bundle_parser.add_argument("--include-media", action="store_true", help="Include original source media where available.")
+    bundle_parser.add_argument(
+        "--acknowledge-privacy",
+        action="store_true",
+        help="Confirm that participant, subjective, and community context was reviewed before unblinded export.",
+    )
 
     return parser
 

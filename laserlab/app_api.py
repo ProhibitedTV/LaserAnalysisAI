@@ -15,6 +15,12 @@ from .pipeline import run_experiment, unblind_latest_run as _unblind_latest_run
 from .protocols import describe_protocol, list_protocol_presets as _list_protocol_presets
 from .report import build_report
 from .capture_protocol import normalize_study_context
+from .community_data import (
+    export_symbol_transcriptions_csv as _export_symbol_transcriptions_csv,
+    load_external_references,
+    load_symbol_transcriptions,
+)
+from .psychophysics import load_trial_file
 
 
 def create_experiment(experiment_dir: Path) -> dict[str, Any]:
@@ -136,6 +142,91 @@ def update_study_context(experiment_dir: Path, context: dict[str, Any]) -> dict[
         ]
     write_manifest(experiment_dir, manifest)
     return manifest
+
+
+def import_psychophysics_trials(experiment_dir: Path, source_path: Path) -> dict[str, Any]:
+    """Attach a local, pre-declared yes/no trial set as sealed psychophysics evidence."""
+
+    experiment_dir = Path(experiment_dir)
+    manifest = load_or_create_manifest(experiment_dir)
+    _require_editable_manifest(manifest, "importing psychophysics trials")
+    payload = load_trial_file(Path(source_path))
+    manifest["psychophysics_trials"] = payload
+    manifest["psychophysics_analysis"] = payload["analysis"]
+    write_manifest(experiment_dir, manifest)
+    return payload
+
+
+def import_external_dataset_reference(
+    experiment_dir: Path,
+    source_path: Path,
+    *,
+    privacy_status: str = "not_reviewed",
+    redaction_status: str = "not_reviewed",
+) -> dict[str, Any]:
+    """Import allow-listed context from a user-supplied local JSON or CSV file."""
+
+    experiment_dir = Path(experiment_dir)
+    manifest = load_or_create_manifest(experiment_dir)
+    _require_editable_manifest(manifest, "importing external community metadata")
+    payload = load_external_references(
+        Path(source_path),
+        privacy_status=privacy_status,
+        redaction_status=redaction_status,
+    )
+    references = [
+        record
+        for record in manifest.get("external_dataset_references", [])
+        if record.get("source_sha256") != payload["source_sha256"]
+    ]
+    references.append(payload)
+    manifest["external_dataset_references"] = references
+    write_manifest(experiment_dir, manifest)
+    return payload
+
+
+def import_symbol_transcriptions(
+    experiment_dir: Path,
+    source_path: Path,
+    *,
+    privacy_status: str = "not_reviewed",
+    redaction_status: str = "not_reviewed",
+) -> dict[str, Any]:
+    """Import pseudonymous symbol transcriptions as context-only records."""
+
+    experiment_dir = Path(experiment_dir)
+    manifest = load_or_create_manifest(experiment_dir)
+    _require_editable_manifest(manifest, "importing symbol transcriptions")
+    payload = load_symbol_transcriptions(
+        Path(source_path),
+        privacy_status=privacy_status,
+        redaction_status=redaction_status,
+    )
+    manifest["symbol_transcriptions"] = payload
+    write_manifest(experiment_dir, manifest)
+    return payload
+
+
+def export_symbol_transcriptions_csv(
+    experiment_dir: Path,
+    output_path: Path,
+    *,
+    privacy_acknowledged: bool = False,
+) -> Path:
+    """Export attached transcriptions after an explicit privacy acknowledgement."""
+
+    if not privacy_acknowledged:
+        raise ValueError("Review pseudonymous IDs and privacy risk before exporting transcriptions.")
+    manifest = load_manifest(Path(experiment_dir))
+    payload = manifest.get("symbol_transcriptions")
+    if not payload or not payload.get("records"):
+        raise ValueError("No symbol transcriptions are attached to this experiment.")
+    return _export_symbol_transcriptions_csv(payload, Path(output_path))
+
+
+def _require_editable_manifest(manifest: dict[str, Any], action: str) -> None:
+    if manifest.get("outputs", {}).get("review_state") == "blinded":
+        raise ValueError(f"Explicitly unblind the latest review before {action}.")
 
 
 def estimate_run(
@@ -314,8 +405,18 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
     return output_path
 
 
-def export_review_bundle(experiment_dir: Path, output_path: Path, include_media: bool = False) -> Path:
-    path = _export_review_bundle(Path(experiment_dir), Path(output_path), include_media=include_media)
+def export_review_bundle(
+    experiment_dir: Path,
+    output_path: Path,
+    include_media: bool = False,
+    privacy_acknowledged: bool = False,
+) -> Path:
+    path = _export_review_bundle(
+        Path(experiment_dir),
+        Path(output_path),
+        include_media=include_media,
+        privacy_acknowledged=privacy_acknowledged,
+    )
     manifest = load_manifest(Path(experiment_dir))
     manifest.setdefault("community_export", {})["last_bundle"] = str(path)
     manifest["community_export"]["include_media"] = include_media

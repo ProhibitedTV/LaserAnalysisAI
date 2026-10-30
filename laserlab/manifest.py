@@ -105,7 +105,10 @@ def new_manifest() -> dict[str, Any]:
         },
         "study_context": default_study_context(),
         "subjective_reports": [],
+        "psychophysics_trials": None,
+        "psychophysics_analysis": None,
         "external_dataset_references": [],
+        "symbol_transcriptions": None,
         "analysis_plan": {
             "protocol": "anomaly",
             "roi": None,
@@ -161,7 +164,10 @@ def upgrade_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         "validation_warnings",
         "study_context",
         "subjective_reports",
+        "psychophysics_trials",
+        "psychophysics_analysis",
         "external_dataset_references",
+        "symbol_transcriptions",
     ):
         if key not in updated:
             updated[key] = defaults[key]

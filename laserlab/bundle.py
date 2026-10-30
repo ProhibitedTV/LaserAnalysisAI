@@ -14,7 +14,12 @@ from .blinding import is_unblinded
 from .manifest import latest_run_dir, load_manifest
 
 
-def export_review_bundle(experiment_dir: Path, output_path: Path, include_media: bool = False) -> Path:
+def export_review_bundle(
+    experiment_dir: Path,
+    output_path: Path,
+    include_media: bool = False,
+    privacy_acknowledged: bool = False,
+) -> Path:
     """Create a shareable zip with reports, hashes, thumbnails, and optional media."""
     experiment_dir = Path(experiment_dir)
     output_path = Path(output_path)
@@ -27,6 +32,10 @@ def export_review_bundle(experiment_dir: Path, output_path: Path, include_media:
     unblinded = is_unblinded(results)
     if include_media and not unblinded:
         raise ValueError("Source media cannot be exported until the review is explicitly unblinded.")
+    if unblinded and _contains_sensitive_context(manifest) and not privacy_acknowledged:
+        raise ValueError(
+            "Review participant IDs, subjective context, community metadata, and sharing risk before export."
+        )
     environment = {
         "laserlab_version": __version__,
         "python": sys.version,
@@ -87,6 +96,17 @@ def export_review_bundle(experiment_dir: Path, output_path: Path, include_media:
         bundle.writestr("README.txt", readme)
 
     return output_path
+
+
+def _contains_sensitive_context(manifest: dict[str, Any]) -> bool:
+    study_context = manifest.get("study_context") or {}
+    return bool(
+        study_context.get("mode") not in (None, "footage_only")
+        or manifest.get("subjective_reports")
+        or (manifest.get("psychophysics_trials") or {}).get("records")
+        or manifest.get("external_dataset_references")
+        or (manifest.get("symbol_transcriptions") or {}).get("records")
+    )
 
 
 def _write_json_member(bundle: zipfile.ZipFile, name: str, data: Any) -> None:
