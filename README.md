@@ -43,6 +43,12 @@ New to the project? Browse the [community reference guide](docs/wiki/Home.md), [
 - [Report a bug or suggest a feature](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/choose): structured issue forms.
 - [Contributing](CONTRIBUTING.md), [Support](SUPPORT.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [Security](SECURITY.md).
 
+## Veilbreak Community Research Companion
+
+LaserLab can optionally **browse published Veilbreak protocols and experiments** from its desktop interface, then link selected records to a local experiment as context-only metadata. This does not require a Veilbreak login, send recordings to the network, or change detector scores. The live MCP service is external and may be unavailable; local imports remain supported.
+
+**[Read the Veilbreak integration guide](docs/VEILBREAK_INTEGRATION.md)** for the current functionality, limitations, privacy boundaries, and future collaboration plan.
+
 ## Quick Start
 
 See the [Researcher Workflow](docs/researcher_workflow.md) for the complete dashboard flow, capture guidance, interpretation rules, sharing steps, and platform troubleshooting.

@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFileDialog,
+    QInputDialog,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -40,6 +41,7 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
+from laserlab.veilbreak_bridge import browse_public
 from laserlab.diagnostics import (
     collect_diagnostics,
     configure_logging,
@@ -157,6 +159,14 @@ class LabDashboardWindow(QMainWindow):
         action_layout.addWidget(self.home_demo_button)
         action_layout.addWidget(self.home_analyze_button)
         action_layout.addWidget(self.home_open_button)
+        self.home_veilbreak_button = QPushButton("Explore Veilbreak protocols")
+        self.home_veilbreak_button.setToolTip(
+            "Browse published community protocols read-only; no login or upload required."
+        )
+        self.home_veilbreak_button.clicked.connect(
+            lambda: self.browse_veilbreak("protocols")
+        )
+        action_layout.addWidget(self.home_veilbreak_button)
         action_layout.addStretch(1)
         layout.addWidget(actions)
 
@@ -781,10 +791,27 @@ class LabDashboardWindow(QMainWindow):
         self.export_symbols_button = QPushButton("Export symbol transcriptions")
         self.export_symbols_button.clicked.connect(self.export_symbol_file)
         self.community_data_status = QLabel("No local community data attached")
+        self.veilbreak_protocols_button = QPushButton("Browse public Veilbreak protocols")
+        self.veilbreak_protocols_button.clicked.connect(
+            lambda: self.browse_veilbreak("protocols")
+        )
+        self.veilbreak_experiments_button = QPushButton("Browse public Veilbreak experiments")
+        self.veilbreak_experiments_button.clicked.connect(
+            lambda: self.browse_veilbreak("experiments")
+        )
+        self.veilbreak_note = QLabel(
+            "Optional, read-only Veilbreak community catalog. Selected records are linked "
+            "as context, never used as detector evidence. No private recordings leave this app."
+        )
+        self.veilbreak_note.setObjectName("subtitle")
+        self.veilbreak_note.setWordWrap(True)
         community_grid.addWidget(self.import_reference_button, 0, 0)
         community_grid.addWidget(self.import_symbols_button, 0, 1)
         community_grid.addWidget(self.export_symbols_button, 0, 2)
         community_grid.addWidget(self.community_data_status, 1, 0, 1, 3)
+        community_grid.addWidget(self.veilbreak_protocols_button, 2, 0)
+        community_grid.addWidget(self.veilbreak_experiments_button, 2, 1)
+        community_grid.addWidget(self.veilbreak_note, 3, 0, 1, 3)
         self.community_tools.setVisible(False)
         self.community_tools_button.toggled.connect(self.community_tools.setVisible)
         self.community_tools_button.toggled.connect(
@@ -1260,6 +1287,68 @@ class LabDashboardWindow(QMainWindow):
             )
             self.export_log.append(f"Exported bundle: {exported}")
             self.status.showMessage(f"Exported {exported}")
+        except Exception as exc:
+            self._error(str(exc))
+
+    def browse_veilbreak(self, kind: str) -> None:
+        """Fetch published community metadata on demand, never in the background."""
+        if kind not in ("protocols", "experiments"):
+            self._error("Unknown Veilbreak catalog.")
+            return
+        self._run_worker(
+            f"Reading Veilbreak public {kind}",
+            lambda: browse_public(kind),
+            lambda records: self._choose_veilbreak_record(kind, records),
+        )
+
+    def _choose_veilbreak_record(
+        self, kind: str, records: list[dict[str, Any]]
+    ) -> None:
+        if not records:
+            QMessageBox.information(
+                self, "Veilbreak catalog", "No published records were returned."
+            )
+            return
+        options = []
+        for record in records:
+            wavelength = (record.get("optical_metadata") or {}).get("wavelength_nm")
+            suffix = f" / {wavelength:g} nm" if isinstance(wavelength, (int, float)) else ""
+            options.append(f"#{record['record_id']} - {record['title']}{suffix}")
+        selected, accepted = QInputDialog.getItem(
+            self, "Veilbreak community catalog",
+            f"Choose a published {kind[:-1]} to reference in your LaserLab experiment:",
+            options, 0, False,
+        )
+        if not accepted:
+            return
+        record = records[options.index(selected)]
+        if self.experiment_dir is None:
+            self.tabs.setCurrentIndex(0)
+            self.setup_steps.setCurrentIndex(0)
+            QMessageBox.information(
+                self,
+                "Create or open an experiment",
+                "Catalog browsing worked. Create or open a LaserLab experiment "
+                "before linking a Veilbreak reference; no data was saved.",
+            )
+            return
+        answer = QMessageBox.question(
+            self, "Link public research metadata",
+            f"Link Veilbreak {record['record_type']} #{record['record_id']} "
+            f"to this local experiment as context-only metadata?\n\n"
+            "This does not change detector scores, import participant reports, "
+            "upload footage, or publish results.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+        try:
+            linked = app_api.link_veilbreak_reference(self.experiment_dir, record)
+            self.community_data_status.setText(
+                f"Linked Veilbreak {linked['record_type']} #{linked['record_id']} "
+                "(context only; source license not verified)"
+            )
+            self.status.showMessage("Veilbreak reference linked locally; nothing uploaded.")
         except Exception as exc:
             self._error(str(exc))
 
@@ -1797,6 +1886,9 @@ class LabDashboardWindow(QMainWindow):
             self.add_capture_button,
             self.run_demo_button,
             self.home_demo_button,
+            self.home_veilbreak_button,
+            self.veilbreak_protocols_button,
+            self.veilbreak_experiments_button,
             self.export_csv_button,
             self.export_bundle_button,
             self.unblind_button,
