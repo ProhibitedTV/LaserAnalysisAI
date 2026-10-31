@@ -178,6 +178,7 @@ def run_experiment(
         "run_id": run_id,
         "created_at": utc_now_iso(),
         "experiment_id": manifest["experiment_id"],
+        "experiment_purpose": "demo" if manifest.get("experiment_purpose") == "demo" else "research",
         "profile": profile_name,
         "protocol": protocol_id,
         "analysis_plan": plan,

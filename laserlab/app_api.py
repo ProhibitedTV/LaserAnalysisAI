@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,41 @@ def create_experiment(experiment_dir: Path) -> dict[str, Any]:
     manifest = load_or_create_manifest(Path(experiment_dir))
     write_manifest(Path(experiment_dir), manifest)
     return manifest
+
+
+def run_bundled_demo(experiment_base: Path, max_frames: int = 8, protocol: str = "anomaly") -> dict[str, Any]:
+    """Run practice fixtures in a fresh folder without changing any existing experiment."""
+    from .fixtures import fixture_metadata
+    from .runtime import resource_path
+
+    base = Path(experiment_base).expanduser().resolve()
+    base.parent.mkdir(parents=True, exist_ok=True)
+    # mkdtemp reserves a new directory atomically, even when a user chooses an
+    # existing personal experiment as the demo base. Only this new directory
+    # belongs to the demo and may be removed if the task fails.
+    experiment_dir = Path(tempfile.mkdtemp(prefix=base.name + "-", dir=base.parent))
+    try:
+        manifest = create_experiment(experiment_dir)
+        manifest["experiment_purpose"] = "demo"
+        write_manifest(experiment_dir, manifest)
+        for fixture_id, filename, role in (
+            ("commons-young-double-slit", "commons-young-double-slit.ogv", "laser"),
+            ("commons-double-slit-experiment", "commons-double-slit-experiment.webm", "control"),
+        ):
+            add_capture(
+                experiment_dir, resource_path("sample_media", filename), "video", role,
+                all_frames=True, max_frames=max_frames,
+                capture_metadata=fixture_metadata(fixture_id),
+            )
+        preset = next(item for item in list_protocol_presets() if item["id"] == protocol)
+        run = run_analysis(
+            experiment_dir, profile=preset["profile"], protocol=protocol,
+            primary_metric=preset["primary_metric"], control_generation="standard", blind_seed=20260710,
+        )
+        return {"experiment_dir": str(experiment_dir), "run": run}
+    except Exception:
+        shutil.rmtree(experiment_dir)
+        raise
 
 
 def add_capture(

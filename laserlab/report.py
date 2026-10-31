@@ -37,6 +37,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
     report = {
         "schema_version": 1,
         "experiment_id": run_record["experiment_id"],
+        "experiment_purpose": "demo" if run_record.get("experiment_purpose") == "demo" else "research",
         "run_id": run_record["run_id"],
         "created_at": run_record["created_at"],
         "profile": run_record["profile"],
@@ -151,6 +152,11 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
         for badge in report.get("badges", [])
     )
     interpretation = report.get("interpretation", {})
+    demo_notice = (
+        "<p><strong>PRACTICE DEMO:</strong> Public sample clips are not a matched scientific experiment. "
+        "Use your own footage and matched controls for research.</p>"
+        if report.get("experiment_purpose") == "demo" else ""
+    )
     ladder_tone = evidence_tone(summary.get("evidence_ladder"))
     if unblinded:
         metrics_html = f"""
@@ -226,6 +232,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 </head>
 <body>
   <h1>LaserAnalysisAI Blinded Signal Report</h1>
+  {demo_notice}
   <div class="summary">
     <p>{badges}</p>
     <div class="metric"><strong>Evidence ladder</strong><span class="evidence-value evidence-value--{ladder_tone}">{html.escape(str(summary['evidence_ladder']))}</span></div>
@@ -486,6 +493,8 @@ def report_badges(run_record: dict[str, Any]) -> list[str]:
         badges = ["review blinded", "source roles sealed"]
     else:
         badges = ["multiple comparisons corrected", "review unblinded"]
+    if run_record.get("experiment_purpose") == "demo":
+        badges.append("practice demo only")
     if aggregate.get("calibration_passed"):
         badges.append("calibration passed")
     elif aggregate.get("synthetic_positive_count", 0) > 0:

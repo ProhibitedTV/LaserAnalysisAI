@@ -8,6 +8,20 @@ Open [GitHub Releases](https://github.com/ProhibitedTV/LaserAnalysisAI/releases)
 
 Launch LaserLab.exe (Windows), LaserLab (Linux), or LaserLab.app (macOS). Native bundles do not require a separate Python installation. They are currently unsigned, so review any operating-system security prompt carefully.
 
+## Not technical? Start here
+
+The walkthrough, friendly recording labels, fresh demo folders, and **Try your own footage** action described in this section are development changes for the next desktop build. Already-downloaded v0.8.2 files do not gain these controls automatically.
+
+You can learn the app without Python, an API key, a Veilbreak login, or specialized research training. Start with **Run bundled demo** to see what the controls do; then use **Analyze my footage** when you have recordings to examine. The app creates/opens a local experiment folder, then prompts you to pick footage.
+
+For actual research, **recordings need a fair comparison**. A matched comparison means a second recording using the same camera, surface, focus, exposure, angle, and similar lighting, changing only the variable being studied where safe. The demo clips help you practice using the software but are not suitable matched scientific controls.
+
+Under **Setup > Add Capture**, the recording-role menu uses friendly names like **Laser recording** and **Matched comparison (same setup)**. If you add a laser recording, LaserLab suggests the matched comparison as your next recording. Choose the role that truthfully describes the file.
+
+There is a **How it works** button on the first screen and a **Help > First-time walkthrough** menu item. You may continue with the advanced controls when ready; the beginning steps do not change the blinding or evidence requirements.
+
+Each demo runs in a new practice folder. Its practice label stays visible during review and in saved reports and exported ZIP files. When you choose **Try your own footage**, select a separate personal experiment folder before choosing a recording. Canceling keeps the demo open. A folder already marked as a demo cannot receive personal recordings through this shortcut.
+
 ## 2. Try the bundled demo
 
 Select **Run bundled demo** (in some development versions this is named **Try sample demo**). The demo checks that the analysis workflow, fixtures, and reports work.
