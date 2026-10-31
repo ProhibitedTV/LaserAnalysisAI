@@ -37,7 +37,7 @@ Field support remains local-first. **Help > System Check** reports packaged-runt
 
 ## Community and Support
 
-New to the project? Browse the [community reference guide](docs/wiki/Home.md), [Getting Started](docs/wiki/Getting-Started.md), and [FAQ](docs/wiki/FAQ.md). These pages are versioned **wiki source files**; see [wiki publication instructions](docs/wiki/README.md) for how to mirror them into GitHub's separate Wiki repository.
+New to the project? Browse the [LaserLab Wiki](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki), [Getting Started](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Getting-Started), and [FAQ](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/FAQ). The [versioned source pages](docs/wiki/Home.md) remain available in this repository; maintainers can follow the [wiki publication instructions](docs/wiki/README.md) to mirror approved updates.
 
 - [GitHub Discussions](https://github.com/ProhibitedTV/LaserAnalysisAI/discussions): questions, experiment design, and community conversation.
 - [Report a bug or suggest a feature](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/choose): structured issue forms.
