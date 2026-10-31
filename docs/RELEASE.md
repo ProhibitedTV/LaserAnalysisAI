@@ -76,6 +76,16 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
+## v0.8.2 Release Checklist
+
+- Launch the packaged GUI from a directory unrelated to the extracted archive and confirm the bundled demo still finds its fixtures.
+- Confirm a frozen build defaults experiments to a writable per-user LaserLab directory rather than the install directory.
+- Confirm **Open Recent** remembers at most five existing experiment directories and stores no experiment content or labels.
+- Run **System Check** with and without Tesseract; missing OCR must remain an explicit supported state.
+- Export a support bundle before opening an experiment and confirm it contains only redacted diagnostics and a sanitized local log.
+- Confirm diagnostics, preferences, logs, and support bundles perform no uploads or telemetry.
+- Run the v0.8.1, v0.8.0, v0.7, and earlier leak/package checks unchanged.
+
 ## v0.8.1 Release Checklist
 
 - Confirm `laserlab.theme` is the single source for dashboard and report colors, evidence tones, badges, and checklist status styling.

@@ -37,7 +37,11 @@ def capture_gui(
             from gui.lab_dashboard import LabDashboardWindow
 
             app = QApplication.instance() or QApplication([])
-            window = LabDashboardWindow()
+            window = LabDashboardWindow(
+                preferences={"schema_version": 1, "recent_experiments": [], "last_source_directory": None}
+            )
+            window.experiment_path.setText("experiments/community-demo")
+            window.demo_experiment_path.setText("experiments/bundled-demo")
             window.resize(1420, 900)
             window.tabs.setCurrentIndex(tab_index)
             if setup_step is not None:

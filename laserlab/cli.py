@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import json
+import logging
 import sys
 from pathlib import Path
 
 from .bundle import export_review_bundle
+from .diagnostics import collect_diagnostics, configure_logging, export_support_bundle
 from .ingest import init_experiment
 from .manifest import latest_run_dir, load_manifest
 from .pipeline import run_experiment, unblind_latest_run
@@ -17,7 +20,14 @@ from .fixtures import fetch_fixtures, list_fixtures
 from .ingest import CAPTURE_ROLES
 
 
+LOGGER = logging.getLogger("laserlab.cli")
+
+
 def main(argv: list[str] | None = None) -> int:
+    try:
+        configure_logging()
+    except OSError:
+        pass
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
@@ -109,7 +119,26 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(path)
             return 0
+        if args.command == "diagnostics":
+            experiment = Path(args.experiment) if args.experiment else None
+            record = collect_diagnostics(experiment)
+            serialized = json.dumps(record, indent=2, sort_keys=True) + "\n"
+            if args.output:
+                destination = Path(args.output)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(serialized, encoding="utf-8")
+                print(destination)
+            elif args.format == "json":
+                print(serialized, end="")
+            else:
+                _print_diagnostics(record)
+            return 0
+        if args.command == "support-bundle":
+            experiment = Path(args.experiment) if args.experiment else None
+            print(export_support_bundle(Path(args.output), experiment))
+            return 0
     except Exception as exc:
+        LOGGER.exception("CLI command failed")
         print(f"laserlab error: {exc}", file=sys.stderr)
         return 2
     parser.print_help()
@@ -180,6 +209,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Confirm that participant, subjective, and community context was reviewed before unblinded export.",
     )
 
+    diagnostics_parser = subparsers.add_parser(
+        "diagnostics",
+        help="Inspect local runtime, dependency, fixture, and optional OCR readiness.",
+    )
+    diagnostics_parser.add_argument("--experiment", help="Optional experiment directory to probe without reading its manifest.")
+    diagnostics_parser.add_argument("--format", choices=["text", "json"], default="text")
+    diagnostics_parser.add_argument("--output", help="Optional JSON output file. No media or manifest content is included.")
+
+    support_parser = subparsers.add_parser(
+        "support-bundle",
+        help="Export redacted diagnostics and a sanitized recent log without media.",
+    )
+    support_parser.add_argument("--output", required=True, help="Support ZIP output path.")
+    support_parser.add_argument("--experiment", help="Optional experiment directory existence probe.")
+
     return parser
 
 
@@ -190,6 +234,29 @@ def _parse_roi(raw: str | None) -> dict[str, int] | None:
     if len(parts) != 4:
         raise ValueError("--roi must be x,y,width,height")
     return {"x": parts[0], "y": parts[1], "width": parts[2], "height": parts[3]}
+
+
+def _print_diagnostics(record: dict[str, object]) -> None:
+    runtime = record.get("runtime", {}) if isinstance(record.get("runtime"), dict) else {}
+    dependencies = record.get("dependencies", {}) if isinstance(record.get("dependencies"), dict) else {}
+    ocr = record.get("ocr", {}) if isinstance(record.get("ocr"), dict) else {}
+    tesseract = ocr.get("tesseract", {}) if isinstance(ocr.get("tesseract"), dict) else {}
+    fixtures = record.get("fixtures", {}) if isinstance(record.get("fixtures"), dict) else {}
+    print(f"LaserLab {record.get('laserlab_version', 'unknown')}")
+    print(f"Python {runtime.get('python_version', 'unknown')} / packaged={bool(runtime.get('frozen'))}")
+    for name in ("numpy", "opencv", "PyQt5", "pytesseract"):
+        item = dependencies.get(name, {}) if isinstance(dependencies.get(name), dict) else {}
+        version = f" {item.get('version')}" if item.get("version") else ""
+        if name == "PyQt5" and runtime.get("entrypoint") == "cli" and item.get("status") == "unavailable":
+            version = " (carried by the separate GUI executable)"
+        print(f"{name}: {item.get('status', 'unknown')}{version}")
+    print(
+        "fixtures: "
+        + ("ready" if fixtures.get("catalog_valid") else "check failed")
+        + f" ({fixtures.get('bundled_file_count', 0)}/{fixtures.get('redistributable_count', 0)})"
+    )
+    print(f"tesseract: {tesseract.get('status', 'unknown')} (optional)")
+    print("privacy: no telemetry, uploads, source media, or manifest content")
 
 
 if __name__ == "__main__":

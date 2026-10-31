@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Callable
@@ -38,9 +39,20 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from laserlab import app_api
+from laserlab import __version__, app_api
+from laserlab.diagnostics import (
+    collect_diagnostics,
+    configure_logging,
+    export_support_bundle as write_support_bundle,
+    get_state_dir,
+)
 from laserlab.fixtures import fixture_metadata, list_fixtures
+from laserlab.preferences import load_preferences, remember_experiment, set_last_source_directory
+from laserlab.runtime import default_experiments_dir, resource_path
 from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
+
+
+LOGGER = logging.getLogger("laserlab.gui")
 
 
 class ApiWorker(QThread):
@@ -55,17 +67,19 @@ class ApiWorker(QThread):
         try:
             self.finished_ok.emit(self._task())
         except Exception as exc:  # pragma: no cover - exercised by manual GUI use
+            LOGGER.exception("Background task failed")
             self.failed.emit(str(exc))
 
 
 class LabDashboardWindow(QMainWindow):
     """Guided desktop dashboard for community LaserLab experiments."""
 
-    def __init__(self):
+    def __init__(self, preferences: dict[str, Any] | None = None):
         super().__init__()
         self.experiment_dir: Path | None = None
         self.latest_report: dict[str, Any] | None = None
         self.worker: ApiWorker | None = None
+        self.preferences = preferences if preferences is not None else load_preferences()
         self.protocol_presets = app_api.list_protocol_presets()
         self._build_ui()
         self._apply_style()
@@ -83,10 +97,27 @@ class LabDashboardWindow(QMainWindow):
         export_bundle = QAction("Export Review Bundle", self)
         export_bundle.triggered.connect(self.export_bundle)
         file_menu.addAction(export_bundle)
+        self.recent_menu = file_menu.addMenu("Open Recent")
+        self._refresh_recent_menu()
         file_menu.addSeparator()
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+        help_menu = self.menuBar().addMenu("Help")
+        self.system_check_action = QAction("System Check", self)
+        self.system_check_action.triggered.connect(self.show_system_check)
+        help_menu.addAction(self.system_check_action)
+        self.support_bundle_action = QAction("Export Support Bundle", self)
+        self.support_bundle_action.triggered.connect(self.export_support_bundle)
+        help_menu.addAction(self.support_bundle_action)
+        open_logs = QAction("Open Log Folder", self)
+        open_logs.triggered.connect(self.open_log_folder)
+        help_menu.addAction(open_logs)
+        help_menu.addSeparator()
+        about = QAction("About LaserLab", self)
+        about.triggered.connect(self.show_about)
+        help_menu.addAction(about)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._setup_tab(), "Setup")
@@ -98,7 +129,7 @@ class LabDashboardWindow(QMainWindow):
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)
-        self.status.showMessage("Ready")
+        self.status.showMessage(f"Ready / LaserLab v{__version__}")
 
     def _setup_tab(self) -> QWidget:
         page = QWidget()
@@ -175,7 +206,9 @@ class LabDashboardWindow(QMainWindow):
 
         experiment_group = QGroupBox("Experiment")
         experiment_layout = QGridLayout(experiment_group)
-        self.experiment_path = QLineEdit(str(Path("experiments") / "community-demo"))
+        recent = self.preferences.get("recent_experiments", [])
+        default_experiment = Path(recent[0]) if recent else default_experiments_dir() / "community-demo"
+        self.experiment_path = QLineEdit(str(default_experiment))
         browse_exp = QPushButton("Browse")
         browse_exp.clicked.connect(self.browse_experiment)
         open_exp = QPushButton("Open")
@@ -684,7 +717,7 @@ class LabDashboardWindow(QMainWindow):
 
         demo = QGroupBox("Demo")
         demo_layout = QGridLayout(demo)
-        self.demo_experiment_path = QLineEdit(str(Path("experiments") / "community-demo"))
+        self.demo_experiment_path = QLineEdit(str(default_experiments_dir() / "bundled-demo"))
         self.demo_max_frames = QSpinBox()
         self.demo_max_frames.setRange(1, 1000)
         self.demo_max_frames.setValue(8)
@@ -721,6 +754,20 @@ class LabDashboardWindow(QMainWindow):
         grid.addWidget(self.export_bundle_button, 0, 2)
         grid.addWidget(self.include_media, 1, 0, 1, 3)
         layout.addWidget(actions)
+
+        support = QGroupBox("Installation Support")
+        support_grid = QGridLayout(support)
+        self.system_check_button = QPushButton("System Check")
+        self.system_check_button.clicked.connect(self.show_system_check)
+        self.support_bundle_button = QPushButton("Export Support Bundle")
+        self.support_bundle_button.clicked.connect(self.export_support_bundle)
+        support_note = QLabel("Redacted local diagnostics and logs only. No media, experiment labels, or uploads.")
+        support_note.setObjectName("subtitle")
+        support_note.setWordWrap(True)
+        support_grid.addWidget(self.system_check_button, 0, 0)
+        support_grid.addWidget(self.support_bundle_button, 0, 1)
+        support_grid.addWidget(support_note, 1, 0, 1, 2)
+        layout.addWidget(support)
 
         self.community_tools_button = QPushButton("Show community data tools")
         self.community_tools_button.setCheckable(True)
@@ -793,14 +840,20 @@ class LabDashboardWindow(QMainWindow):
             self.experiment_path.setText(path)
 
     def browse_source(self) -> None:
+        start_dir = str(self.preferences.get("last_source_directory") or "")
         if self.kind_combo.currentText() == "image-set":
-            path = QFileDialog.getExistingDirectory(self, "Image Set", "")
+            path = QFileDialog.getExistingDirectory(self, "Image Set", start_dir)
         else:
             path, _ = QFileDialog.getOpenFileName(
-                self, "Video Source", "", "Videos (*.mp4 *.avi *.mov *.mkv *.webm *.ogv);;All files (*.*)"
+                self, "Video Source", start_dir, "Videos (*.mp4 *.avi *.mov *.mkv *.webm *.ogv);;All files (*.*)"
             )
         if path:
             self.source_path.setText(path)
+            source_dir = Path(path) if Path(path).is_dir() else Path(path).parent
+            try:
+                self.preferences = set_last_source_directory(source_dir)
+            except OSError:
+                LOGGER.warning("Could not persist the last source directory", exc_info=True)
 
     def open_experiment(self) -> None:
         try:
@@ -836,11 +889,100 @@ class LabDashboardWindow(QMainWindow):
                 else "No local community data attached"
             )
             self._study_mode_changed()
+            self._remember_experiment(experiment_dir)
             self.status.showMessage(f"Experiment open: {self.experiment_dir}")
             self.refresh_review(silent=True)
             self.update_estimate()
         except Exception as exc:
+            LOGGER.exception("Could not open experiment")
             self._error(str(exc))
+
+    def _refresh_recent_menu(self) -> None:
+        self.recent_menu.clear()
+        recent = self.preferences.get("recent_experiments", [])
+        if not recent:
+            empty = QAction("No recent experiments", self)
+            empty.setEnabled(False)
+            self.recent_menu.addAction(empty)
+            return
+        for raw_path in recent:
+            path = Path(raw_path)
+            action = QAction(path.name or str(path), self)
+            action.setStatusTip(str(path))
+            action.triggered.connect(lambda _checked=False, selected=path: self._open_recent_experiment(selected))
+            self.recent_menu.addAction(action)
+
+    def _remember_experiment(self, experiment_dir: Path) -> None:
+        try:
+            self.preferences = remember_experiment(experiment_dir)
+            self._refresh_recent_menu()
+        except OSError:
+            LOGGER.warning("Could not persist recent experiment", exc_info=True)
+
+    def _open_recent_experiment(self, experiment_dir: Path) -> None:
+        self.tabs.setCurrentIndex(0)
+        self.setup_steps.setCurrentIndex(0)
+        self.experiment_path.setText(str(experiment_dir))
+        self.open_experiment()
+
+    def show_system_check(self) -> None:
+        try:
+            record = collect_diagnostics(self.experiment_dir)
+            dependencies = record.get("dependencies", {})
+            tesseract = record.get("ocr", {}).get("tesseract", {})
+            fixtures = record.get("fixtures", {})
+            lines = [
+                f"LaserLab {record.get('laserlab_version', 'unknown')}",
+                f"Python {record.get('runtime', {}).get('python_version', 'unknown')}",
+                f"Packaged app: {'yes' if record.get('runtime', {}).get('frozen') else 'no'}",
+                "",
+                "Core dependencies:",
+            ]
+            for name in ("numpy", "opencv", "PyQt5", "pytesseract"):
+                item = dependencies.get(name, {})
+                version = f" {item.get('version')}" if item.get("version") else ""
+                lines.append(f"  {name}: {item.get('status', 'unknown')}{version}")
+            lines.extend(
+                [
+                    "",
+                    f"Bundled fixtures: {'ready' if fixtures.get('catalog_valid') else 'check failed'} "
+                    f"({fixtures.get('bundled_file_count', 0)}/{fixtures.get('redistributable_count', 0)})",
+                    f"Tesseract OCR: {tesseract.get('status', 'unknown')} (optional)",
+                    "",
+                    "No telemetry or uploads were performed.",
+                ]
+            )
+            QMessageBox.information(self, "LaserLab System Check", "\n".join(lines))
+        except Exception as exc:
+            LOGGER.exception("System check failed")
+            self._error(f"System check failed: {exc}")
+
+    def export_support_bundle(self) -> None:
+        default_name = f"LaserLab-support-v{__version__}.zip"
+        path, _ = QFileDialog.getSaveFileName(self, "Export Support Bundle", default_name, "ZIP (*.zip)")
+        if not path:
+            return
+        try:
+            exported = write_support_bundle(Path(path), self.experiment_dir)
+            self.export_log.append(f"Exported privacy-safe support bundle: {exported}")
+            self.status.showMessage(f"Support bundle exported: {exported}")
+        except Exception as exc:
+            LOGGER.exception("Support bundle export failed")
+            self._error(f"Support bundle export failed: {exc}")
+
+    def open_log_folder(self) -> None:
+        path = get_state_dir() / "logs"
+        path.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
+
+    def show_about(self) -> None:
+        QMessageBox.information(
+            self,
+            "About LaserLab",
+            f"LaserLab v{__version__}\n\n"
+            "Local-first blinded analysis of laser footage and matched controls.\n"
+            "LaserLab reports bounded detector evidence; it does not establish origin, intent, or metaphysical meaning.",
+        )
 
     def add_capture(self) -> None:
         experiment = self._require_experiment()
@@ -964,7 +1106,7 @@ class LabDashboardWindow(QMainWindow):
             if not experiment.get("captures"):
                 app_api.add_capture(
                     self.experiment_dir,
-                    Path("sample_media") / "commons-young-double-slit.ogv",
+                    resource_path("sample_media", "commons-young-double-slit.ogv"),
                     "video",
                     "laser",
                     all_frames=True,
@@ -973,7 +1115,7 @@ class LabDashboardWindow(QMainWindow):
                 )
                 app_api.add_capture(
                     self.experiment_dir,
-                    Path("sample_media") / "commons-double-slit-experiment.webm",
+                    resource_path("sample_media", "commons-double-slit-experiment.webm"),
                     "video",
                     "control",
                     all_frames=True,
@@ -1323,6 +1465,8 @@ class LabDashboardWindow(QMainWindow):
 
     def _demo_finished(self, payload: dict[str, Any]) -> None:
         self._analysis_finished(payload["run"])
+        if self.experiment_dir:
+            self._remember_experiment(self.experiment_dir)
         try:
             self._populate_captures(app_api.create_experiment(self.experiment_dir))
         except Exception:
@@ -1660,11 +1804,13 @@ class LabDashboardWindow(QMainWindow):
             button.setEnabled(enabled)
 
     def _error(self, message: str) -> None:
+        LOGGER.warning("User-visible error: %s", message)
         self.status.showMessage(message)
         QMessageBox.warning(self, "LaserLab", message)
 
 
 def main() -> int:
+    configure_logging()
     app = QApplication([])
     window = LabDashboardWindow()
     window.show()

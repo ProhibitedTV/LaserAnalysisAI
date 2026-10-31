@@ -615,7 +615,9 @@ class LaserLabGuiTests(unittest.TestCase):
         from laserlab.theme import dashboard_stylesheet
 
         app = QApplication.instance() or QApplication([])
-        window = LabDashboardWindow()
+        window = LabDashboardWindow(
+            preferences={"schema_version": 1, "recent_experiments": [], "last_source_directory": None}
+        )
         try:
             self.assertEqual(window.tabs.count(), 5)
             self.assertEqual([window.tabs.tabText(index) for index in range(5)], ["Setup", "Run", "Review", "Compare", "Export"])
@@ -624,6 +626,12 @@ class LaserLabGuiTests(unittest.TestCase):
             self.assertEqual(window.home_analyze_button.text(), "Analyze my footage")
             self.assertEqual(window.home_open_button.text(), "Open existing experiment")
             self.assertEqual(window.home_analyze_button.objectName(), "primaryButton")
+            self.assertEqual(window.system_check_button.text(), "System Check")
+            self.assertEqual(window.support_bundle_button.text(), "Export Support Bundle")
+            self.assertEqual(window.system_check_action.text(), "System Check")
+            self.assertEqual(window.support_bundle_action.text(), "Export Support Bundle")
+            self.assertEqual(window.recent_menu.actions()[0].text(), "No recent experiments")
+            self.assertFalse(window.recent_menu.actions()[0].isEnabled())
             self.assertEqual(window.styleSheet(), dashboard_stylesheet())
             self.assertGreater(window.protocol_combo.count(), 3)
             self.assertEqual(window.candidate_table.columnCount(), 7)

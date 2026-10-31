@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -99,8 +100,23 @@ def _smoke(gui_product: Path, cli_product: Path) -> None:
     gui_executable = gui_product
     if gui_product.suffix == ".app":
         gui_executable = gui_product / "Contents" / "MacOS" / "LaserLab"
-    subprocess.run([str(gui_executable), "--smoke"], cwd=ROOT, check=True, timeout=60)
-    subprocess.run([str(cli_product), "--help"], cwd=ROOT, check=True, timeout=60)
+    with tempfile.TemporaryDirectory(prefix="laserlab-release-smoke-") as temporary:
+        unrelated_cwd = Path(temporary)
+        subprocess.run([str(gui_executable), "--smoke"], cwd=unrelated_cwd, check=True, timeout=60)
+        subprocess.run([str(gui_executable), "--smoke-resources"], cwd=unrelated_cwd, check=True, timeout=60)
+        subprocess.run([str(cli_product), "--help"], cwd=unrelated_cwd, check=True, timeout=60)
+        diagnostics = subprocess.run(
+            [str(cli_product), "diagnostics", "--format", "json"],
+            cwd=unrelated_cwd,
+            check=True,
+            timeout=60,
+            capture_output=True,
+            text=True,
+        )
+        record = json.loads(diagnostics.stdout)
+        fixtures = record.get("fixtures", {})
+        if not fixtures.get("catalog_valid") or fixtures.get("bundled_file_count") != fixtures.get("redistributable_count"):
+            raise RuntimeError("Packaged diagnostics did not find every bundled fixture")
 
 
 def _write_archive(bundle_dir: Path, archive_path: Path) -> None:
