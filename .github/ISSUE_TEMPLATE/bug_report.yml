@@ -1,7 +1,6 @@
 name: Bug report
 description: Something crashes, fails, or behaves unexpectedly in LaserLab
 title: "[Bug]: "
-labels: ["bug"]
 body:
   - type: markdown
     attributes:
