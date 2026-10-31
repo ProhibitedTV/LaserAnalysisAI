@@ -91,10 +91,10 @@ def top_candidates(
         if result.get("unblinded_label") == "synthetic_positive":
             continue
         current = best_by_sample.get(result["sample_id"])
-        if current is None or _candidate_score(result, score_key) > _candidate_score(current, score_key):
+        if current is None or _candidate_rank(result, score_key) > _candidate_rank(current, score_key):
             best_by_sample[result["sample_id"]] = result
 
-    candidates = sorted(best_by_sample.values(), key=lambda item: _candidate_score(item, score_key), reverse=True)[:limit]
+    candidates = sorted(best_by_sample.values(), key=lambda item: _candidate_rank(item, score_key), reverse=True)[:limit]
     records = []
     for item in candidates:
         record = {
@@ -108,9 +108,12 @@ def top_candidates(
             "preprocessing_variant": item["preprocessing_variant"],
             "ocr_text": item.get("ocr", {}).get("text", ""),
             "ocr_confidence": item.get("ocr", {}).get("confidence", 0.0),
+            "ocr_attempts": item.get("ocr_attempts", []),
+            "ocr_ensemble": item.get("ocr_ensemble", {}),
             "candidate_rois": item.get("candidate_rois", [])[:3],
             "processed_path": item["processed_path"],
             "review_image_path": item.get("review_image_path", ""),
+            "roi_overlay_path": item.get("roi_overlay_path", ""),
             "q_value": item.get("q_value"),
             "detector_family_scores": item.get("detector_family_scores", {}),
             "cross_pattern": item.get("cross_pattern", {}),
@@ -227,7 +230,9 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     th, td {{ border-bottom: 1px solid #1f3344; padding: 8px; text-align: left; vertical-align: top; }}
     th {{ background: #111d29; font-size: 12px; text-transform: uppercase; color: #7f9aaa; }}
     code {{ background: #111d29; color: #72f1b8; padding: 2px 4px; border-radius: 3px; }}
-    img {{ max-width: 180px; max-height: 120px; border: 1px solid #1f5260; }}
+    img {{ max-width: 150px; max-height: 105px; border: 1px solid #1f5260; }}
+    .candidate-media {{ display: grid; grid-template-columns: repeat(2, minmax(90px, 1fr)); gap: 6px; min-width: 210px; }}
+    .candidate-media span {{ display: block; color: #7f9aaa; font-size: 10px; text-transform: uppercase; }}
     a {{ color: #35d4d4; }}
   </style>
 </head>
@@ -263,7 +268,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 
 
 def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
-    image_src = html.escape(_relative_from_run(candidate["processed_path"]))
+    media = _candidate_media(candidate)
     ocr_text = candidate.get("ocr_text") or ""
     annotation = candidate.get("review_annotation") or {}
     review_text = ", ".join(annotation.get("flags", []))
@@ -281,7 +286,7 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
         <td>{html.escape(_source_label(candidate))}</td>
         <td>{html.escape(ocr_text[:120])}</td>
         <td>{html.escape(review_text[:240])}</td>
-        <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
+        <td>{media}</td>
       </tr>
 """
     return f"""
@@ -292,9 +297,29 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
         <td>{html.escape(ocr_text[:120])}</td>
         <td>{html.escape(review_text[:240])}</td>
-        <td><a href="{image_src}"><img src="{image_src}" alt="{html.escape(candidate['blind_id'])}"></a></td>
+        <td>{media}</td>
       </tr>
 """
+
+
+def _candidate_media(candidate: dict[str, Any]) -> str:
+    roi = (candidate.get("candidate_rois") or [{}])[0]
+    sources = [
+        ("Original", candidate.get("review_image_path")),
+        ("Processed", candidate.get("processed_path")),
+        ("ROI overlay", candidate.get("roi_overlay_path")),
+        ("Processed crop", roi.get("processed_crop_path") or roi.get("crop_path")),
+    ]
+    items = []
+    for label, stored in sources:
+        if not stored:
+            continue
+        source = html.escape(_relative_from_run(str(stored)))
+        items.append(
+            f'<a href="{source}"><span>{html.escape(label)}</span><img src="{source}" '
+            f'alt="{html.escape(candidate["blind_id"])} {html.escape(label)}"></a>'
+        )
+    return '<div class="candidate-media">' + "".join(items) + "</div>"
 
 
 def _falsification_row(row: dict[str, Any]) -> str:
@@ -450,6 +475,20 @@ def _candidate_score(result: dict[str, Any], score_key: str) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _candidate_rank(result: dict[str, Any], score_key: str) -> tuple[float, float, float]:
+    """Break primary-metric ties with visible structure without changing the metric."""
+
+    roi_score = max(
+        (float(roi.get("score", 0.0) or 0.0) for roi in result.get("candidate_rois", [])),
+        default=0.0,
+    )
+    return (
+        _candidate_score(result, score_key),
+        float(result.get("structure_score", 0.0) or 0.0),
+        roi_score,
+    )
 
 
 def report_badges(run_record: dict[str, Any]) -> list[str]:

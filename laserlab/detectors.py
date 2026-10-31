@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .artifacts import ensure_dir, relative_to
+from .ocr_adapters import OCRRequest, TesseractAdapter, run_ocr_ensemble
+from .roi_detection import crop_rois, detect_code_rois, draw_roi_overlay
 from .scientific import cross_pattern_metrics, fft_spectrum_metrics, glcm_texture_metrics, speckle_contrast_metrics
 
 
@@ -20,8 +22,10 @@ class DetectorContext:
     original_image: Any
 
 
+_TESSERACT_ADAPTER = TesseractAdapter()
+
+
 def run_detectors(processed_image: Any, context: DetectorContext) -> dict[str, Any]:
-    ocr = run_ocr(processed_image)
     components = connected_components(processed_image)
     texture = entropy_texture(processed_image)
     edge_lines = edge_line_density(processed_image)
@@ -29,11 +33,13 @@ def run_detectors(processed_image: Any, context: DetectorContext) -> dict[str, A
     speckle = speckle_contrast_metrics(processed_image)
     glcm = glcm_texture_metrics(processed_image)
     cross = cross_pattern_metrics(processed_image)
-    rois = extract_candidate_rois(processed_image, context)
-    rois.extend(extract_cross_rois(processed_image, context, cross))
+    rois, overlay_path = prepare_candidate_rois(processed_image, context, cross)
+    ocr, ocr_attempts, ocr_ensemble = run_roi_ocr(processed_image, rois, context)
     structure = structure_score(ocr, components, texture, edge_lines, rois)
     return {
         "ocr": ocr,
+        "ocr_attempts": ocr_attempts,
+        "ocr_ensemble": ocr_ensemble,
         "connected_components": components,
         "entropy_texture": texture,
         "edge_line_density": edge_lines,
@@ -42,6 +48,7 @@ def run_detectors(processed_image: Any, context: DetectorContext) -> dict[str, A
         "texture_features": glcm,
         "cross_pattern": cross,
         "candidate_rois": rois,
+        "roi_overlay_path": overlay_path,
         "detector_family_scores": detector_family_scores(ocr, components, texture, edge_lines, fft, speckle, glcm, rois, cross),
         "structure_score": structure,
     }
@@ -66,51 +73,257 @@ def binary_for_structure(image: Any) -> Any:
 
 
 def run_ocr(image: Any) -> dict[str, Any]:
-    try:
-        import pytesseract
-    except ImportError:
-        return {"available": False, "reason": "pytesseract is not installed", "text": "", "confidence": 0.0, "boxes": []}
+    ensemble = run_ocr_ensemble(
+        [_TESSERACT_ADAPTER],
+        OCRRequest(image=image, roi_reference={"id": "full_frame"}),
+    )
+    return legacy_ocr_summary(ensemble["attempts"])
 
-    config = "--oem 3 --psm 6 -l eng"
-    try:
-        data = pytesseract.image_to_data(image, config=config, output_type=pytesseract.Output.DICT)
-        text = pytesseract.image_to_string(image, config=config).strip()
-    except pytesseract.TesseractNotFoundError:
-        return {"available": False, "reason": "tesseract executable not found", "text": "", "confidence": 0.0, "boxes": []}
-    except pytesseract.TesseractError as exc:
-        return {"available": False, "reason": f"tesseract error: {exc}", "text": "", "confidence": 0.0, "boxes": []}
 
-    boxes = []
-    confidences = []
-    for index, raw_text in enumerate(data.get("text", [])):
-        value = raw_text.strip()
-        if not value:
-            continue
-        raw_conf = data["conf"][index]
-        try:
-            confidence = float(raw_conf)
-        except (TypeError, ValueError):
-            confidence = -1.0
-        if confidence >= 0:
-            confidences.append(confidence)
-        boxes.append(
+def prepare_candidate_rois(
+    processed_image: Any,
+    context: DetectorContext,
+    cross: dict[str, Any],
+    limit: int = 8,
+) -> tuple[list[dict[str, Any]], str]:
+    """Detect, persist, and overlay auditable ROI candidates."""
+
+    import cv2
+    import numpy as np
+
+    raw_rois = detect_code_rois(
+        processed_image,
+        max_rois=limit,
+        parent_variant={"name": context.variant_name},
+    )
+    processed_crops = crop_rois(processed_image, raw_rois)
+    crop_dir = ensure_dir(context.run_dir / "candidates" / context.blind_id)
+    mask_dir = ensure_dir(context.run_dir / "roi_masks" / context.blind_id)
+    original_height, original_width = context.original_image.shape[:2]
+    processed_height, processed_width = processed_image.shape[:2]
+    scale_x = original_width / max(1, processed_width)
+    scale_y = original_height / max(1, processed_height)
+    records: list[dict[str, Any]] = []
+
+    for raw, processed_crop in zip(raw_rois, processed_crops):
+        processed_bbox = dict(raw["bbox"])
+        original_bbox = _scale_bbox(processed_bbox, scale_x, scale_y, original_width, original_height)
+        x, y, width, height = _bbox_values(original_bbox)
+        original_crop = context.original_image[y:y + height, x:x + width]
+        safe_id = str(raw["id"]).replace("-", "_")
+        stem = f"{context.variant_name}_{safe_id}"
+        crop_path = crop_dir / f"{stem}_original.png"
+        processed_crop_path = crop_dir / f"{stem}_processed.png"
+        mask_path = mask_dir / f"{stem}_mask.png"
+        mask = np.zeros((processed_height, processed_width), dtype="uint8")
+        px, py, pw, ph = _bbox_values(processed_bbox)
+        mask[py:py + ph, px:px + pw] = 255
+        _write_image(crop_path, original_crop)
+        _write_image(processed_crop_path, processed_crop)
+        _write_image(mask_path, mask)
+        record = dict(raw)
+        record.update(
             {
-                "text": value,
-                "confidence": confidence,
-                "x": int(data["left"][index]),
-                "y": int(data["top"][index]),
-                "width": int(data["width"][index]),
-                "height": int(data["height"][index]),
+                "bbox": original_bbox,
+                "processed_bbox": processed_bbox,
+                "x": x,
+                "y": y,
+                "width": width,
+                "height": height,
+                "area": width * height,
+                "crop_path": relative_to(crop_path, context.experiment_dir),
+                "processed_crop_path": relative_to(processed_crop_path, context.experiment_dir),
+                "mask_path": relative_to(mask_path, context.experiment_dir),
+                "mask_kind": "bounding_box",
             }
         )
+        records.append(record)
 
-    return {
-        "available": True,
-        "text": text,
-        "confidence": float(sum(confidences) / len(confidences)) if confidences else 0.0,
-        "boxes": boxes,
-        "word_count": len(boxes),
+    cross_records = extract_cross_rois(processed_image, context, cross)
+    for cross_record in cross_records:
+        original_bbox = {
+            "x": int(cross_record["x"]),
+            "y": int(cross_record["y"]),
+            "width": int(cross_record["width"]),
+            "height": int(cross_record["height"]),
+        }
+        processed_bbox = _scale_bbox(
+            original_bbox,
+            1.0 / max(scale_x, 1e-9),
+            1.0 / max(scale_y, 1e-9),
+            processed_width,
+            processed_height,
+        )
+        px, py, pw, ph = _bbox_values(processed_bbox)
+        processed_crop = processed_image[py:py + ph, px:px + pw]
+        region_type = str(cross_record.get("region_type", "cross_region"))
+        safe_region = region_type.replace("-", "_")
+        stem = f"{context.variant_name}_{safe_region}"
+        processed_crop_path = crop_dir / f"{stem}_processed.png"
+        mask_path = mask_dir / f"{stem}_mask.png"
+        mask = np.zeros((processed_height, processed_width), dtype="uint8")
+        mask[py:py + ph, px:px + pw] = 255
+        _write_image(processed_crop_path, processed_crop)
+        _write_image(mask_path, mask)
+        confidence = float(cross.get("confidence", 0.0) or 0.0)
+        cross_record.update(
+            {
+                "id": f"cross-{safe_region}",
+                "bbox": original_bbox,
+                "processed_bbox": processed_bbox,
+                "detector_reasons": ["cross_pattern", region_type],
+                "component_scores": {
+                    "structure_density": round(confidence, 6),
+                    "local_contrast": 0.0,
+                    "persistence": 0.0,
+                    "proposal_support": 1.0,
+                    "edge_density": 0.0,
+                },
+                "score": round(confidence, 6),
+                "parent_variant": {
+                    "name": context.variant_name,
+                    "width": processed_width,
+                    "height": processed_height,
+                },
+                "fallback": False,
+                "processed_crop_path": relative_to(processed_crop_path, context.experiment_dir),
+                "mask_path": relative_to(mask_path, context.experiment_dir),
+                "mask_kind": "bounding_box",
+            }
+        )
+        records.append(cross_record)
+
+    overlay_records = [{"bbox": item["processed_bbox"]} for item in records]
+    overlay = draw_roi_overlay(processed_image, overlay_records)
+    overlay_dir = ensure_dir(context.run_dir / "roi_overlays")
+    overlay_path = overlay_dir / f"{context.blind_id}_{context.variant_name}.png"
+    _write_image(overlay_path, overlay)
+    return records, relative_to(overlay_path, context.experiment_dir)
+
+
+def run_roi_ocr(
+    processed_image: Any,
+    rois: list[dict[str, Any]],
+    context: DetectorContext,
+    limit: int = 3,
+) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    """Run OCR against explicit ROI references and preserve every attempt."""
+
+    ordered = sorted(
+        rois,
+        key=lambda item: (
+            bool(item.get("fallback")),
+            -float(item.get("score", 0.0) or 0.0),
+            str(item.get("id", "")),
+        ),
+    )[:limit]
+    attempts: list[dict[str, Any]] = []
+    roi_results: list[dict[str, Any]] = []
+    for roi in ordered:
+        x, y, width, height = _bbox_values(roi["processed_bbox"])
+        crop = processed_image[y:y + height, x:x + width]
+        reference_id = "full_frame" if roi.get("fallback") else str(roi["id"])
+        reference = {
+            "id": reference_id,
+            "bbox": dict(roi["bbox"]),
+            "processed_bbox": dict(roi["processed_bbox"]),
+            "crop_path": roi.get("crop_path"),
+            "processed_crop_path": roi.get("processed_crop_path"),
+        }
+        ensemble = run_ocr_ensemble(
+            [_TESSERACT_ADAPTER],
+            OCRRequest(
+                image=crop,
+                roi_reference=reference,
+                preprocessing_metadata={"variant": context.variant_name},
+                timeout_seconds=30.0,
+                language="eng",
+            ),
+        )
+        attempts.extend(ensemble["attempts"])
+        roi_results.append(
+            {
+                "roi_reference": reference,
+                "agreement": ensemble["agreement"],
+            }
+        )
+        if ensemble["attempts"] and not any(item.get("available") for item in ensemble["attempts"]):
+            break
+
+    ensemble_summary = {
+        "schema_version": "1.0",
+        "agreement_scope": "per_roi",
+        "engine_ids": sorted({str(item.get("engine_id", "")) for item in attempts}),
+        "attempt_count": len(attempts),
+        "roi_results": roi_results,
     }
+    return legacy_ocr_summary(attempts), attempts, ensemble_summary
+
+
+def legacy_ocr_summary(attempts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Retain the v0.7 OCR summary while richer attempts remain available."""
+
+    available = [item for item in attempts if item.get("available")]
+    successful = [
+        item
+        for item in available
+        if item.get("failure_reason") is None and isinstance(item.get("text"), str) and item.get("text", "").strip()
+    ]
+    best = max(
+        successful,
+        key=lambda item: (float(item.get("confidence") or 0.0), len(str(item.get("text") or ""))),
+        default=None,
+    )
+    if best is not None:
+        boxes = list(best.get("word_boxes", []))
+        return {
+            "available": True,
+            "text": str(best.get("text") or ""),
+            "confidence": round(float(best.get("confidence") or 0.0) * 100.0, 6),
+            "boxes": boxes,
+            "character_boxes": list(best.get("character_boxes", [])),
+            "word_count": len(boxes),
+            "engine": best.get("engine_id"),
+            "roi_reference": best.get("roi_reference"),
+        }
+    reason = next((str(item.get("failure_reason")) for item in attempts if item.get("failure_reason")), None)
+    return {
+        "available": bool(available),
+        "reason": reason or ("no OCR attempts" if not attempts else None),
+        "text": "",
+        "confidence": 0.0,
+        "boxes": [],
+        "character_boxes": [],
+        "word_count": 0,
+        "engine": attempts[0].get("engine_id") if attempts else None,
+        "roi_reference": attempts[0].get("roi_reference") if attempts else {"id": "full_frame"},
+    }
+
+
+def _bbox_values(bbox: dict[str, Any]) -> tuple[int, int, int, int]:
+    return int(bbox["x"]), int(bbox["y"]), int(bbox["width"]), int(bbox["height"])
+
+
+def _scale_bbox(
+    bbox: dict[str, Any],
+    scale_x: float,
+    scale_y: float,
+    limit_width: int,
+    limit_height: int,
+) -> dict[str, int]:
+    x, y, width, height = _bbox_values(bbox)
+    x0 = max(0, min(limit_width - 1, int(round(x * scale_x))))
+    y0 = max(0, min(limit_height - 1, int(round(y * scale_y))))
+    x1 = max(x0 + 1, min(limit_width, int(round((x + width) * scale_x))))
+    y1 = max(y0 + 1, min(limit_height, int(round((y + height) * scale_y))))
+    return {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0}
+
+
+def _write_image(path: Path, image: Any) -> None:
+    import cv2
+
+    if image is None or getattr(image, "size", 0) == 0 or not cv2.imwrite(str(path), image):
+        raise RuntimeError(f"Failed to write detector artifact: {path}")
 
 
 def connected_components(image: Any) -> dict[str, Any]:

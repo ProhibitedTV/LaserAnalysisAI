@@ -602,10 +602,12 @@ class LabDashboardWindow(QMainWindow):
         preview_row.addWidget(self.crop_preview)
         preview_layout.addLayout(preview_row, 2)
         overlay_row = QHBoxLayout()
-        self.show_processed_overlay = QCheckBox("Processed")
+        self.show_processed_overlay = QCheckBox("ROI boxes")
         self.show_processed_overlay.setChecked(True)
-        self.show_crop_overlay = QCheckBox("Crop")
+        self.show_crop_overlay = QCheckBox("Candidate crop")
         self.show_crop_overlay.setChecked(True)
+        self.show_processed_overlay.toggled.connect(self.show_selected_candidate)
+        self.show_crop_overlay.toggled.connect(self.show_selected_candidate)
         overlay_row.addWidget(QLabel("Overlays"))
         overlay_row.addWidget(self.show_processed_overlay)
         overlay_row.addWidget(self.show_crop_overlay)
@@ -1233,6 +1235,9 @@ class LabDashboardWindow(QMainWindow):
             f"Primary score: {candidate.get('primary_metric_score', candidate.get('structure_score'))}",
             f"Families: {candidate.get('detector_family_scores', {})}",
             f"Cross registration: {candidate.get('cross_pattern', {})}",
+            f"ROI candidates: {len(candidate.get('candidate_rois', []))}",
+            f"OCR attempts: {len(candidate.get('ocr_attempts', []))}",
+            f"OCR engines: {candidate.get('ocr_ensemble', {}).get('engine_ids', [])}",
         ]
         if self._review_is_unblinded():
             details.extend(
@@ -1266,12 +1271,18 @@ class LabDashboardWindow(QMainWindow):
         source = candidate.get("review_image_path") or candidate.get("source_path")
         if source:
             self._set_pixmap(self.original_preview, self.experiment_dir / source)
-        processed = candidate.get("processed_path")
+        processed = (
+            candidate.get("roi_overlay_path")
+            if self.show_processed_overlay.isChecked()
+            else candidate.get("processed_path")
+        )
         if processed:
             self._set_pixmap(self.processed_preview, self.experiment_dir / processed)
         rois = candidate.get("candidate_rois", [])
-        if rois and rois[0].get("crop_path"):
-            self._set_pixmap(self.crop_preview, self.experiment_dir / rois[0]["crop_path"])
+        if self.show_crop_overlay.isChecked() and rois:
+            crop = rois[0].get("processed_crop_path") or rois[0].get("crop_path")
+            if crop:
+                self._set_pixmap(self.crop_preview, self.experiment_dir / crop)
 
     def _set_pixmap(self, label: QLabel, path: Path) -> None:
         if path.exists():

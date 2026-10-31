@@ -363,11 +363,15 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
         "preprocessing_variant",
         "ocr_confidence",
         "ocr_text",
+        "ocr_attempt_count",
+        "ocr_engines",
+        "roi_count",
         "review_flags",
         "review_note",
         "q_value",
         "detector_family_scores",
         "processed_path",
+        "roi_overlay_path",
     ]
     if unblinded:
         fields[3:3] = ["unblinded_label", "source_path", "frame_index", "control_type"]
@@ -386,11 +390,15 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
                     "preprocessing_variant": item.get("preprocessing_variant", ""),
                     "ocr_confidence": item.get("ocr_confidence", ""),
                     "ocr_text": item.get("ocr_text", ""),
+                    "ocr_attempt_count": len(item.get("ocr_attempts", [])),
+                    "ocr_engines": ",".join(item.get("ocr_ensemble", {}).get("engine_ids", [])),
+                    "roi_count": len(item.get("candidate_rois", [])),
                     "review_flags": ",".join(item.get("review_annotation", {}).get("flags", [])),
                     "review_note": item.get("review_annotation", {}).get("note", ""),
                     "q_value": item.get("q_value", ""),
                     "detector_family_scores": item.get("detector_family_scores", ""),
                     "processed_path": item.get("processed_path", ""),
+                    "roi_overlay_path": item.get("roi_overlay_path", ""),
                 }
             if unblinded:
                 record.update(

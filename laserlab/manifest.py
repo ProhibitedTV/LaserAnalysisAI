@@ -52,6 +52,8 @@ WIDE_PROFILE = {
 
 DEFAULT_DETECTORS = [
     "ocr",
+    "ocr_adapter_ensemble",
+    "code_roi_candidates",
     "connected_components",
     "entropy_texture",
     "edge_line_density",

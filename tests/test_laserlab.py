@@ -176,6 +176,31 @@ class SamplingAndProvenanceTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_IMAGE_STACK, "OpenCV and NumPy are required for image pipeline tests")
 class LaserLabPipelineTests(unittest.TestCase):
+    def test_candidate_ranking_uses_structure_only_as_a_primary_metric_tiebreaker(self) -> None:
+        from laserlab.report import top_candidates
+
+        base = {
+            "sample_id": "sample-1",
+            "blind_id": "B000001",
+            "blinded_label": "B000001",
+            "primary_metric": "ocr_symbol_score",
+            "primary_metric_score": 0.0,
+            "persistence_score": 0.0,
+            "ocr": {"text": "", "confidence": 0.0},
+            "candidate_rois": [],
+            "processed_path": "runs/test/processed.png",
+            "review_image_path": "runs/test/original.png",
+            "detector_family_scores": {},
+            "cross_pattern": {},
+        }
+        low = {**base, "structure_score": 0.1, "preprocessing_variant": "grayscale"}
+        high = {**base, "structure_score": 0.8, "preprocessing_variant": "adaptive"}
+
+        ranked = top_candidates([low, high], score_key="primary_metric_score", unblinded=False)
+
+        self.assertEqual(ranked[0]["preprocessing_variant"], "adaptive")
+        self.assertEqual(ranked[0]["primary_metric_score"], 0.0)
+
     def test_scientific_metrics_detect_synthetic_fixtures(self) -> None:
         import cv2
 
@@ -271,6 +296,18 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertTrue((run_dir / "report.json").exists())
             self.assertTrue((run_dir / "report.html").exists())
             self.assertGreater(len(run["results"]), 0)
+            for result in run["results"]:
+                self.assertTrue(result["candidate_rois"])
+                self.assertTrue((experiment / result["roi_overlay_path"]).exists())
+                self.assertGreaterEqual(len(result["ocr_attempts"]), 1)
+                self.assertEqual(result["ocr_ensemble"]["agreement_scope"], "per_roi")
+                for attempt in result["ocr_attempts"]:
+                    reference = attempt.get("roi_reference") or {}
+                    self.assertTrue(reference.get("id"))
+                for roi in result["candidate_rois"]:
+                    self.assertTrue((experiment / roi["crop_path"]).exists())
+                    self.assertTrue((experiment / roi["processed_crop_path"]).exists())
+                    self.assertTrue((experiment / roi["mask_path"]).exists())
             self.assertIn("permutation_p_value", run["aggregate_statistics"])
             self.assertIn("evidence_ladder", run["aggregate_statistics"])
             self.assertEqual(run["aggregate_statistics"]["evidence_ladder"], "blinded review")
@@ -282,6 +319,9 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertNotIn("source_path", report["top_candidates"][0])
             self.assertNotIn("unblinded_label", report["top_candidates"][0])
             self.assertIn("primary_metric_score", report["top_candidates"][0])
+            self.assertIn("ocr_attempts", report["top_candidates"][0])
+            self.assertIn("ocr_ensemble", report["top_candidates"][0])
+            self.assertIn("roi_overlay_path", report["top_candidates"][0])
             self.assertIn("review blinded", report["badges"])
             sealed_manifest = load_manifest(experiment)
             self.assertTrue(all(source.get("sealed") for source in sealed_manifest["sources"]))
@@ -321,6 +361,9 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertIn("environment.json", names)
             self.assertIn("README.txt", names)
             self.assertTrue(any(name.startswith("top_originals/") for name in names))
+            self.assertTrue(any(name.startswith("top_overlays/") for name in names))
+            self.assertTrue(any(name.startswith("top_processed_crops/") for name in names))
+            self.assertTrue(any(name.startswith("top_roi_masks/") for name in names))
             self.assertEqual(bundled_manifest["sources"], [])
             self.assertNotIn("unblinded_label", bundled_results)
             self.assertNotIn(str(source_laser), bundled_results)
@@ -583,6 +626,8 @@ class LaserLabGuiTests(unittest.TestCase):
             self.assertFalse(window.capture_advanced.isVisible())
             self.assertFalse(window.protocol_advanced.isVisible())
             self.assertFalse(window.community_tools.isVisible())
+            self.assertEqual(window.show_processed_overlay.text(), "ROI boxes")
+            self.assertEqual(window.show_crop_overlay.text(), "Candidate crop")
             self.assertEqual(window.psychophysics_status.text(), "Not attached")
             self.assertEqual(window.footage_class_combo.currentData(), "primary_wall_projection")
             self.assertEqual(window.sampling_profile.count(), 4)

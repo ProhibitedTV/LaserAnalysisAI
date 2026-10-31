@@ -139,6 +139,8 @@ def run_experiment(
                 "protocol": protocol_id,
                 "primary_metric": primary_metric,
                 "ocr": detector_result["ocr"],
+                "ocr_attempts": detector_result["ocr_attempts"],
+                "ocr_ensemble": detector_result["ocr_ensemble"],
                 "connected_components": detector_result["connected_components"],
                 "entropy_texture": detector_result["entropy_texture"],
                 "edge_line_density": detector_result["edge_line_density"],
@@ -149,6 +151,7 @@ def run_experiment(
                 "frame_registration": registration,
                 "detector_family_scores": detector_result["detector_family_scores"],
                 "candidate_rois": detector_result["candidate_rois"],
+                "roi_overlay_path": detector_result["roi_overlay_path"],
                 "structure_score": detector_result["structure_score"],
                 "primary_metric_score": 0.0,
                 "q_value": None,
@@ -165,6 +168,8 @@ def run_experiment(
             )
 
     _apply_persistence_scores(results, masks_for_persistence)
+    for result in results:
+        result["primary_metric_score"] = round(float(metric_score(result, result["primary_metric"])), 6)
     aggregate = summarize_blinded_results(results, primary_metric=primary_metric)
     unblind_payload = build_unblind_payload(blinded_samples, results, manifest)
     protocol_summary = capture_protocol_summary(manifest.get("captures", []))
@@ -397,7 +402,21 @@ def _apply_persistence_scores(results: list[dict[str, Any]], grouped_masks: dict
 
     for result in results:
         key = (result["sample_id"], result["preprocessing_variant"])
-        result["persistence_score"] = round(float(persistence_by_sample_variant.get(key, 0.0)), 6)
+        persistence = round(float(persistence_by_sample_variant.get(key, 0.0)), 6)
+        result["persistence_score"] = persistence
+        for roi in result.get("candidate_rois", []):
+            components = roi.get("component_scores")
+            if not isinstance(components, dict):
+                continue
+            components["persistence"] = persistence
+            structure = float(components.get("structure_density", 0.0) or 0.0)
+            contrast = float(components.get("local_contrast", 0.0) or 0.0)
+            support = float(components.get("proposal_support", 0.0) or 0.0)
+            roi["score_without_persistence"] = roi.get("score", 0.0)
+            roi["score"] = round(
+                min(1.0, 0.48 * structure + 0.24 * contrast + 0.14 * support + 0.14 * persistence),
+                6,
+            )
 
 
 def _apply_roi(image: Any, roi: dict[str, int] | None) -> Any:
