@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/ProhibitedTV/LaserAnalysisAI/discussions
     about: Ask questions, share experimental designs, and compare interpretations before opening an issue.
   - name: Community reference guide
-    url: https://github.com/ProhibitedTV/LaserAnalysisAI/blob/main/docs/wiki/Home.md
+    url: https://github.com/ProhibitedTV/LaserAnalysisAI/wiki
     about: Beginner documentation, recording controls, reading reports, and privacy guidance.

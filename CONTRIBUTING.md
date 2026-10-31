@@ -6,7 +6,7 @@ Thanks for helping people investigate optical observations more carefully. Contr
 
 - Need help or want to debate experiment design? Use [Discussions](https://github.com/ProhibitedTV/LaserAnalysisAI/discussions).
 - Found a reproducible problem? Choose a structured [issue form](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/choose).
-- New to the app? Read the [Wiki source](docs/wiki/Home.md) and the [Researcher Workflow](docs/researcher_workflow.md).
+- New to the app? Read the [LaserLab Wiki](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki) and the [Researcher Workflow](docs/researcher_workflow.md).
 - Want to contribute code or docs? Open a small pull request against main, stating what you tested.
 
 ## Local development
@@ -36,4 +36,4 @@ Include operating system, LaserLab version or BUILD-INFO.json, steps to reproduc
 
 ## Wiki edits
 
-The versioned source is in [docs/wiki](docs/wiki/README.md). GitHub Wiki pages live in a separate repository, so a PR updating these files does not immediately update the live Wiki. Maintainers must mirror approved updates.
+Community guides live in the [GitHub Wiki](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki), with version history in its [separate Git repository](https://github.com/ProhibitedTV/LaserAnalysisAI.wiki.git). Edit the Wiki directly or clone that repository, review your changes, and push there. Verify page and sidebar links after updating. Do not keep duplicate Wiki pages in the application repository; application, API, testing, and release documentation can remain under `docs/`.

@@ -1,8 +1,8 @@
 # Getting Help with LaserLab
 
-Start with the [community reference guide](docs/wiki/Home.md), [researcher workflow](docs/researcher_workflow.md), and [FAQ](docs/wiki/FAQ.md).
+Start with the [LaserLab Wiki](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki), [researcher workflow](docs/researcher_workflow.md), and [FAQ](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/FAQ).
 
-- For installation and error troubleshooting, check [Troubleshooting](docs/wiki/Troubleshooting.md).
+- For installation and error troubleshooting, check [Troubleshooting](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Troubleshooting).
 - For questions, experimental design, and interpretation, use [GitHub Discussions](https://github.com/ProhibitedTV/LaserAnalysisAI/discussions).
 - For reproducible bugs and clear improvements, select an [Issue template](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/choose).
 - For security issues, follow [Security Policy](SECURITY.md).
