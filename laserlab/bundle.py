@@ -93,7 +93,9 @@ def export_review_bundle(
         _write_json_member(bundle, "hashes.json", hashes)
         readme = (
             "LaserLab community review bundle\n\n"
-            "This archive is local-first evidence packaging. It contains detector settings, "
+            + ("PRACTICE DEMO: public sample clips are not a matched scientific experiment.\n\n"
+               if results.get("experiment_purpose") == "demo" else "")
+            + "This archive is local-first evidence packaging. It contains detector settings, "
             "hashes, report artifacts, top candidate images, and optional source media. "
             "It does not claim metaphysical origin; it records whether selected detections "
             "exceeded matched controls under the chosen protocol.\n\n"
@@ -129,6 +131,7 @@ def _sealed_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     allowed = {
         "schema_version",
         "experiment_id",
+        "experiment_purpose",
         "created_at",
         "frame_sampling",
         "preprocessing_profiles",
@@ -139,6 +142,7 @@ def _sealed_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
         "outputs",
     }
     sealed = {key: value for key, value in manifest.items() if key in allowed}
+    sealed["experiment_purpose"] = "demo" if manifest.get("experiment_purpose") == "demo" else "research"
     sealed["sources"] = []
     sealed["captures"] = []
     sealed["controls"] = []

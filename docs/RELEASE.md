@@ -78,6 +78,8 @@ them under `experiments\`, which is intentionally ignored by Git.
 
 ## v0.8.2 Release Checklist
 
+For the next onboarding build, complete the [first-user field checklist](FIRST_USER_CHECKLIST.md) with the exact packaged version and build commit. Confirm demo-to-personal separation, canceled dialogs, failure recovery, and the persistent practice label in blinded and unblinded exports. Unit tests and source screenshots do not replace a clean packaged-app or volunteer acceptance pass.
+
 - Launch the packaged GUI from a directory unrelated to the extracted archive and confirm the bundled demo still finds its fixtures.
 - Confirm a frozen build defaults experiments to a writable per-user LaserLab directory rather than the install directory.
 - Confirm **Open Recent** remembers at most five existing experiment directories and stores no experiment content or labels.
