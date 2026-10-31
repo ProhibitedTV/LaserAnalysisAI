@@ -1039,7 +1039,13 @@ class LabDashboardWindow(QMainWindow):
             except OSError:
                 LOGGER.warning("Could not persist the last source directory", exc_info=True)
 
-    def open_experiment(self, _checked: bool = False, *, allow_demo: bool = True) -> bool:
+    def open_experiment(
+        self,
+        _checked: bool = False,
+        *,
+        allow_demo: bool = True,
+        preserve_pending_capture: bool = False,
+    ) -> bool:
         if self.worker and self.worker.isRunning():
             return False
         try:
@@ -1061,8 +1067,12 @@ class LabDashboardWindow(QMainWindow):
             self.review_note.clear()
             for flag in self.review_flag_checks.values():
                 flag.setChecked(False)
-            self.source_path.clear()
-            self.label_combo.setCurrentIndex(self.label_combo.findData("laser"))
+            if not preserve_pending_capture:
+                # Explicit experiment switches discard stale capture selections. When
+                # Add Capture creates the first experiment, keep the file and role
+                # the user already chose on the capture form.
+                self.source_path.clear()
+                self.label_combo.setCurrentIndex(self.label_combo.findData("laser"))
             self.include_media.setChecked(False)
             self._populate_report({"review_state": {"unblinded": True}})
             self.complete_review_button.setEnabled(False)
@@ -1200,11 +1210,14 @@ class LabDashboardWindow(QMainWindow):
         )
 
     def add_capture(self) -> None:
-        experiment = self._require_experiment()
-        if not experiment:
-            return
         if not self.source_path.text().strip():
             self._error("Choose a source path before adding a capture.")
+            return
+        experiment = self._require_experiment(preserve_pending_capture=True)
+        if not experiment:
+            return
+        if self.is_demo_experiment:
+            self._error("This is a practice demo. Choose Try your own footage before adding recordings.")
             return
         source = Path(self.source_path.text())
         max_frames = None if self.max_frames.value() == 0 else self.max_frames.value()
@@ -2075,9 +2088,13 @@ class LabDashboardWindow(QMainWindow):
         widget.style().unpolish(widget)
         widget.style().polish(widget)
 
-    def _require_experiment(self) -> Path | None:
+    def _require_experiment(self, *, preserve_pending_capture: bool = False) -> Path | None:
         if not self.experiment_dir:
-            self.open_experiment()
+            if not self.open_experiment(
+                allow_demo=not preserve_pending_capture,
+                preserve_pending_capture=preserve_pending_capture,
+            ):
+                return None
         return self.experiment_dir
 
     def _set_busy(self, busy: bool) -> None:
