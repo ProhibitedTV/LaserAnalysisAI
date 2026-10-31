@@ -6,6 +6,7 @@ are reduced to allow-listed optical metadata; they remain context-only.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -230,13 +231,22 @@ def linked_record(public_record: Mapping[str, Any]) -> dict[str, Any]:
     allowed = public_record.get("optical_metadata") or {}
     if not isinstance(allowed, Mapping):
         raise ValueError("Invalid optical metadata.")
-    return {
+    optical_metadata = {key: allowed.get(key) for key in safe_keys}
+    provenance = {
         "source": "veilbreak",
         "record_type": record_type,
         "record_id": record_id,
         "title": str(public_record.get("title") or "")[:160],
+        "optical_metadata": optical_metadata,
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(provenance, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return {
+        **provenance,
         "retrieved_at": datetime.now(timezone.utc).isoformat(),
-        "optical_metadata": {key: allowed.get(key) for key in safe_keys},
+        "source_sha256": fingerprint,
+        "field_confidence": public_record.get("field_confidence", {}),
         "evidence_role": "context_only",
         "excluded_from_detector_scoring": True,
         "source_endpoint": MCP_ENDPOINT,
