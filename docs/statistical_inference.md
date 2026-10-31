@@ -33,6 +33,8 @@ The alternative is higher laser scores. A candidate requires an independent-pair
 
 Candidate q-values remain null, `candidate_q_values` is empty, and `fdr_method` says `not_estimated_related_candidates`. Correlated frames and related preprocessing variants do not establish a calibrated candidate-level null distribution. No claim of candidate FDR control is made. Repeated runs, data-dependent protocol selection, and multiple-hypothesis searches are not corrected by the single primary-metric test.
 
+After unblinding, `source_class` distinguishes generated probes, synthetic calibration, demonstrations, empirical laser/matched captures, other recorded controls, sensor noise and unverified origin in result/candidate records and CSV exports. GUI and HTML candidate labels show that class as well as the canonical role. The class fields remain sealed in blinded exports.
+
 Frame persistence can describe stability within a recording. It never produces `repeatable candidate` or proves across-capture/session replication, language, or origin. Pair-design assumptions and the limitations remain in reproducible reports alongside the method version, seed, permutation count, and independent sample sizes.
 
 This distinction between repeated observations and experimental units follows the [pseudoreplication analysis by Lazic](https://pmc.ncbi.nlm.nih.gov/articles/PMC2817684/). The whole-pair exchangeability test and randomized plus-one convention follow the [paired-sample permutation description in SciPy's documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.permutation_test.html). The implementation uses the standard library; SciPy is not a runtime dependency.

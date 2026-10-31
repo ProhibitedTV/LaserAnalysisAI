@@ -11,6 +11,24 @@ STATISTICS_VERSION = "paired-capture-v2"
 MINIMUM_PAIRS = 5
 
 
+def source_class_label(record: dict[str, Any]) -> str:
+    """Human-readable provenance for explicitly unblinded candidates only."""
+    kind = record.get("source_class") or sample_class(record)
+    label = {
+        "empirical_laser": "Empirical laser (declared)",
+        "declared_matched_control": "Empirical matched control (declared)",
+        "other_empirical_control": "Other empirical control",
+        "sensor_noise": "Sensor-noise recording",
+        "generated_null": "Generated null probe",
+        "synthetic_positive": "Synthetic positive calibration",
+        "synthetic_negative": "Synthetic negative calibration",
+        "demonstration_fixture": "Demo/calibration fixture",
+    }.get(kind, "Unverified origin")
+    if kind == "generated_null" and record.get("control_type"):
+        return label + " / " + str(record["control_type"])
+    return label + " / " + str(record.get("unblinded_label") or "unknown role")
+
+
 def sample_class(record: dict[str, Any]) -> str:
     label = record.get("unblinded_label")
     if label == "synthetic_positive":

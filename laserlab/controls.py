@@ -67,6 +67,7 @@ def _write_control(
         "frame_index": frame.get("frame_index"),
         "timestamp_ms": frame.get("timestamp_ms"),
         "unblinded_label": "control",
+        "source_class": "generated_null",
         "synthetic": True,
     }
 

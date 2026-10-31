@@ -12,6 +12,7 @@ from .blinding import is_unblinded
 from .psychophysics import build_falsification_matrix
 from .theme import badge_class, evidence_tone, report_stylesheet
 from .stats import current_statistics
+from .capture_inference import sample_class, source_class_label
 
 
 def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any], *, write_html: bool = True) -> dict[str, Any]:
@@ -128,6 +129,7 @@ def top_candidates(
             record.update(
                 {
                     "unblinded_label": item.get("unblinded_label", ""),
+                    "source_class": sample_class(item),
                     "source_path": item.get("source_path", ""),
                     "frame_index": item.get("frame_index"),
                     "timestamp_ms": item.get("timestamp_ms"),
@@ -295,7 +297,7 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
         return f"""
       <tr>
         <td><code>{html.escape(candidate['blind_id'])}</code></td>
-        <td>{html.escape(candidate.get('unblinded_label', ''))}</td>
+        <td>{html.escape(source_class_label(candidate))}</td>
         <td>{_fmt(candidate.get('primary_metric_score', candidate['structure_score']))}</td>
         <td>{_fmt(candidate.get('persistence_score'))}</td>
         <td>{_fmt(candidate.get('q_value'))}</td>

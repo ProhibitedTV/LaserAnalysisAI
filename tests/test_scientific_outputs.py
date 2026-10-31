@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import csv
 import os
 import tempfile
 import unittest
@@ -45,6 +46,8 @@ class ScientificOutputTests(unittest.TestCase):
                 self.assertNotIn(source_hash, content)
         report = app_api.load_latest_report(self.experiment)
         self.assertEqual(report["aggregate_statistics"]["inference"]["status"], "sealed")
+        csv_path = app_api.export_candidates_csv(self.experiment, self.root / "blind.csv")
+        self.assertNotIn("source_class", csv_path.read_text().splitlines()[0])
         blinded = app_api.export_review_bundle(self.experiment, self.root / "blind.zip")
         with zipfile.ZipFile(blinded) as archive:
             for name in ("manifest.json", "results.json", "report.json", "report.html"):
@@ -56,9 +59,19 @@ class ScientificOutputTests(unittest.TestCase):
         self.assertEqual(stats["control_diagnostics"]["generated_null"]["frame_count"], 3)
         self.assertEqual(stats["evidence_ladder"], "insufficient independent samples")
         self.assertTrue(all(result["q_value"] is None for result in revealed["results"]))
+        self.assertIn("generated_null", {item["source_class"] for item in revealed["results"]})
         report = app_api.load_latest_report(self.experiment)
         self.assertIn("not estimated", (self.run_dir / "report.html").read_text())
         self.assertIn("capture inference withheld", report["badges"])
+        self.assertEqual({item["source_class"] for item in report["top_candidates"]},
+                         {"generated_null", "empirical_laser", "declared_matched_control"})
+        self.assertIn("Generated null probe", (self.run_dir / "report.html").read_text())
+        self.assertIn("Empirical matched control (declared)", (self.run_dir / "report.html").read_text())
+        csv_path = app_api.export_candidates_csv(self.experiment, self.root / "unblind.csv")
+        with csv_path.open(newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        self.assertEqual({row["source_class"] for row in rows},
+                         {"generated_null", "empirical_laser", "declared_matched_control"})
 
     def test_legacy_gui_view_and_bundle_replace_claims_without_overwriting_source_artifacts(self):
         revealed = unblind_latest_run(self.experiment)
@@ -122,6 +135,11 @@ class ScientificInterfaceTests(unittest.TestCase):
             self.assertIn("not recorded controls", text)
             self.assertIn("FDR withheld", text)
             self.assertNotIn("multiple comparisons corrected", text)
+            window.latest_report = {"review_state": {"unblinded": True}}
+            window._populate_candidate_table({"top_candidates": [{"blind_id": "B1", "source_class": "generated_null",
+                                                "unblinded_label": "control", "control_type": "rotated"}]}, unblinded=True)
+            self.assertIn("Generated null probe", window.candidate_table.item(0, 1).text())
+            self.assertIn("Generated null probe", window.candidate_table.item(0, 1).toolTip())
         finally:
             window.close()
 

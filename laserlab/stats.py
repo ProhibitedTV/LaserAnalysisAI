@@ -88,7 +88,8 @@ def current_statistics(run_record: dict[str, Any]) -> dict[str, Any]:
         run_record.get("results", []), int(run_record.get("blind_seed", 1)),
         primary_metric=run_record.get("aggregate_statistics", {}).get("primary_metric", "structure_score"),
     )
-    updated["results"] = [{**result, "q_value": None} for result in run_record.get("results", [])]
+    updated["results"] = [{**result, "q_value": None, "source_class": sample_class(result)} for result in run_record.get("results", [])]
+    updated["samples"] = [{**sample, "source_class": sample_class(sample)} for sample in run_record.get("samples", [])]
     updated["statistics_migration"] = "Legacy frame-level significance and candidate FDR are superseded. Original results and source media remain unchanged; re-run to record independent-unit provenance."
     return updated
 

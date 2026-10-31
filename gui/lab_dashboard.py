@@ -41,6 +41,7 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
+from laserlab.capture_inference import source_class_label
 from laserlab.veilbreak_bridge import browse_public
 from laserlab.diagnostics import (
     collect_diagnostics,
@@ -1496,11 +1497,11 @@ class LabDashboardWindow(QMainWindow):
         if self._review_is_unblinded():
             details.extend(
                 [
-                    f"Role: {candidate.get('unblinded_label', '')}",
+                    f"Source class: {source_class_label(candidate)}",
                     f"Source: {candidate.get('source_path', '')}",
                     f"Frame: {candidate.get('frame_index', 'n/a')}",
                     f"Control: {candidate.get('control_type') or 'n/a'}",
-                    f"q-value: {candidate.get('q_value')}",
+                    "Candidate q-value: not estimated for related frames/variants",
                 ]
             )
         else:
@@ -1683,12 +1684,14 @@ class LabDashboardWindow(QMainWindow):
                 candidate.get("processed_path", ""),
             ]
             values = (
-                [common[0], candidate.get("unblinded_label", ""), common[1], common[2], str(candidate.get("q_value", "")), common[3], candidate.get("source_path", "")[:80], common[4], common[5], common[6]]
+                [common[0], source_class_label(candidate), common[1], common[2], "n/a", common[3], candidate.get("source_path", "")[:80], common[4], common[5], common[6]]
                 if unblinded
                 else common
             )
             for column, value in enumerate(values):
-                self.candidate_table.setItem(row, column, QTableWidgetItem(str(value)))
+                cell = QTableWidgetItem(str(value))
+                cell.setToolTip(str(value))
+                self.candidate_table.setItem(row, column, cell)
         self.candidate_table.setSortingEnabled(True)
         if candidates:
             self.candidate_table.sortItems(2 if unblinded else 1, Qt.DescendingOrder)
@@ -1747,7 +1750,7 @@ class LabDashboardWindow(QMainWindow):
         for row, candidate in enumerate(candidates):
             values = [candidate.get("blind_id", ""), str(candidate.get("primary_metric_score", ""))]
             if unblinded:
-                values.extend([candidate.get("unblinded_label", ""), candidate.get("source_path", "")])
+                values.extend([source_class_label(candidate), candidate.get("source_path", "")])
             for column, value in enumerate(values):
                 self.filmstrip_table.setItem(row, column, QTableWidgetItem(str(value)))
 

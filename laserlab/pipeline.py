@@ -28,6 +28,7 @@ from .scientific import metric_score, phase_registration_metrics
 from .stats import current_statistics, summarize_blinded_results, summarize_results
 from .synthetic import create_synthetic_positive
 from .capture_protocol import capture_protocol_summary
+from .capture_inference import sample_class
 
 
 def run_experiment(
@@ -273,6 +274,9 @@ def unblind_latest_run(experiment_dir: Path) -> dict[str, Any]:
     )
     for result in restored["results"]:
         result["q_value"] = aggregate.get("candidate_q_values", {}).get(result["sample_id"])
+        result["source_class"] = sample_class(result)
+    for sample in restored["samples"]:
+        sample["source_class"] = sample_class(sample)
     restored["aggregate_statistics"] = aggregate
     restored["review_state"] = {
         "unblinded": True,

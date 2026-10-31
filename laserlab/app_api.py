@@ -416,7 +416,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
         "roi_overlay_path",
     ]
     if unblinded:
-        fields[3:3] = ["unblinded_label", "source_path", "frame_index", "control_type"]
+        fields[3:3] = ["unblinded_label", "source_class", "source_path", "frame_index", "control_type"]
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -446,6 +446,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
                 record.update(
                     {
                         "unblinded_label": item.get("unblinded_label", ""),
+                        "source_class": item.get("source_class", "unverified_origin"),
                         "source_path": item.get("source_path", ""),
                         "frame_index": item.get("frame_index", ""),
                         "control_type": item.get("control_type", ""),
