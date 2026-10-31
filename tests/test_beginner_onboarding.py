@@ -98,6 +98,74 @@ class BeginnerOnboardingTests(unittest.TestCase):
         self.assertEqual(demo.name, "bundled-demo")
         self.assertNotEqual(own, demo)
 
+    def test_implicit_open_during_add_capture_keeps_selected_file_and_role(self) -> None:
+        """Selecting a recording before opening an experiment must not erase it."""
+        video = self.root / "my-video.mp4"
+        self.window.source_path.setText(str(video))
+        self.window.label_combo.setCurrentIndex(self.window.label_combo.findData("matched_control"))
+        with patch("gui.lab_dashboard.app_api.add_capture", return_value={"captures": []}) as add, patch.object(
+            self.window, "_run_worker", side_effect=lambda _title, task, _done: task()
+        ) as worker, patch.object(self.window, "_error") as error:
+            self.window.add_capture()
+        error.assert_not_called()
+        worker.assert_called_once()
+        self.assertTrue((self.window.experiment_dir / "manifest.json").exists())
+        self.assertEqual(add.call_args.kwargs["source"], video)
+        self.assertEqual(add.call_args.kwargs["label"], "matched_control")
+        self.assertEqual(self.window.source_path.text(), str(video))
+        self.assertEqual(self.window.label_combo.currentData(), "matched_control")
+
+    def test_empty_source_does_not_implicitly_create_experiment(self) -> None:
+        self.assertFalse((self.root / "my-first-experiment").exists())
+        with patch.object(self.window, "_error") as error, patch.object(
+            self.window, "_run_worker"
+        ) as worker:
+            self.window.add_capture()
+        error.assert_called_once()
+        worker.assert_not_called()
+        self.assertIsNone(self.window.experiment_dir)
+        self.assertFalse((self.root / "my-first-experiment").exists())
+
+    def test_explicit_switch_resets_pending_capture_selection(self) -> None:
+        self.window.source_path.setText("old-capture.mp4")
+        self.window.label_combo.setCurrentIndex(self.window.label_combo.findData("control"))
+        self.window.experiment_path.setText(str(self.root / "fresh-project"))
+        self.assertTrue(self.window.open_experiment())
+        self.assertEqual(self.window.source_path.text(), "")
+        self.assertEqual(self.window.label_combo.currentData(), "laser")
+
+    def test_implicit_capture_cannot_write_to_practice_demo(self) -> None:
+        demo = self.root / "existing-demo"
+        manifest = app_api.create_experiment(demo)
+        manifest["experiment_purpose"] = "demo"
+        write_manifest(demo, manifest)
+        before = (demo / "manifest.json").read_bytes()
+        self.window.experiment_path.setText(str(demo))
+        self.window.source_path.setText("private-video.mp4")
+        self.window.label_combo.setCurrentIndex(self.window.label_combo.findData("matched_control"))
+        with patch.object(self.window, "_error") as error, patch.object(
+            self.window, "_run_worker"
+        ) as worker:
+            self.window.add_capture()
+        error.assert_called_once()
+        self.assertIn("practice demo", error.call_args.args[0].lower())
+        worker.assert_not_called()
+        self.assertIsNone(self.window.experiment_dir)
+        self.assertEqual(self.window.source_path.text(), "private-video.mp4")
+        self.assertEqual(self.window.label_combo.currentData(), "matched_control")
+        self.assertEqual((demo / "manifest.json").read_bytes(), before)
+
+    def test_active_practice_demo_rejects_new_personal_capture(self) -> None:
+        self._open_demo()
+        self.window.source_path.setText("private-video.mp4")
+        with patch.object(self.window, "_error") as error, patch.object(
+            self.window, "_run_worker"
+        ) as worker:
+            self.window.add_capture()
+        error.assert_called_once()
+        self.assertIn("practice demo", error.call_args.args[0].lower())
+        worker.assert_not_called()
+
     def _open_demo(self) -> Path:
         demo = self.root / "saved-demo"
         manifest = app_api.create_experiment(demo)
