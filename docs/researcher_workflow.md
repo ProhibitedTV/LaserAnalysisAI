@@ -58,7 +58,9 @@ Start with the preset that matches the optical setup. Wider preprocessing increa
 
 ## Run And Review
 
-Set a blind seed and save it with the experiment. In **Review**, inspect blind IDs, raw views, processed views, candidate crops, persistence, and detector families without source attribution. Filter by detector family, preprocessing variant, score, persistence, or OCR output. Notes and flags are stored against blind IDs only and are included in reports and bundles. Setup and Run are locked while review remains sealed. A readable OCR fragment by itself is not evidence.
+Set a blind seed and save it with the experiment. In **Review**, inspect blind IDs, raw views, processed views, scored ROI overlays, candidate crops, persistence, and detector families without source attribution. Use **ROI boxes** to switch between the processed image and its detector overlay. Filter by detector family, preprocessing variant, score, persistence, or OCR output. Notes and flags are stored against blind IDs only and are included in reports and bundles. Setup and Run are locked while review remains sealed. A readable OCR fragment by itself is not evidence.
+
+Each OCR attempt records its engine/version, ROI or `full_frame` reference, preprocessing metadata, runtime, boxes, text state, and failure reason. Empty output and an unavailable engine are different recorded outcomes. Candidate regions are proposals for review, not evidence that the region contains a symbol.
 
 When candidate inspection is complete, choose **Mark review complete**, then **Unblind and compare**. This irreversible action restores source roles and provenance, computes q-values and matched-control statistics, and unlocks Setup and Run for the next experiment.
 
@@ -84,7 +86,7 @@ The collapsed community-data tools under **Export** accept local JSON/CSV only. 
 
 ## Export And Share
 
-Use **Export Review Bundle** to create a local-first archive containing the manifest, reports, settings, hashes, environment details, and top evidence crops. A blinded bundle remains attribution-safe and cannot include source media. After unblind, leave raw media excluded unless redistribution is lawful and participants have consented to sharing it.
+Use **Export Review Bundle** to create a local-first archive containing the manifest, reports, settings, hashes, environment details, original/processed candidates, ROI overlays, masks, and top evidence crops. A blinded bundle remains attribution-safe and cannot include source media. After unblind, leave raw media excluded unless redistribution is lawful and participants have consented to sharing it.
 
 The bundle is designed for independent review. Share the archive unchanged so hashes and provenance remain useful. Unblinded exports containing subjective, psychophysics, or imported community context require an explicit privacy acknowledgement in the GUI or `--acknowledge-privacy` in the CLI.
 

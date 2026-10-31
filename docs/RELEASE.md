@@ -76,6 +76,16 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
+## v0.8.0 Release Checklist
+
+- Confirm synthetic text and grid fixtures produce ranked ROI proposals while blank, smooth-gradient, and noise fixtures fall back explicitly to `full_frame`.
+- Confirm every OCR attempt names a retained ROI or `full_frame` and records engine/version, runtime, settings, boxes, text state, and failure reason.
+- Confirm missing Tesseract produces an unavailable attempt without stopping non-OCR detectors.
+- Confirm blinded JSON, HTML, CSV, and bundles contain ROI artifacts but no source labels, paths, or attribution.
+- Confirm each top candidate exposes original, processed, ROI overlay, crop, and bounding-mask artifacts.
+- Confirm the dashboard's existing Review panel toggles ROI boxes without adding a new top-level workflow step.
+- Run the v0.7, v0.6, v0.5, and v0.4 leak/package checks unchanged.
+
 ## v0.7.0 Release Checklist
 
 - Confirm normal setup still exposes only Experiment, Add Capture, Analysis Plan, and Demo, with psychophysics and community-data tools collapsed.

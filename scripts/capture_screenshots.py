@@ -52,10 +52,13 @@ def capture_gui(
             app.processEvents()
             QTest.qWait(100)
             output.parent.mkdir(parents=True, exist_ok=True)
-            window.grab().save(str(output))
+            if not window.grab().save(str(output)):
+                raise RuntimeError(f"Qt failed to save screenshot: {output}")
             window.close()
             return
         except Exception:
+            if qt_mode == "native":
+                raise
             pass
 
     from PIL import Image, ImageDraw
@@ -127,7 +130,7 @@ def capture_gui(
 
 def capture_blinded_review(output: Path, experiment_dir: Path) -> None:
     """Capture the real review surface from a sealed experiment."""
-    qt_mode = os.environ.get("LASERLAB_REAL_QT_SCREENSHOT", "1")
+    qt_mode = os.environ.get("LASERLAB_REAL_QT_SCREENSHOT", "native")
     if qt_mode == "1":
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     else:
@@ -151,7 +154,8 @@ def capture_blinded_review(output: Path, experiment_dir: Path) -> None:
     app.processEvents()
     QTest.qWait(100)
     output.parent.mkdir(parents=True, exist_ok=True)
-    window.grab().save(str(output))
+    if not window.grab().save(str(output)):
+        raise RuntimeError(f"Qt failed to save screenshot: {output}")
     window.close()
 
 

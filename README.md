@@ -9,7 +9,7 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.7 Dashboard
+## LaserLab v0.8 Dashboard
 
 Native release bundles contain:
 
@@ -22,7 +22,7 @@ The desktop workflow is deliberately narrow:
 
 - `Setup`: follow Experiment → Add Capture → Analysis Plan → Demo. Wall-projection essentials stay visible; sampling, ROI, hardware detail, psychophysics, and subjective context remain collapsed until requested.
 - `Run`: check protocol quality, estimate work, set the blind seed, and score sealed samples.
-- `Review`: filter blind IDs, inspect images/crops/OCR/metrics, and save source-safe notes and flags without attribution.
+- `Review`: filter blind IDs, toggle scored ROI overlays, inspect original/processed/crop views and normalized OCR attempts, and save source-safe notes without attribution.
 - `Compare`: unlock matched-control and detector-family statistics only after explicit unblind.
 - `Export`: create attribution-safe blinded bundles or complete unblinded research bundles.
 
@@ -63,7 +63,7 @@ Run the bundled demo through the same API layer used by the dashboard:
 
 - `Diffraction / interference`: 2D FFT spectrum, fringe spacing proxy, peak/ring stability.
 - `Laser speckle / scatter`: spatial speckle contrast, local variance, temporal stability proxy.
-- `OCR / symbol recovery`: OCR plus connected components and synthetic known-text calibration.
+- `OCR / symbol recovery`: scored code-like ROIs, normalized optional OCR attempts, connected components, and synthetic known-text calibration.
 - `General anomaly scan`: broad texture, edge, OCR, and persistence sweep with strict false-positive language.
 
 Each preset writes a sealed review first. The manifest, report, results, CSV, HTML, and review bundle omit labels, source paths, provenance, and raw media. Setup and Run remain locked until the reviewer marks inspection complete and explicitly chooses **Unblind and compare**.
@@ -75,6 +75,8 @@ LaserLab is designed first for already-recorded wall-projection experiments: a f
 Capture metadata records the projection surface, laser pattern, wavelength, fixed geometry, saturation status, optical layer, room lighting, power/class labels, and safety acknowledgement. `cross` is a first-class pattern type, with presets for commonly reported 650, 532, 488, 450, and 405 nm hardware metadata. Entered labels are reports, not verified measurements.
 
 The detector now registers visible cross arms, center, rotation, arm coverage, saturation, and center/horizontal/vertical ROIs. These are image measurements, not evidence that a pattern is language or has an external origin.
+
+Code-like ROI proposals combine connected components, repeated contour geometry, edge/line density, high-frequency texture bands, grid regularity, local contrast, non-max suppression, and frame persistence. Every retained ROI stores its reasons, scores, bounding mask, original/processed crops, and parent preprocessing variant. Tesseract remains optional and runs through a normalized adapter contract; empty, unavailable, timed-out, and failed attempts stay in the record instead of disappearing. OCR text remains a detector output, not a language claim.
 
 Optional subjective context is kept in a separate `context_only` record. It remains sealed during candidate review and never contributes to detector scores, p-values, or the evidence ladder.
 
@@ -152,8 +154,8 @@ List or fetch fixture media:
 ## Outputs
 
 - `manifest.json`: stable experiment record with sources, captures, raw/frame hashes, media metadata, provenance warnings, deterministic sampling settings, preprocessing profiles, detector settings, protocol plan, ROI, optional sealed psychophysics/community context, blinding seed, and output paths.
-- `runs/<run-id>/results.json`: sealed detector records before unblind; after explicit unblind it gains source roles, attribution, q-values, and aggregate comparison statistics.
-- `runs/<run-id>/report.html`: human-readable evidence summary with top candidates, blinded reviewer annotations, provenance after unblind, and null-result language.
+- `runs/<run-id>/results.json`: sealed detector records, ROI boxes/masks/crops/overlays, and normalized OCR attempts before unblind; after explicit unblind it gains source roles, attribution, q-values, and aggregate comparison statistics.
+- `runs/<run-id>/report.html`: human-readable evidence summary with original, processed, ROI-overlay, and crop views plus blinded reviewer annotations, provenance after unblind, and null-result language.
 - `*.zip` review bundle: blinded bundles exclude source attribution and media; unblinded bundles can include provenance and optional raw media.
 
 ## Evidence Ladder

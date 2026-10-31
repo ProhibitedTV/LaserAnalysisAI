@@ -54,21 +54,31 @@ def export_review_bundle(
 
         hashes: dict[str, str] = {}
         for candidate in report.get("top_candidates", [])[:20]:
-            for key in ("review_image_path", "processed_path"):
+            for key in ("review_image_path", "processed_path", "roi_overlay_path"):
                 stored = candidate.get(key)
                 if stored:
                     path = experiment_dir / stored
                     if path.exists():
-                        folder = "top_originals" if key == "review_image_path" else "top_candidates"
+                        folder = {
+                            "review_image_path": "top_originals",
+                            "processed_path": "top_candidates",
+                            "roi_overlay_path": "top_overlays",
+                        }[key]
                         archive_name = f"{folder}/{path.name}"
                         bundle.write(path, archive_name)
                         hashes[archive_name] = sha256_file(path)
             for roi in candidate.get("candidate_rois", [])[:3]:
-                crop = roi.get("crop_path")
-                if crop:
-                    path = experiment_dir / crop
+                for key, folder in (
+                    ("crop_path", "top_crops"),
+                    ("processed_crop_path", "top_processed_crops"),
+                    ("mask_path", "top_roi_masks"),
+                ):
+                    stored = roi.get(key)
+                    if not stored:
+                        continue
+                    path = experiment_dir / stored
                     if path.exists():
-                        archive_name = f"top_crops/{path.parent.name}_{path.name}"
+                        archive_name = f"{folder}/{path.parent.name}_{path.name}"
                         bundle.write(path, archive_name)
                         hashes[archive_name] = sha256_file(path)
 
