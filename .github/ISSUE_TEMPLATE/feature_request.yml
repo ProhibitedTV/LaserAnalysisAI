@@ -1,7 +1,6 @@
 name: Feature request
 description: Suggest an improvement to the desktop app, detectors, documentation, or community workflow
 title: "[Feature]: "
-labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
