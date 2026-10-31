@@ -110,6 +110,10 @@ class LabDashboardWindow(QMainWindow):
         file_menu.addAction(exit_action)
 
         help_menu = self.menuBar().addMenu("Help")
+        walkthrough = QAction("First-time walkthrough", self)
+        walkthrough.triggered.connect(self.show_quick_start)
+        help_menu.addAction(walkthrough)
+        help_menu.addSeparator()
         api_key_action = QAction("Get optional Veilbreak API key...", self)
         api_key_action.triggered.connect(self.open_veilbreak_api_key_page)
         help_menu.addAction(api_key_action)
@@ -143,20 +147,32 @@ class LabDashboardWindow(QMainWindow):
     def _setup_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        title = QLabel("LaserLab / blinded signal review")
+        title = QLabel("LaserLab / explore recorded laser patterns")
         title.setObjectName("title")
         subtitle = QLabel(
-            "Blinded laser footage analysis above matched controls. "
-            "Observed patterns deserve careful testing; source roles stay sealed until explicit unblind."
+            "See what image-analysis tools find in laser recordings, then compare "
+            "those findings against a similar control recording. No coding or login required."
         )
         subtitle.setObjectName("subtitle")
         subtitle.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(subtitle)
 
+        beginner_tip = QLabel(
+            "First time? Start with the bundled demo; it needs no recordings. "
+            "For your own test, add a laser video and a comparison video recorded "
+            "with the same camera and scene settings."
+        )
+        beginner_tip.setObjectName("subtitle")
+        beginner_tip.setWordWrap(True)
+        layout.addWidget(beginner_tip)
+
         actions = QGroupBox("Start")
         action_layout = QHBoxLayout(actions)
         self.home_demo_button = QPushButton("Run bundled demo")
+        self.home_demo_button.setToolTip(
+            "Try the buttons using public practice clips. The demo is not a matched scientific test."
+        )
         self.home_demo_button.clicked.connect(self.run_fixture_demo)
         self.home_analyze_button = QPushButton("Analyze my footage")
         self.home_analyze_button.setObjectName("primaryButton")
@@ -174,6 +190,9 @@ class LabDashboardWindow(QMainWindow):
             lambda: self.browse_veilbreak("protocols")
         )
         action_layout.addWidget(self.home_veilbreak_button)
+        self.home_walkthrough_button = QPushButton("How it works")
+        self.home_walkthrough_button.clicked.connect(self.show_quick_start)
+        action_layout.addWidget(self.home_walkthrough_button)
         action_layout.addStretch(1)
         layout.addWidget(actions)
 
@@ -224,11 +243,11 @@ class LabDashboardWindow(QMainWindow):
         experiment_group = QGroupBox("Experiment")
         experiment_layout = QGridLayout(experiment_group)
         recent = self.preferences.get("recent_experiments", [])
-        default_experiment = Path(recent[0]) if recent else default_experiments_dir() / "community-demo"
+        default_experiment = Path(recent[0]) if recent else default_experiments_dir() / "my-first-experiment"
         self.experiment_path = QLineEdit(str(default_experiment))
         browse_exp = QPushButton("Browse")
         browse_exp.clicked.connect(self.browse_experiment)
-        open_exp = QPushButton("Open")
+        open_exp = QPushButton("Create / Open")
         open_exp.clicked.connect(self.open_experiment)
         experiment_layout.addWidget(QLabel("Directory"), 0, 0)
         experiment_layout.addWidget(self.experiment_path, 0, 1)
@@ -236,8 +255,13 @@ class LabDashboardWindow(QMainWindow):
         experiment_layout.addWidget(open_exp, 0, 3)
         layout.addWidget(experiment_group)
 
-        guidance = QLabel("Open a directory, then add at least one laser capture and one matched control.")
+        guidance = QLabel(
+            "Your experiment is saved locally in this folder. Choose Create / Open, "
+            "then add a laser recording and a matched comparison recording. "
+            "You can use the demo without making your own experiment."
+        )
         guidance.setObjectName("subtitle")
+        guidance.setWordWrap(True)
         layout.addWidget(guidance)
 
         self.capture_table = QTableWidget(0, 6)
@@ -259,7 +283,16 @@ class LabDashboardWindow(QMainWindow):
         content = QWidget()
         layout = QVBoxLayout(content)
 
-        source_group = QGroupBox("Source")
+        how_to_record = QLabel(
+            "First add the laser video (or images). Next add a matched comparison "
+            "recording, with camera, focus, exposure, target and geometry kept as "
+            "similar as possible. A control helps rule out ordinary visual artifacts."
+        )
+        how_to_record.setObjectName("subtitle")
+        how_to_record.setWordWrap(True)
+        layout.addWidget(how_to_record)
+
+        source_group = QGroupBox("Choose your recording")
         source_layout = QGridLayout(source_group)
         self.source_path = QLineEdit()
         browse_source = QPushButton("Browse")
@@ -267,7 +300,18 @@ class LabDashboardWindow(QMainWindow):
         self.kind_combo = QComboBox()
         self.kind_combo.addItems(["video", "image-set"])
         self.label_combo = QComboBox()
-        self.label_combo.addItems(["laser", "matched_control", "control", "sensor_noise", "synthetic_positive", "synthetic_negative"])
+        for display, code in (
+            ("Laser recording", "laser"),
+            ("Matched comparison (same setup)", "matched_control"),
+            ("Other comparison", "control"),
+            ("Camera / sensor noise", "sensor_noise"),
+            ("Synthetic positive test", "synthetic_positive"),
+            ("Synthetic negative test", "synthetic_negative"),
+        ):
+            self.label_combo.addItem(display, code)
+        self.label_combo.setToolTip(
+            "Choose what the file actually contains. LaserLab hides these roles during blind review."
+        )
         self.footage_class_combo = QComboBox()
         for label, value in (
             ("Wall-projection experiment", "primary_wall_projection"),
@@ -308,12 +352,12 @@ class LabDashboardWindow(QMainWindow):
         self.add_capture_button = QPushButton("Add Capture")
         self.add_capture_button.clicked.connect(self.add_capture)
 
-        source_layout.addWidget(QLabel("Path"), 0, 0)
+        source_layout.addWidget(QLabel("Video or image folder"), 0, 0)
         source_layout.addWidget(self.source_path, 0, 1, 1, 4)
         source_layout.addWidget(browse_source, 0, 5)
-        source_layout.addWidget(QLabel("Media"), 1, 0)
+        source_layout.addWidget(QLabel("Recording type"), 1, 0)
         source_layout.addWidget(self.kind_combo, 1, 1)
-        source_layout.addWidget(QLabel("Role"), 1, 2)
+        source_layout.addWidget(QLabel("What is this recording?"), 1, 2)
         source_layout.addWidget(self.label_combo, 1, 3)
         source_layout.addWidget(QLabel("Footage type"), 2, 0)
         source_layout.addWidget(self.footage_class_combo, 2, 1, 1, 3)
@@ -732,6 +776,14 @@ class LabDashboardWindow(QMainWindow):
         self.fixture_table.setMaximumHeight(145)
         layout.addWidget(self.fixture_table, 1)
 
+        demo_tip = QLabel(
+            "Practice with bundled public optical videos. These are not a matched "
+            "experimental pair, so demo findings are not scientific evidence about your setup."
+        )
+        demo_tip.setObjectName("subtitle")
+        demo_tip.setWordWrap(True)
+        layout.addWidget(demo_tip)
+
         demo = QGroupBox("Demo")
         demo_layout = QGridLayout(demo)
         self.demo_experiment_path = QLineEdit(str(default_experiments_dir() / "bundled-demo"))
@@ -859,6 +911,26 @@ class LabDashboardWindow(QMainWindow):
     def _apply_style(self) -> None:
         self.setStyleSheet(dashboard_stylesheet())
 
+    def show_quick_start(self) -> None:
+        """Short, supportive guide for users without a technical background."""
+        QMessageBox.information(
+            self,
+            "LaserLab / First-time walkthrough",
+            "Welcome to LaserLab!\n\n"
+            "1. Click Run bundled demo to practice with included public videos. "
+            "The demo clips are NOT matched scientific controls.\n\n"
+            "2. For your own footage, click Analyze my footage. "
+            "LaserLab opens a local experiment folder and lets you choose a video.\n\n"
+            "3. Add a second, matched comparison recording from a similar camera setup. "
+            "Without a suitable control, a striking pattern can be an ordinary artifact.\n\n"
+            "4. Choose an Analysis Plan and Run. Inspect proposed shapes in Review "
+            "before you explicitly reveal which recording they came from.\n\n"
+            "5. A score or OCR fragment is not proof of a message or its origin. "
+            "Null findings are useful too. Exporting or sharing is always optional.\n\n"
+            "Keep lasers away from eyes and reflective surfaces. "
+            "No Veilbreak account, API key, or programming experience is needed to start.",
+        )
+
     def _preview_label(self, text: str) -> QLabel:
         label = QLabel(text)
         label.setAlignment(Qt.AlignCenter)
@@ -868,12 +940,26 @@ class LabDashboardWindow(QMainWindow):
 
     def analyze_my_footage(self) -> None:
         self.tabs.setCurrentIndex(0)
+        if not self.experiment_dir:
+            self.open_experiment()
+            if not self.experiment_dir:
+                self.setup_steps.setCurrentIndex(0)
+                return
         self.setup_steps.setCurrentIndex(1)
+        self.status.showMessage(
+            "Select your laser recording. Next, add a matched comparison recording."
+        )
         self.browse_source()
 
     def open_existing_experiment(self) -> None:
+        self.tabs.setCurrentIndex(0)
         self.setup_steps.setCurrentIndex(0)
-        self.browse_experiment()
+        path = QFileDialog.getExistingDirectory(
+            self, "Open existing experiment", self.experiment_path.text()
+        )
+        if not path:
+            return
+        self.experiment_path.setText(path)
         self.open_experiment()
 
     def browse_experiment(self) -> None:
@@ -1041,7 +1127,7 @@ class LabDashboardWindow(QMainWindow):
                 experiment_dir=experiment,
                 source=source,
                 kind=self.kind_combo.currentText(),
-                label=self.label_combo.currentText(),
+                label=self.label_combo.currentData(),
                 all_frames=self.all_frames.isChecked(),
                 frame_interval=self.frame_interval.value(),
                 max_frames=max_frames,
@@ -1563,10 +1649,21 @@ class LabDashboardWindow(QMainWindow):
         self._populate_captures(manifest)
         self.run_log.append("Capture added.")
         self.update_estimate()
-        self.status.showMessage("Capture added")
         self.source_path.clear()
-        if self.label_combo.currentText() == "laser":
-            self.label_combo.setCurrentText("matched_control")
+        roles = {capture.get("label") for capture in manifest.get("captures", [])}
+        if "laser" in roles and not (roles & {"matched_control", "control"}):
+            self.status.showMessage(
+                "Laser recording added. Now choose a matched comparison recording."
+            )
+            comparison = self.label_combo.findData("matched_control")
+            if comparison >= 0:
+                self.label_combo.setCurrentIndex(comparison)
+        elif "laser" in roles and roles & {"matched_control", "control"}:
+            self.status.showMessage(
+                "Laser and comparison recordings added. Next: choose an Analysis Plan."
+            )
+        else:
+            self.status.showMessage("Recording added. Add the other recording to compare.")
 
     def _analysis_finished(self, run_record: dict[str, Any]) -> None:
         stats = run_record.get("aggregate_statistics", {})
