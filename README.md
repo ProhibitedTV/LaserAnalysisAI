@@ -9,7 +9,7 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.8.1 Dashboard
+## LaserLab v0.8.2 Dashboard
 
 Native release bundles contain:
 
@@ -27,6 +27,8 @@ The desktop workflow is deliberately narrow:
 - `Export`: create attribution-safe blinded bundles or complete unblinded research bundles.
 
 The dark community-science theme is driven by one shared token module used by both the dashboard and HTML reports. Sealed review, warnings, null results, context-only data, above-control candidates, and repeatable candidates each have a stable status color; color is never the only status indicator.
+
+Field support remains local-first. **Help > System Check** reports packaged-runtime, dependency, fixture, and optional OCR readiness. **Export Support Bundle** writes redacted diagnostics and a sanitized local log without experiment media, capture roles, or source paths. Recent experiment folders are remembered locally, and packaged builds resolve bundled fixtures independently of the directory used to launch the app.
 
 ![LaserLab dashboard](screenshots/release_gui_dashboard.png)
 ![LaserLab run quality checklist](screenshots/release_run.png)
@@ -54,6 +56,13 @@ Run tests:
 
 ```powershell
 & $PY -m unittest discover -s tests
+```
+
+Check an installation or create a privacy-safe support bundle:
+
+```powershell
+& $PY -m laserlab.cli diagnostics --format json
+& $PY -m laserlab.cli support-bundle --output LaserLab-support.zip
 ```
 
 Run the bundled demo through the same API layer used by the dashboard:

@@ -25,6 +25,8 @@ Use **Run bundled demo** first. It verifies that the local image stack, report g
 
 Use the dashboard for interactive setup and review. Use `LaserLabCLI` for scripted batches, exhaustive frame sweeps, and reproducible automation.
 
+LaserLab remembers up to five existing experiment directories and the last source folder in a small local preferences file. It does not copy capture roles, media metadata, hashes, review notes, or experiment contents into preferences. Packaged builds place new experiments in a writable per-user LaserLab folder and resolve bundled demo media without relying on the launch directory.
+
 ## Capture A Controlled Pair
 
 Record a laser capture and a matched control with the same camera, lens, distance, angle, focus, exposure, resolution, frame rate, compression, and scene geometry. A non-diffracted laser capture is usually a stronger control than an unrelated dark frame.
@@ -94,15 +96,19 @@ The bundle is designed for independent review. Share the archive unchanged so ha
 
 ## Troubleshooting
 
+Start with **Help > System Check**. It reports the LaserLab and Python versions, packaged-runtime state, detector dependencies, bundled fixture readiness, and optional Tesseract status. OCR being unavailable is a supported state, not a failed installation.
+
+Use **Help > Export Support Bundle** or `LaserLabCLI support-bundle --output LaserLab-support.zip` when reporting a problem. The archive contains redacted diagnostics and a sanitized recent application log. It does not include source media, capture labels, experiment manifests, participant context, or unredacted home/install paths. Review any file before sharing it.
+
 **OCR unavailable:** Tesseract is a separate optional executable. Install it for your operating system and make it discoverable on `PATH`. LaserLab continues with non-OCR detectors when it is absent.
 
 **Video opens with zero frames:** the OpenCV build may not support that codec. Convert a copy to H.264 MP4 or an image sequence, retain the original file, and document the conversion in capture metadata.
 
-**Paths fail:** extract the release before running it and prefer a short writable experiment path. Avoid network shares for initial troubleshooting.
+**Paths fail:** extract the release before running it. Packaged builds default to a per-user LaserLab experiment folder; choose another short writable path when needed. Avoid network shares for initial troubleshooting.
 
 **The run looks stuck:** wide profiles and all-frame video scans can create many variants. Use **Estimate Run**, set a frame cap for the first pass, and reserve exhaustive analysis for a confirmed workflow.
 
-**The packaged app will not start:** run `LaserLabCLI --help` from a terminal and retain any error output. `BUILD-INFO.json` identifies the exact native build.
+**The packaged app will not start:** run `LaserLabCLI diagnostics --format json` from a terminal, then create a support bundle if possible. `BUILD-INFO.json` identifies the exact native build.
 
 ## Boundaries
 
