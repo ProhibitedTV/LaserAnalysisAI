@@ -35,6 +35,14 @@ Field support remains local-first. **Help > System Check** reports packaged-runt
 ![LaserLab blinded review](screenshots/release_blinded_review.png)
 ![LaserLab report summary](screenshots/release_report_summary.png)
 
+## Community and Support
+
+New to the project? Browse the [community reference guide](docs/wiki/Home.md), [Getting Started](docs/wiki/Getting-Started.md), and [FAQ](docs/wiki/FAQ.md). These pages are versioned **wiki source files**; see [wiki publication instructions](docs/wiki/README.md) for how to mirror them into GitHub's separate Wiki repository.
+
+- [GitHub Discussions](https://github.com/ProhibitedTV/LaserAnalysisAI/discussions): questions, experiment design, and community conversation.
+- [Report a bug or suggest a feature](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/choose): structured issue forms.
+- [Contributing](CONTRIBUTING.md), [Support](SUPPORT.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [Security](SECURITY.md).
+
 ## Quick Start
 
 See the [Researcher Workflow](docs/researcher_workflow.md) for the complete dashboard flow, capture guidance, interpretation rules, sharing steps, and platform troubleshooting.
