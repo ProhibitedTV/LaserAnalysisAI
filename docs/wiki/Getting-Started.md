@@ -8,6 +8,16 @@ Open [GitHub Releases](https://github.com/ProhibitedTV/LaserAnalysisAI/releases)
 
 Launch LaserLab.exe (Windows), LaserLab (Linux), or LaserLab.app (macOS). Native bundles do not require a separate Python installation. They are currently unsigned, so review any operating-system security prompt carefully.
 
+## Not technical? Start here
+
+You can learn the app without Python, an API key, a Veilbreak login, or specialized research training. Start with **Run bundled demo** to see what the controls do; then use **Analyze my footage** when you have recordings to examine. The app creates/opens a local experiment folder, then prompts you to pick footage.
+
+For actual research, **recordings need a fair comparison**. A matched comparison means a second recording using the same camera, surface, focus, exposure, angle, and similar lighting, changing only the variable being studied where safe. The demo clips help you practice using the software but are not suitable matched scientific controls.
+
+Under **Setup > Add Capture**, the recording-role menu uses friendly names like **Laser recording** and **Matched comparison (same setup)**. If you add a laser recording, LaserLab suggests the matched comparison as your next recording. Choose the role that truthfully describes the file.
+
+There is a **How it works** button on the first screen and a **Help > First-time walkthrough** menu item. You may continue with the advanced controls when ready; the beginning steps do not change the blinding or evidence requirements.
+
 ## 2. Try the bundled demo
 
 Select **Run bundled demo** (in some development versions this is named **Try sample demo**). The demo checks that the analysis workflow, fixtures, and reports work.
