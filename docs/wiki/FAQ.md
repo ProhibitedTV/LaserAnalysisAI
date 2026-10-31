@@ -4,7 +4,10 @@
 Not for the native desktop download. There is no required cloud account, login, or automatic upload.
 
 ### Is LaserLab connected to Veilbreak or Discord?
-No. It accepts local files. Any community dataset import is optional, privacy-reviewed, and kept as context rather than being used to inflate detector scores.
+LaserLab optionally browses Veilbreak's published protocols and experiments using its public **read-only MCP catalog**. It links selected optical metadata to your local experiment as context only, not detector evidence. No Discord connection, automatic upload, or login is required. The live MCP bridge is pending end-to-end compatibility verification.
+
+### How do I get a Veilbreak API key?
+**You do not need a key to use LaserLab's public Veilbreak catalog.** If you want one for Veilbreak's separate read-only REST API, choose **Help > Get optional Veilbreak API key** in LaserLab or visit [Veilbreak API Access](https://veilbreak.ai/api-access). Veilbreak asks for an email address; no account is required. Keys expire after 30 days, with one active key per email. LaserLab opens the official page but does not request, receive, or store the key. Never share a key in a bug report or Discord message.
 
 ### Can I use a phone recording?
 Yes, if it decodes successfully and you can record comparable laser and control footage. A stable mount and fixed exposure/focus improve interpretability.
