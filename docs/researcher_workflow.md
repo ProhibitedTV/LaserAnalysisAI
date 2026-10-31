@@ -72,6 +72,8 @@ Interpret the evidence ladder conservatively:
 - `above-control candidate`: the run passes configured control comparisons.
 - `repeatable candidate`: above-control behavior also persists across frames or captures.
 
+Evidence colors are consistent in the dashboard and HTML report: cyan for neutral or `no signal`, amber for warnings and artifacts, violet for context/anomaly states, magenta for sealed or above-control attention states, and mint for passed/repeatable states. Every state remains labeled in text for accessibility and auditability.
+
 A null result is a valid result for this footage, protocol, and detector version. It does not prove that every possible signal is absent.
 
 Subjective perception notes are optional context, not image evidence. Use only pseudonymous session IDs, review privacy before sharing, and keep participant work under appropriate legal, ethical, consent, and safety review outside LaserLab. The app provides no substance procurement, dosing, administration, or intoxication instructions.

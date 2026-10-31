@@ -314,6 +314,7 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertFalse(run["review_state"]["unblinded"])
 
             report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
+            html_report = (run_dir / "report.html").read_text(encoding="utf-8")
             self.assertEqual(report["run_id"], run["run_id"])
             self.assertIn("top_candidates", report)
             self.assertNotIn("source_path", report["top_candidates"][0])
@@ -323,6 +324,9 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertIn("ocr_ensemble", report["top_candidates"][0])
             self.assertIn("roi_overlay_path", report["top_candidates"][0])
             self.assertIn("review blinded", report["badges"])
+            self.assertIn("badge--sealed", html_report)
+            self.assertIn("badge--warning", html_report)
+            self.assertIn("evidence-value--sealed", html_report)
             sealed_manifest = load_manifest(experiment)
             self.assertTrue(all(source.get("sealed") for source in sealed_manifest["sources"]))
             self.assertTrue(all("path" not in source and "label" not in source for source in sealed_manifest["sources"]))
@@ -608,6 +612,7 @@ class LaserLabGuiTests(unittest.TestCase):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PyQt5.QtWidgets import QApplication
         from gui.lab_dashboard import LabDashboardWindow
+        from laserlab.theme import dashboard_stylesheet
 
         app = QApplication.instance() or QApplication([])
         window = LabDashboardWindow()
@@ -616,6 +621,10 @@ class LaserLabGuiTests(unittest.TestCase):
             self.assertEqual([window.tabs.tabText(index) for index in range(5)], ["Setup", "Run", "Review", "Compare", "Export"])
             self.assertGreaterEqual(window.fixture_table.rowCount(), 4)
             self.assertEqual(window.home_demo_button.text(), "Run bundled demo")
+            self.assertEqual(window.home_analyze_button.text(), "Analyze my footage")
+            self.assertEqual(window.home_open_button.text(), "Open existing experiment")
+            self.assertEqual(window.home_analyze_button.objectName(), "primaryButton")
+            self.assertEqual(window.styleSheet(), dashboard_stylesheet())
             self.assertGreater(window.protocol_combo.count(), 3)
             self.assertEqual(window.candidate_table.columnCount(), 7)
             self.assertEqual(window.unblind_button.text(), "Unblind and compare")

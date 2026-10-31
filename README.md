@@ -9,7 +9,7 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.8 Dashboard
+## LaserLab v0.8.1 Dashboard
 
 Native release bundles contain:
 
@@ -26,7 +26,10 @@ The desktop workflow is deliberately narrow:
 - `Compare`: unlock matched-control and detector-family statistics only after explicit unblind.
 - `Export`: create attribution-safe blinded bundles or complete unblinded research bundles.
 
+The dark community-science theme is driven by one shared token module used by both the dashboard and HTML reports. Sealed review, warnings, null results, context-only data, above-control candidates, and repeatable candidates each have a stable status color; color is never the only status indicator.
+
 ![LaserLab dashboard](screenshots/release_gui_dashboard.png)
+![LaserLab run quality checklist](screenshots/release_run.png)
 ![LaserLab blinded review](screenshots/release_blinded_review.png)
 ![LaserLab report summary](screenshots/release_report_summary.png)
 
