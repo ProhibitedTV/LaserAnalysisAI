@@ -173,10 +173,16 @@ def safe_public_record(record: Mapping[str, Any], kind: str) -> dict[str, Any]:
     identifier = int(identifier)
     title = str(record.get("title") or f"Veilbreak {kind[:-1]} #{identifier}")[:160]
     source = {key: record[key] for key in (
-        "laser_wavelength", "wavelength_nm", "laser_power", "rated_power_mw",
+        "laser_wavelength_nm", "wavelength_nm", "laser_power", "rated_power_mw",
         "laser_class", "laser_class_label", "projection_distance",
         "projection_distance_meters", "equipment", "laser_pattern_type", "tags",
     ) if key in record}
+    # Veilbreak's published schema calls this field laser_wavelength, while
+    # LaserLab's normalizer expects wavelength_nm or laser_wavelength_nm.
+    if "laser_wavelength" in record and not any(
+        key in source for key in ("wavelength_nm", "laser_wavelength_nm")
+    ):
+        source["wavelength_nm"] = record["laser_wavelength"]
     # Never save free-form descriptions, questionnaire answers, or perceived symbols.
     normalized = normalize_external_reference(source, record_index=identifier)
     return {
