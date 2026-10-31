@@ -12,6 +12,8 @@ from . import __version__
 from .artifacts import load_json, sha256_file, write_json
 from .blinding import is_unblinded
 from .manifest import latest_run_dir, load_manifest
+from .stats import current_statistics
+from .report import build_report, render_html_report
 
 
 def export_review_bundle(
@@ -27,8 +29,8 @@ def export_review_bundle(
 
     manifest = load_manifest(experiment_dir)
     run_dir = latest_run_dir(experiment_dir, manifest)
-    report = load_json(run_dir / "report.json")
-    results = load_json(run_dir / "results.json")
+    results = current_statistics(load_json(run_dir / "results.json"))
+    report = build_report(experiment_dir, run_dir, results, write_html=False)
     unblinded = is_unblinded(results)
     if include_media and not unblinded:
         raise ValueError("Source media cannot be exported until the review is explicitly unblinded.")
@@ -38,6 +40,7 @@ def export_review_bundle(
         )
     environment = {
         "laserlab_version": __version__,
+        "statistics_version": results.get("aggregate_statistics", {}).get("statistics_version"),
         "python": sys.version,
         "platform": platform.platform(),
         "include_media": include_media,
@@ -50,7 +53,7 @@ def export_review_bundle(
         _write_json_member(bundle, "report.json", report)
         _write_json_member(bundle, "results.json", results)
         _write_json_member(bundle, "environment.json", environment)
-        bundle.write(run_dir / "report.html", "report.html")
+        bundle.writestr("report.html", render_html_report(report))
 
         hashes: dict[str, str] = {}
         for candidate in report.get("top_candidates", [])[:20]:
@@ -97,6 +100,8 @@ def export_review_bundle(
             "hashes, report artifacts, top candidate images, and optional source media. "
             "It does not claim metaphysical origin; it records whether selected detections "
             "exceeded matched controls under the chosen protocol.\n\n"
+            "Generated null probes are not empirical matched recordings. A run may be exploratory/not tested "
+            "or have insufficient independent capture pairs. Candidate-level FDR is not estimated.\n\n"
             + (
                 "Review state: unblinded. Source roles and provenance are included.\n"
                 if unblinded

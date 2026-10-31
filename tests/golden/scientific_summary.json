@@ -9,6 +9,8 @@
   },
   "null_run": {
     "allowed_evidence_levels": [
+      "not tested",
+      "insufficient independent samples",
       "no signal",
       "artifact",
       "anomaly"

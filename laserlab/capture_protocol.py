@@ -26,6 +26,8 @@ WAVELENGTH_PRESETS = {
 
 
 CAPTURE_PROTOCOL_DEFAULTS: dict[str, Any] = {
+    "independent_pair_id": None,
+    "pair_exchangeability_acknowledged": False,
     "footage_class": "primary_wall_projection",
     "projection_surface_type": "unknown",
     "projection_distance_meters": None,
@@ -63,6 +65,11 @@ def default_capture_metadata() -> dict[str, Any]:
 def normalize_capture_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     normalized = default_capture_metadata()
     normalized.update(dict(metadata or {}))
+    pair_id = normalized.get("independent_pair_id")
+    if pair_id is not None and (not isinstance(pair_id, str) or len(pair_id) > 128):
+        raise ValueError("Independent pair ID must be a short, non-identifying string.")
+    normalized["independent_pair_id"] = (pair_id.strip() or None) if pair_id is not None else None
+    normalized["pair_exchangeability_acknowledged"] = normalized.get("pair_exchangeability_acknowledged") is True
     footage_class = str(normalized.get("footage_class") or "other")
     normalized["footage_class"] = footage_class if footage_class in FOOTAGE_CLASSES else "other"
     pattern = str(normalized.get("laser_pattern_type") or "unknown")

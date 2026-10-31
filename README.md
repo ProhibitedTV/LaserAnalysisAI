@@ -26,7 +26,7 @@ The desktop workflow is deliberately narrow:
 - `Compare`: unlock matched-control and detector-family statistics only after explicit unblind.
 - `Export`: create attribution-safe blinded bundles or complete unblinded research bundles.
 
-The dark community-science theme is driven by one shared token module used by both the dashboard and HTML reports. Sealed review, warnings, null results, context-only data, above-control candidates, and repeatable candidates each have a stable status color; color is never the only status indicator.
+The dark community-science theme is driven by one shared token module used by both the dashboard and HTML reports. Sealed review, exploratory/insufficient-sample states, warnings, null results, context-only data, and above-control candidates each have a stable status color; color is never the only status indicator.
 
 Field support remains local-first. **Help > System Check** reports packaged-runtime, dependency, fixture, and optional OCR readiness. **Export Support Bundle** writes redacted diagnostics and a sanitized local log without experiment media, capture roles, or source paths. Recent experiment folders are remembered locally, and packaged builds resolve bundled fixtures independently of the directory used to launch the app.
 
@@ -182,7 +182,7 @@ List or fetch fixture media:
 ## Outputs
 
 - `manifest.json`: stable experiment record with sources, captures, raw/frame hashes, media metadata, provenance warnings, deterministic sampling settings, preprocessing profiles, detector settings, protocol plan, ROI, optional sealed psychophysics/community context, blinding seed, and output paths.
-- `runs/<run-id>/results.json`: sealed detector records, ROI boxes/masks/crops/overlays, and normalized OCR attempts before unblind; after explicit unblind it gains source roles, attribution, q-values, and aggregate comparison statistics.
+- `runs/<run-id>/results.json`: sealed detector records, ROI boxes/masks/crops/overlays, and normalized OCR attempts before unblind; after explicit unblind it gains source roles, attribution, source-class diagnostics, and independent capture-pair statistics. Candidate q-values remain unset because related frames and variants do not provide a calibrated candidate-level null.
 - `runs/<run-id>/report.html`: human-readable evidence summary with original, processed, ROI-overlay, and crop views plus blinded reviewer annotations, provenance after unblind, and null-result language.
 - `*.zip` review bundle: blinded bundles exclude source attribution and media; unblinded bundles can include provenance and optional raw media.
 
@@ -190,12 +190,16 @@ List or fetch fixture media:
 
 Reports classify each run into one of these levels:
 
-- `no signal`: laser scores did not exceed matched controls.
+- `not tested`: no suitable declared empirical comparison or independent design was established. This is exploratory, not a negative finding.
+- `insufficient independent samples`: fewer than five declared independent matched capture pairs; more frames do not supply independent replication.
+- `no signal`: a supported capture-pair comparison did not clear the selected threshold.
 - `artifact`: detections are better explained by controls or weak differences.
 - `anomaly`: elevated structure exists, but not enough for a controlled claim.
-- `above-control candidate`: laser captures beat controls under permutation
-  testing and effect-size thresholds.
-- `repeatable candidate`: above-control evidence plus frame-to-frame persistence.
+- `above-control candidate`: capture-pair scores exceed the declared empirical matched controls under the documented paired permutation test.
+
+Generated negatives, sensor noise, unrelated controls, public demo clips, and synthetic positives are separate diagnostics. They cannot substitute for empirical matched recordings. Frame persistence never promotes a run to `repeatable candidate`; independent replication remains a separate research question.
+
+See [Statistical inference and saved-run compatibility](docs/statistical_inference.md) for independent-pair declarations, exchangeability assumptions, the minimum-replicate rule, and legacy-report handling. These are development-source changes; existing native v0.8.2 downloads retain the older method and should not be used to infer independent evidence from frame counts or candidate q-values.
 
 The system is intentionally conservative. A null result means this detector set
 and capture set did not beat the control baseline, not that the broader idea is

@@ -1,4 +1,4 @@
-"""Matched control generation."""
+"""Synthetic null probes; these derivatives are not empirical matched captures."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 from .artifacts import ensure_dir, relative_to, sha256_file
 
 
-def generate_matched_controls(
+def generate_synthetic_nulls(
     experiment_dir: Path,
     run_dir: Path,
     capture: dict[str, Any],
@@ -39,6 +39,10 @@ def generate_matched_controls(
         records.append(_write_control(experiment_dir, controls_dir, "intensity_inverted", inverted, capture, frame))
 
     return records
+
+
+# Compatibility alias for existing callers; these are never empirical controls.
+generate_matched_controls = generate_synthetic_nulls
 
 
 def _write_control(

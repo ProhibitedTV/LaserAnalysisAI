@@ -399,6 +399,16 @@ class LabDashboardWindow(QMainWindow):
         advanced_layout.addWidget(self.max_frames, 9, 1)
         advanced_layout.addWidget(self.all_frames, 9, 2)
         advanced_layout.addWidget(self.deduplicate_frames, 9, 3)
+        self.independent_pair_id = QLineEdit()
+        self.independent_pair_id.setPlaceholderText("Optional non-identifying ID shared by one independent laser/control pair")
+        self.pair_exchangeability = QCheckBox("Independent pair; within-pair exchangeability justified")
+        self.pair_exchangeability.setToolTip(
+            "Only declare this for independently acquired pairs with a justified exchangeable design under the null. "
+            "Copies, extra frames, and different filenames are not independent repeats. Leave unset if unknown."
+        )
+        advanced_layout.addWidget(QLabel("Independent matched pair ID"), 12, 0)
+        advanced_layout.addWidget(self.independent_pair_id, 12, 1, 1, 3)
+        advanced_layout.addWidget(self.pair_exchangeability, 13, 0, 1, 4)
         self.capture_advanced.setVisible(False)
         self.capture_advanced_button.toggled.connect(self.capture_advanced.setVisible)
         self.capture_advanced_button.toggled.connect(
@@ -592,7 +602,7 @@ class LabDashboardWindow(QMainWindow):
             ("mean_difference", "Difference"),
             ("permutation_p_value", "Permutation p"),
             ("minimum_q_value", "Min q"),
-            ("sample_count", "Samples"),
+            ("sample_count", "Frames / probes"),
         ]
         for index, (key, label) in enumerate(labels):
             name = QLabel(label)
@@ -1755,7 +1765,13 @@ class LabDashboardWindow(QMainWindow):
             for column, value in enumerate(values):
                 self.family_table.setItem(row, column, QTableWidgetItem("n/a" if value is None else str(value)))
         self.compare_notes.setPlainText(
-            "Detector families summarize measured image structure. They do not establish language, origin, or intent."
+            "Detector families are descriptive; confidence intervals and candidate FDR are not estimated.\n"
+            + stats.get("inference", {}).get("message", "") + "\n"
+            + "Independent matched pairs: " + str(stats.get("inference", {}).get("pair_count", 0))
+            + "; empirical capture records: " + str(stats.get("inference", {}).get("empirical_capture_counts", {}))
+            + "; generated null frames: " + str(stats.get("control_diagnostics", {}).get("generated_null", {}).get("frame_count", 0))
+            + "; calibration images: " + str(stats.get("synthetic_positive_count", 0))
+            + ". Frame persistence is not independent replication or evidence of language, origin, or intent."
         )
 
     def _review_is_unblinded(self) -> bool:
@@ -1808,11 +1824,13 @@ class LabDashboardWindow(QMainWindow):
             ("fixed camera and geometry", camera_fixed),
             ("non-reflective, non-saturated target", safe_target),
             ("frame count >= 2", estimate.get("sample_count", 0) >= 2),
-            ("matched controls enabled", self.control_generation.currentText() != "none"),
+            ("synthetic null probes enabled (not recorded controls)", self.control_generation.currentText() != "none"),
             ("capture provenance complete", warning_count == 0),
-            ("multiple comparisons corrected", True),
+            ("candidate FDR withheld for related frames/variants", True),
         ]
-        self.quality_checklist.setHtml(quality_checklist_html(lines))
+        self.quality_checklist.setHtml(quality_checklist_html(lines) +
+            "<p>Analysis may proceed as exploratory. Inferential comparisons require declared empirical matched captures "
+            "and at least five independent exchangeable pairs. Repeated frames are not independent experiments.</p>")
 
     def _protocol_changed(self) -> None:
         preset = self._preset()
@@ -1837,6 +1855,8 @@ class LabDashboardWindow(QMainWindow):
 
     def _capture_metadata(self) -> dict[str, Any]:
         return {
+            "independent_pair_id": self.independent_pair_id.text().strip() or None,
+            "pair_exchangeability_acknowledged": self.pair_exchangeability.isChecked(),
             "footage_class": self.footage_class_combo.currentData() or "other",
             "laser_pattern_type": self.laser_pattern_combo.currentText(),
             "wavelength_nm": self.wavelength_nm.value() or None,

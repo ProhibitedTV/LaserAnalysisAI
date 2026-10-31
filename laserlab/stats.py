@@ -1,228 +1,183 @@
-"""Aggregate statistics and evidence ladder."""
-
+"""Source-separated diagnostics and independent capture-pair inference."""
 from __future__ import annotations
 
+import math
 import random
+from collections import defaultdict
 from statistics import mean, pstdev
 from typing import Any
 
-from .scientific import benjamini_hochberg_q_values, mean_confidence_interval
+from .capture_inference import STATISTICS_VERSION, paired_capture_inference, sample_class
 
 
-def summarize_blinded_results(
-    sample_results: list[dict[str, Any]],
-    primary_metric: str = "structure_score",
-) -> dict[str, Any]:
-    sample_scores = _sample_scores(sample_results)
-    positive_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "synthetic_positive"]
-    review_scores = [item for item in sample_scores if item["unblinded_label"] != "synthetic_positive"]
+def summarize_blinded_results(sample_results: list[dict[str, Any]], primary_metric: str = "structure_score") -> dict[str, Any]:
+    scores = _sample_scores(sample_results)
+    positives = [r["score"] for r in scores if r.get("unblinded_label") == "synthetic_positive"]
     return {
-        "sample_count": len(review_scores),
-        "laser_count": None,
-        "control_count": None,
-        "synthetic_positive_count": len(positive_scores),
-        "calibration_passed": bool(positive_scores and max(positive_scores) > 0.05),
-        "primary_metric": primary_metric,
-        "laser_mean_score": None,
-        "control_mean_score": None,
-        "synthetic_positive_mean_score": _mean(positive_scores),
-        "laser_confidence_interval": {"mean": None, "low": None, "high": None, "count": 0},
-        "control_confidence_interval": {"mean": None, "low": None, "high": None, "count": 0},
-        "mean_difference": None,
-        "cohen_d": None,
-        "permutation_p_value": None,
-        "fdr_method": "deferred_until_unblind",
-        "candidate_q_values": {},
-        "minimum_q_value": None,
-        "laser_mean_persistence": None,
-        "detector_family_statistics": {},
+        "statistics_version": STATISTICS_VERSION,
+        "sample_count": len(scores) - len(positives), "laser_count": None, "control_count": None,
+        "synthetic_positive_count": len(positives), "calibration_passed": bool(positives and max(positives) > .05),
+        "primary_metric": primary_metric, "laser_mean_score": None, "control_mean_score": None,
+        "synthetic_positive_mean_score": _mean(positives),
+        "laser_confidence_interval": _descriptive([]), "control_confidence_interval": _descriptive([]),
+        "mean_difference": None, "cohen_d": None, "permutation_p_value": None,
+        "candidate_q_values": {}, "minimum_q_value": None, "fdr_method": "not_estimated_related_candidates",
+        "laser_mean_persistence": None, "detector_family_statistics": {}, "control_diagnostics": {"sealed": True},
+        "inference": {"status": "sealed", "message": "Source roles and independent-unit counts remain sealed. Repeated frames are descriptive observations, not independent experiments."},
         "evidence_ladder": "blinded review",
-        "null_result_language": (
-            "Source roles are sealed. Review candidate structure without attribution, then explicitly unblind "
-            "to compute matched-control statistics and the evidence ladder."
-        ),
+        "null_result_language": "Source roles are sealed. Inspect candidates before explicitly unblinding. Suitable empirical controls and independent capture repeats are required for inference; candidate-level FDR is not estimated.",
     }
 
 
-def summarize_results(
-    sample_results: list[dict[str, Any]],
-    seed: int,
-    permutations: int = 1000,
-    primary_metric: str = "structure_score",
-) -> dict[str, Any]:
-    sample_scores = _sample_scores(sample_results)
-    laser_scores = [item["score"] for item in sample_scores if _statistical_role(item["unblinded_label"]) == "laser"]
-    control_scores = [item["score"] for item in sample_scores if _statistical_role(item["unblinded_label"]) == "control"]
-    positive_scores = [item["score"] for item in sample_scores if item["unblinded_label"] == "synthetic_positive"]
-    candidate_p_values = _candidate_p_values(sample_scores, control_scores)
-    q_values = benjamini_hochberg_q_values([item["p_value"] for item in candidate_p_values])
-    candidate_q_values = {
-        item["sample_id"]: q_value for item, q_value in zip(candidate_p_values, q_values)
-    }
-
-    laser_mean = _mean(laser_scores)
-    control_mean = _mean(control_scores)
-    effect = cohen_d(laser_scores, control_scores)
-    p_value = permutation_p_value(laser_scores, control_scores, seed=seed, permutations=permutations)
-    persistence = _mean([item.get("persistence_score", 0.0) for item in sample_scores if _statistical_role(item["unblinded_label"]) == "laser"])
-
+def summarize_results(sample_results: list[dict[str, Any]], seed: int, permutations: int = 10000,
+                      primary_metric: str = "structure_score") -> dict[str, Any]:
+    frames = _sample_scores(sample_results)
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for frame in frames:
+        groups[sample_class(frame)].append(frame)
+    laser, controls = groups["empirical_laser"], groups["declared_matched_control"]
+    positives = [r["score"] for r in groups["synthetic_positive"]]
+    inference = paired_capture_inference(frames, seed, permutations)
+    tested = inference["status"] == "tested"
+    laser_mean = inference.get("laser_mean") if tested else _mean([r["score"] for r in laser])
+    control_mean = inference.get("control_mean") if tested else _mean([r["score"] for r in controls])
     stats = {
-        "sample_count": len(sample_scores),
-        "laser_count": len(laser_scores),
-        "control_count": len(control_scores),
-        "synthetic_positive_count": len(positive_scores),
-        "calibration_passed": bool(positive_scores and max(positive_scores) > 0.05),
-        "primary_metric": primary_metric,
-        "laser_mean_score": laser_mean,
-        "control_mean_score": control_mean,
-        "synthetic_positive_mean_score": _mean(positive_scores),
-        "laser_confidence_interval": mean_confidence_interval(laser_scores),
-        "control_confidence_interval": mean_confidence_interval(control_scores),
-        "mean_difference": None if laser_mean is None or control_mean is None else laser_mean - control_mean,
-        "cohen_d": effect,
-        "permutation_p_value": p_value,
-        "fdr_method": "benjamini_hochberg",
-        "candidate_q_values": candidate_q_values,
-        "minimum_q_value": min(candidate_q_values.values()) if candidate_q_values else None,
-        "laser_mean_persistence": persistence,
+        "statistics_version": STATISTICS_VERSION, "sample_count": len(frames),
+        "laser_count": len(laser), "control_count": len(controls),
+        "synthetic_positive_count": len(positives), "calibration_passed": bool(positives and max(positives) > .05),
+        "primary_metric": primary_metric, "laser_mean_score": laser_mean, "control_mean_score": control_mean,
+        "score_summary_unit": "equal-weight capture medians" if tested else "descriptive frames only; not independent n",
+        "synthetic_positive_mean_score": _mean(positives),
+        "laser_confidence_interval": _descriptive([r["score"] for r in laser]),
+        "control_confidence_interval": _descriptive([r["score"] for r in controls]),
+        "mean_difference": inference.get("mean_difference") if tested else (None if laser_mean is None or control_mean is None else laser_mean - control_mean),
+        "cohen_d": inference.get("cohen_dz"), "effect_size_method": "paired Cohen dz; not a frame-level effect",
+        "permutation_p_value": inference.get("p_value"), "inference": inference,
+        "candidate_q_values": {}, "minimum_q_value": None, "fdr_method": "not_estimated_related_candidates",
+        "laser_mean_persistence": _mean([r.get("persistence_score", 0) for r in laser]),
         "detector_family_statistics": _family_statistics(sample_results),
+        "control_diagnostics": {
+            kind: {"frame_count": len(records), "capture_count": len({r.get("capture_id") for r in records if r.get("capture_id")}),
+                   "mean_score": _mean([r["score"] for r in records]), "used_for_inference": tested and kind == "declared_matched_control"}
+            for kind, records in groups.items()
+        },
     }
     stats["evidence_ladder"] = evidence_ladder(stats)
     stats["null_result_language"] = null_result_language(stats)
+    if tested:
+        for key, point in (("laser_confidence_interval", laser_mean), ("control_confidence_interval", control_mean)):
+            stats[key] = {"mean": point, "low": None, "high": None, "count": inference["pair_count"],
+                          "unit": "empirical capture", "method": "no_confidence_interval_estimated"}
     return stats
 
 
-def _sample_scores(sample_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    grouped: dict[str, dict[str, Any]] = {}
-    for result in sample_results:
-        sample_id = result["sample_id"]
-        record = grouped.setdefault(
-            sample_id,
-            {
-                "sample_id": sample_id,
-                "blind_id": result["blind_id"],
-                "unblinded_label": result["unblinded_label"],
-                "scores": [],
-                "persistence_scores": [],
-            },
+def current_statistics(run_record: dict[str, Any]) -> dict[str, Any]:
+    """Re-evaluate legacy unblinded records in memory; never rewrite source results."""
+    if run_record.get("aggregate_statistics", {}).get("statistics_version") == STATISTICS_VERSION:
+        return run_record
+    updated = dict(run_record)
+    if not run_record.get("review_state", {"unblinded": True}).get("unblinded"):
+        updated["aggregate_statistics"] = summarize_blinded_results(
+            run_record.get("results", []), run_record.get("aggregate_statistics", {}).get("primary_metric", "structure_score")
         )
-        record["scores"].append(float(result.get("primary_metric_score", result.get("structure_score", 0.0))))
-        record["persistence_scores"].append(float(result.get("persistence_score", 0.0)))
+        for key in ("synthetic_positive_count", "calibration_passed", "synthetic_positive_mean_score"):
+            if key in run_record.get("aggregate_statistics", {}):
+                updated["aggregate_statistics"][key] = run_record["aggregate_statistics"][key]
+        return updated
+    updated["aggregate_statistics"] = summarize_results(
+        run_record.get("results", []), int(run_record.get("blind_seed", 1)),
+        primary_metric=run_record.get("aggregate_statistics", {}).get("primary_metric", "structure_score"),
+    )
+    updated["results"] = [{**result, "q_value": None} for result in run_record.get("results", [])]
+    updated["statistics_migration"] = "Legacy frame-level significance and candidate FDR are superseded. Original results and source media remain unchanged; re-run to record independent-unit provenance."
+    return updated
 
-    scores = []
+
+def _sample_scores(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for result in results:
+        record = grouped.setdefault(result["sample_id"], {**result, "variants": {}})
+        provenance_keys = ("unblinded_label", "capture_id", "parent_capture_id", "control_type", "synthetic",
+                           "source_sha256", "capture_source_sha256", "capture_metadata")
+        if any(record.get(key) != result.get(key) for key in provenance_keys):
+            raise ValueError("Conflicting provenance for one sample ID")
+        value = float(result.get("primary_metric_score", result.get("structure_score", 0)))
+        inference_value = result.get("inference_metric_score")
+        if not math.isfinite(value) or (inference_value is not None and not math.isfinite(float(inference_value))):
+            raise ValueError("Statistical scores must be finite")
+        variant = result.get("preprocessing_variant", "legacy")
+        entry = (value, None if inference_value is None else float(inference_value), float(result.get("persistence_score", 0)))
+        if not math.isfinite(entry[2]):
+            raise ValueError("Persistence scores must be finite")
+        if variant in record["variants"] and record["variants"][variant] != entry:
+            raise ValueError("Conflicting duplicate preprocessing variant")
+        record["variants"][variant] = entry
+    frames = []
     for record in grouped.values():
-        scores.append(
-            {
-                "sample_id": record["sample_id"],
-                "blind_id": record["blind_id"],
-                "unblinded_label": record["unblinded_label"],
-                "score": mean(record["scores"]) if record["scores"] else 0.0,
-                "persistence_score": mean(record["persistence_scores"]) if record["persistence_scores"] else 0.0,
-            }
-        )
-    return scores
+        variants = list(record.pop("variants").values())
+        frames.append({**record, "score": mean(v[0] for v in variants),
+                       "inference_score": None if any(v[1] is None for v in variants) else mean(v[1] for v in variants),
+                       "persistence_score": mean(v[2] for v in variants)})
+    return frames
 
 
 def _mean(values: list[float]) -> float | None:
-    return round(float(mean(values)), 6) if values else None
+    return round(mean(values), 6) if values else None
 
 
-def cohen_d(group_a: list[float], group_b: list[float]) -> float | None:
-    if len(group_a) < 2 or len(group_b) < 2:
-        return None
-    std_a = pstdev(group_a)
-    std_b = pstdev(group_b)
-    pooled = ((std_a**2 + std_b**2) / 2) ** 0.5
-    if pooled == 0:
-        return 0.0
-    return round(float((mean(group_a) - mean(group_b)) / pooled), 6)
+def _descriptive(values: list[float]) -> dict[str, Any]:
+    return {"mean": _mean(values), "low": None, "high": None, "count": len(values),
+            "unit": "descriptive observations; not independent n", "method": "descriptive_only_no_confidence_interval"}
 
 
-def permutation_p_value(
-    group_a: list[float],
-    group_b: list[float],
-    seed: int,
-    permutations: int = 1000,
-) -> float | None:
-    if not group_a or not group_b:
-        return None
-    observed = mean(group_a) - mean(group_b)
-    combined = group_a + group_b
-    rng = random.Random(seed)
-    count = 0
-    for _ in range(permutations):
-        shuffled = combined[:]
-        rng.shuffle(shuffled)
-        candidate_a = shuffled[: len(group_a)]
-        candidate_b = shuffled[len(group_a) :]
-        if mean(candidate_a) - mean(candidate_b) >= observed:
-            count += 1
-    return round(float((count + 1) / (permutations + 1)), 6)
-
-
-def _candidate_p_values(sample_scores: list[dict[str, Any]], control_scores: list[float]) -> list[dict[str, Any]]:
-    if not control_scores:
-        return [{"sample_id": item["sample_id"], "p_value": 1.0} for item in sample_scores]
-    records = []
-    for item in sample_scores:
-        greater_equal = sum(1 for control in control_scores if control >= item["score"])
-        p_value = (greater_equal + 1) / (len(control_scores) + 1)
-        records.append({"sample_id": item["sample_id"], "p_value": round(float(p_value), 6)})
-    return records
-
-
-def _family_statistics(sample_results: list[dict[str, Any]]) -> dict[str, Any]:
-    grouped: dict[str, list[float]] = {"symbol": [], "diffraction": [], "speckle": [], "texture": []}
-    for result in sample_results:
-        if _statistical_role(result.get("unblinded_label")) != "laser":
-            continue
-        for family, value in result.get("detector_family_scores", {}).items():
-            grouped.setdefault(family, []).append(float(value))
-    return {family: mean_confidence_interval(values) for family, values in grouped.items()}
-
-
-def _statistical_role(label: str | None) -> str:
-    if label == "laser":
-        return "laser"
-    if label in {"control", "matched_control", "sensor_noise", "synthetic_negative"}:
-        return "control"
-    return "calibration" if label == "synthetic_positive" else "other"
+def _family_statistics(results: list[dict[str, Any]]) -> dict[str, Any]:
+    groups: dict[str, list[float]] = defaultdict(list)
+    for result in results:
+        if sample_class(result) == "empirical_laser":
+            for family, value in result.get("detector_family_scores", {}).items():
+                groups[family].append(float(value))
+    return {family: _descriptive(values) for family, values in groups.items()}
 
 
 def evidence_ladder(stats: dict[str, Any]) -> str:
-    if not stats.get("laser_count") or not stats.get("control_count"):
+    inference = stats.get("inference", {})
+    if inference.get("status") == "insufficient_independent_samples":
+        return "insufficient independent samples"
+    if inference.get("status") != "tested":
+        return "not tested"
+    difference = stats.get("mean_difference") or 0
+    if difference <= .02:
         return "no signal"
-    difference = stats.get("mean_difference") or 0.0
-    p_value = stats.get("permutation_p_value")
-    effect = stats.get("cohen_d")
-    persistence = stats.get("laser_mean_persistence") or 0.0
-
-    if difference <= 0.02:
-        return "no signal"
-    if p_value is None or effect is None:
-        return "anomaly"
-    if p_value <= 0.05 and effect >= 0.5 and persistence >= 0.15:
-        return "repeatable candidate"
-    if p_value <= 0.05 and effect >= 0.5:
+    if stats["permutation_p_value"] <= .05:
         return "above-control candidate"
-    if difference > 0.05:
-        return "anomaly"
-    return "artifact"
+    return "anomaly" if difference > .05 else "artifact"
 
 
 def null_result_language(stats: dict[str, Any]) -> str:
-    ladder = stats.get("evidence_ladder")
-    if ladder in {"above-control candidate", "repeatable candidate"}:
-        return (
-            "This run found structure scores above matched controls. Treat this as a candidate "
-            "finding until it repeats across new blinded captures."
-        )
-    if ladder == "anomaly":
-        return (
-            "This run found elevated structure scores, but the evidence did not clear the "
-            "configured blinded control threshold."
-        )
-    return (
-        "This run did not find structured detections above matched controls. That does not "
-        "prove absence of signal; it means this capture and detector set did not beat the null."
-    )
+    inference = stats.get("inference", {})
+    if inference.get("status") != "tested":
+        return inference.get("message", "Not tested against independent empirical matched captures.")
+    if stats.get("evidence_ladder") == "above-control candidate":
+        return "Capture-pair scores exceeded the declared empirical matched controls under the stated exchangeability assumptions. This is a bounded candidate, not validated language or independent replication."
+    return "This capture-pair comparison did not clear the selected threshold. It does not prove absence of a signal. Frame persistence is descriptive, not independent replication."
+
+
+def cohen_d(group_a: list[float], group_b: list[float]) -> float | None:
+    """Legacy low-level helper for independent inputs; unused for run inference."""
+    if len(group_a) < 2 or len(group_b) < 2:
+        return None
+    pooled = ((pstdev(group_a) ** 2 + pstdev(group_b) ** 2) / 2) ** .5
+    return round((mean(group_a) - mean(group_b)) / pooled, 6) if pooled else 0.0
+
+
+def permutation_p_value(group_a: list[float], group_b: list[float], seed: int, permutations: int = 1000) -> float | None:
+    """Legacy independent-sample utility; run inference never shuffles frames."""
+    if not group_a or not group_b:
+        return None
+    rng, exceed = random.Random(seed), 0
+    observed = mean(group_a) - mean(group_b)
+    for _ in range(permutations):
+        combined = group_a + group_b
+        rng.shuffle(combined)
+        exceed += mean(combined[:len(group_a)]) - mean(combined[len(group_a):]) >= observed
+    return round((exceed + 1) / (permutations + 1), 6)

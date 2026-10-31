@@ -31,6 +31,8 @@ COLORS = {
 
 
 EVIDENCE_TONES = {
+    "not tested": "warning",
+    "insufficient independent samples": "warning",
     "blinded review": "sealed",
     "no signal": "neutral",
     "artifact": "warning",
@@ -60,7 +62,7 @@ def badge_tone(label: object) -> str:
         return "positive"
     if any(token in value for token in ("blinded", "sealed")):
         return "sealed"
-    if any(token in value for token in ("failed", "unavailable", "warning", "not included", "not tested")):
+    if any(token in value for token in ("failed", "unavailable", "warning", "not included", "not tested", "withheld", "not estimated")):
         return "warning"
     if "context only" in value:
         return "context"
