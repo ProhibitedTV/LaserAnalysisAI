@@ -35,7 +35,9 @@ The dark community-science theme is driven by one shared token module used by bo
 
 ## Quick Start
 
-See the [Researcher Workflow](docs/researcher_workflow.md) for the complete dashboard flow, capture guidance, interpretation rules, sharing steps, and platform troubleshooting.
+**New to LaserLab or trying it with your community?** Start with the [Community Quickstart](docs/community_quickstart.md): first launch, the sample demo, matched controls, blinded review, privacy-safe sharing, and a simple feedback checklist. No coding required for the desktop app.
+
+For technical details and the full research protocol, see the [Researcher Workflow](docs/researcher_workflow.md).
 
 Use Python 3.10 or 3.11. On this workstation, the preferred interpreter is:
 
