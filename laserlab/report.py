@@ -9,6 +9,7 @@ from typing import Any
 from .artifacts import relative_to, write_json
 from .blinding import is_unblinded
 from .psychophysics import build_falsification_matrix
+from .theme import badge_class, evidence_tone, report_stylesheet
 
 
 def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]) -> dict[str, Any]:
@@ -145,8 +146,12 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
     provenance_rows = "\n".join(_provenance_row(record) for record in report.get("source_provenance", []))
     protocol_rows = "\n".join(_capture_protocol_row(record) for record in report.get("source_provenance", []))
     provenance_body = provenance_rows or '<tr><td colspan="7">No capture provenance was attached.</td></tr>'
-    badges = " ".join(f"<span class=\"badge\">{html.escape(badge)}</span>" for badge in report.get("badges", []))
+    badges = " ".join(
+        f'<span class="{badge_class(badge)}">{html.escape(badge)}</span>'
+        for badge in report.get("badges", [])
+    )
     interpretation = report.get("interpretation", {})
+    ladder_tone = evidence_tone(summary.get("evidence_ladder"))
     if unblinded:
         metrics_html = f"""
     <div class="metric"><strong>Laser mean</strong>{_fmt(summary['laser_mean_score'])}</div>
@@ -217,30 +222,13 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 <head>
   <meta charset="utf-8">
   <title>LaserAnalysisAI Report {html.escape(report['run_id'])}</title>
-  <style>
-    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 32px; background: #070b12; color: #d7e3ed; }}
-    h1, h2 {{ margin-bottom: 8px; }}
-    h1 {{ color: #72f1b8; }} h2 {{ color: #35d4d4; }}
-    .summary {{ border: 1px solid #1f5260; border-radius: 4px; padding: 16px; max-width: 1080px; background: #0d1520; }}
-    .badge {{ display: inline-block; background: #10232b; border: 1px solid #35d4d4; border-radius: 3px; padding: 4px 10px; margin: 4px 6px 4px 0; font-size: 12px; }}
-    .sealed {{ border-left: 3px solid #ef4da8; padding: 10px; margin: 12px 0; color: #f5a6cf; }}
-    .metric {{ display: inline-block; margin: 8px 18px 8px 0; }}
-    .metric strong {{ display: block; font-size: 12px; color: #7f9aaa; text-transform: uppercase; }}
-    table {{ border-collapse: collapse; width: 100%; margin-top: 16px; }}
-    th, td {{ border-bottom: 1px solid #1f3344; padding: 8px; text-align: left; vertical-align: top; }}
-    th {{ background: #111d29; font-size: 12px; text-transform: uppercase; color: #7f9aaa; }}
-    code {{ background: #111d29; color: #72f1b8; padding: 2px 4px; border-radius: 3px; }}
-    img {{ max-width: 150px; max-height: 105px; border: 1px solid #1f5260; }}
-    .candidate-media {{ display: grid; grid-template-columns: repeat(2, minmax(90px, 1fr)); gap: 6px; min-width: 210px; }}
-    .candidate-media span {{ display: block; color: #7f9aaa; font-size: 10px; text-transform: uppercase; }}
-    a {{ color: #35d4d4; }}
-  </style>
+  <style>{report_stylesheet()}</style>
 </head>
 <body>
   <h1>LaserAnalysisAI Blinded Signal Report</h1>
   <div class="summary">
     <p>{badges}</p>
-    <div class="metric"><strong>Evidence ladder</strong>{html.escape(str(summary['evidence_ladder']))}</div>
+    <div class="metric"><strong>Evidence ladder</strong><span class="evidence-value evidence-value--{ladder_tone}">{html.escape(str(summary['evidence_ladder']))}</span></div>
     <div class="metric"><strong>Primary metric</strong>{html.escape(str(summary.get('primary_metric', 'structure_score')))}</div>
     {metrics_html}
     <p>{html.escape(summary['null_result_language'])}</p>

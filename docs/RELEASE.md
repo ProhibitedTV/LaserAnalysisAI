@@ -76,6 +76,15 @@ To process every frame of a video, omit `--max-frames`:
 Full-frame `wide` runs generate many processed images and candidate crops. Keep
 them under `experiments\`, which is intentionally ignored by Git.
 
+## v0.8.1 Release Checklist
+
+- Confirm `laserlab.theme` is the single source for dashboard and report colors, evidence tones, badges, and checklist status styling.
+- Confirm normal text and every evidence status color meet the tested contrast threshold on the dark canvas.
+- Confirm Setup still presents the three first-run actions and the five top-level steps remain Setup, Run, Review, Compare, Export.
+- Confirm blinded/unblinded state, null results, artifacts, anomalies, candidates, warnings, and passed checks remain text-labeled as well as color-coded.
+- Regenerate and visually inspect native Setup, Analysis Plan, Review, and Export screenshots on Windows.
+- Run the v0.8.0 ROI/OCR, v0.7, and earlier leak/package checks unchanged.
+
 ## v0.8.0 Release Checklist
 
 - Confirm synthetic text and grid fixtures produce ranked ROI proposals while blank, smooth-gradient, and noise fixtures fall back explicitly to `full_frame`.

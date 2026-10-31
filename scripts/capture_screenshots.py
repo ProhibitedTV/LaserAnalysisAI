@@ -22,6 +22,7 @@ def capture_gui(
     setup_step: int | None = None,
     expand_analysis: bool = False,
     expand_community: bool = False,
+    populate_run_checklist: bool = False,
 ) -> None:
     qt_mode = os.environ.get("LASERLAB_REAL_QT_SCREENSHOT")
     if qt_mode in {"1", "native"}:
@@ -45,6 +46,8 @@ def capture_gui(
                 window.protocol_advanced_button.setChecked(True)
             if expand_community:
                 window.community_tools_button.setChecked(True)
+            if populate_run_checklist:
+                window._update_quality_checklist({"sample_count": 0})
             window.show()
             app.processEvents()
             QTest.qWait(250)
@@ -359,6 +362,7 @@ def main() -> int:
 
     output_dir = Path(args.output_dir)
     capture_gui(output_dir / "release_gui_dashboard.png")
+    capture_gui(output_dir / "release_run.png", tab_index=1, populate_run_checklist=True)
     capture_gui(output_dir / "release_analysis_plan.png", setup_step=2)
     capture_gui(output_dir / "release_analysis_advanced.png", setup_step=2, expand_analysis=True)
     capture_gui(output_dir / "release_export.png", tab_index=4)
@@ -368,6 +372,7 @@ def main() -> int:
     capture_cli(output_dir / "release_cli_surface.png")
     capture_report(Path(args.summary), Path(args.candidates), output_dir / "release_report_summary.png")
     print(output_dir / "release_gui_dashboard.png")
+    print(output_dir / "release_run.png")
     print(output_dir / "release_cli_surface.png")
     print(output_dir / "release_report_summary.png")
     return 0

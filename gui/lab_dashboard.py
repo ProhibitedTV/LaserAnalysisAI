@@ -40,6 +40,7 @@ from PyQt5.QtWidgets import (
 
 from laserlab import app_api
 from laserlab.fixtures import fixture_metadata, list_fixtures
+from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
 
 
 class ApiWorker(QThread):
@@ -104,8 +105,12 @@ class LabDashboardWindow(QMainWindow):
         layout = QVBoxLayout(page)
         title = QLabel("LaserLab / blinded signal review")
         title.setObjectName("title")
-        subtitle = QLabel("Observed patterns deserve careful testing. Source roles stay sealed until you explicitly unblind.")
+        subtitle = QLabel(
+            "Blinded laser footage analysis above matched controls. "
+            "Observed patterns deserve careful testing; source roles stay sealed until explicit unblind."
+        )
         subtitle.setObjectName("subtitle")
+        subtitle.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(subtitle)
 
@@ -113,9 +118,10 @@ class LabDashboardWindow(QMainWindow):
         action_layout = QHBoxLayout(actions)
         self.home_demo_button = QPushButton("Run bundled demo")
         self.home_demo_button.clicked.connect(self.run_fixture_demo)
-        self.home_analyze_button = QPushButton("Analyze footage")
+        self.home_analyze_button = QPushButton("Analyze my footage")
+        self.home_analyze_button.setObjectName("primaryButton")
         self.home_analyze_button.clicked.connect(self.analyze_my_footage)
-        self.home_open_button = QPushButton("Open experiment")
+        self.home_open_button = QPushButton("Open existing experiment")
         self.home_open_button.clicked.connect(self.open_existing_experiment)
         action_layout.addWidget(self.home_demo_button)
         action_layout.addWidget(self.home_analyze_button)
@@ -487,6 +493,7 @@ class LabDashboardWindow(QMainWindow):
         estimate = QPushButton("Estimate Run")
         estimate.clicked.connect(self.update_estimate)
         self.run_button = QPushButton("Run Analysis")
+        self.run_button.setObjectName("primaryButton")
         self.run_button.clicked.connect(self.run_analysis)
         self.progress = QProgressBar()
         self.progress.setRange(0, 1)
@@ -524,6 +531,7 @@ class LabDashboardWindow(QMainWindow):
         state_row.addWidget(self.unblind_button)
         layout.addLayout(state_row)
         metrics = QGroupBox("Evidence")
+        metrics.setObjectName("evidencePanel")
         grid = QGridLayout(metrics)
         self.metric_labels: dict[str, QLabel] = {}
         labels = [
@@ -545,6 +553,9 @@ class LabDashboardWindow(QMainWindow):
             grid.addWidget(value, index // 4 * 2 + 1, index % 4)
         layout.addWidget(metrics)
         self.badges_label = QLabel("Badges: n/a")
+        self.badges_label.setObjectName("badgeStrip")
+        self.badges_label.setTextFormat(Qt.RichText)
+        self.badges_label.setWordWrap(True)
         layout.addWidget(self.badges_label)
         self.interpretation_text = QTextEdit()
         self.interpretation_text.setReadOnly(True)
@@ -757,38 +768,7 @@ class LabDashboardWindow(QMainWindow):
         return page
 
     def _apply_style(self) -> None:
-        self.setStyleSheet(
-            """
-            QMainWindow, QWidget { background: #070b12; color: #d7e3ed; font-family: "Segoe UI"; font-size: 12px; }
-            QMenuBar, QMenu, QStatusBar { background: #090f18; color: #a9bac8; }
-            QTabWidget::pane { border: 1px solid #1f3344; top: -1px; }
-            QTabBar::tab { background: #0a111b; color: #7f9aaa; border: 1px solid #1f3344; padding: 9px 18px; }
-            QTabBar::tab:selected { color: #72f1b8; border-bottom: 2px solid #35d4d4; background: #0d1520; }
-            QTabBar::tab:disabled { color: #405462; background: #080d14; border-color: #172733; }
-            QGroupBox { border: 1px solid #1f3344; margin-top: 10px; padding: 9px; font-weight: 600; color: #9fb2c0; }
-            QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #35d4d4; }
-            QTableWidget, QTextEdit, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
-                background: #0b121c; color: #d7e3ed; border: 1px solid #1f3344; selection-background-color: #173747;
-            }
-            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { min-height: 26px; padding: 2px 6px; }
-            QPushButton { padding: 7px 12px; border: 1px solid #2c5965; border-radius: 3px; background: #101c27; color: #d7e3ed; }
-            QPushButton:hover { border-color: #35d4d4; color: #72f1b8; background: #122631; }
-            QPushButton:disabled { color: #4b5f6d; border-color: #1a2934; background: #0a1118; }
-            QPushButton#dangerButton { border-color: #9f396f; color: #f5a6cf; }
-            QPushButton#dangerButton:hover { border-color: #ef4da8; background: #291324; }
-            QPushButton#dangerButton:disabled { color: #5b4050; border-color: #382333; background: #0a1118; }
-            QHeaderView::section { background: #111d29; color: #7f9aaa; padding: 6px; border: 0; border-right: 1px solid #1f3344; }
-            QProgressBar { border: 1px solid #1f3344; background: #0b121c; text-align: center; color: #d7e3ed; }
-            QProgressBar::chunk { background: #35d4d4; }
-            QLabel#title { font-size: 24px; font-weight: 700; color: #72f1b8; }
-            QLabel#subtitle { font-size: 14px; color: #7f9aaa; }
-            QLabel#metricValue { font-size: 18px; font-weight: 700; color: #35d4d4; }
-            QLabel#reviewState { color: #f5a6cf; font-weight: 700; padding: 6px 0; }
-            QLabel#warning { color: #f5a6cf; padding: 6px 2px; }
-            QLabel#preview { background: #05080d; border: 1px solid #1f5260; min-height: 220px; color: #607786; }
-            QTextEdit#checklist { background: #091019; color: #9fb2c0; }
-            """
-        )
+        self.setStyleSheet(dashboard_stylesheet())
 
     def _preview_label(self, text: str) -> QLabel:
         label = QLabel(text)
@@ -1370,6 +1350,7 @@ class LabDashboardWindow(QMainWindow):
         self.review_state_label.setText(
             "UNBLINDED / source roles visible" if unblinded else "BLINDED / source roles sealed"
         )
+        self._set_dynamic_property(self.review_state_label, "unblinded", "true" if unblinded else "false")
         review_complete = bool(report.get("review_session", {}).get("complete"))
         self.unblind_button.setEnabled(not unblinded and review_complete)
         self.unblind_button.setText("Review unblinded" if unblinded else "Unblind and compare")
@@ -1384,7 +1365,9 @@ class LabDashboardWindow(QMainWindow):
         for key, label in self.metric_labels.items():
             value = summary.get(key, stats.get(key))
             label.setText("n/a" if value is None else str(value))
-        self.badges_label.setText("Badges: " + ", ".join(report.get("badges", [])))
+            if key == "evidence_ladder":
+                self._set_dynamic_property(label, "tone", evidence_tone(value))
+        self.badges_label.setText(badge_strip_html(report.get("badges", [])))
         interpretation = report.get("interpretation", {})
         self.interpretation_text.setPlainText(
             "What this means: " + interpretation.get("what_this_means", "") + "\n"
@@ -1563,7 +1546,7 @@ class LabDashboardWindow(QMainWindow):
             ("capture provenance complete", warning_count == 0),
             ("multiple comparisons corrected", True),
         ]
-        self.quality_checklist.setPlainText("\n".join(("OK  " if ok else "TODO ") + label for label, ok in lines))
+        self.quality_checklist.setHtml(quality_checklist_html(lines))
 
     def _protocol_changed(self) -> None:
         preset = self._preset()
@@ -1651,6 +1634,12 @@ class LabDashboardWindow(QMainWindow):
             if combo.itemData(index) == value:
                 combo.setCurrentIndex(index)
                 return
+
+    @staticmethod
+    def _set_dynamic_property(widget: QWidget, name: str, value: str) -> None:
+        widget.setProperty(name, value)
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
 
     def _require_experiment(self) -> Path | None:
         if not self.experiment_dir:
