@@ -1,0 +1,29 @@
+name: Research or evidence-quality concern
+description: Report a reproducible false positive, control mismatch, statistical concern, or scientific validity bug
+title: "[Research Quality]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For open-ended hypothesis discussions use GitHub Discussions instead. Never post sensitive participant data. This issue form is for reproducible concerns about how LaserLab scores or interprets evidence.
+  - type: textarea
+    id: concern
+    attributes:
+      label: What scientific concern did you observe?
+      placeholder: "e.g. a camera artifact appears to pass a control comparison..."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps or safe synthetic fixture to reproduce
+      description: Link to publicly redistributable fixtures or describe a reproduction without uploading private recordings.
+    validations:
+      required: true
+  - type: textarea
+    id: controls
+    attributes:
+      label: Control conditions and expected interpretation
+      description: Specify control type, detector/protocol, version, and what result would be scientifically warranted.
+    validations:
+      required: true

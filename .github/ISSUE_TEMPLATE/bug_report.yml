@@ -1,0 +1,69 @@
+name: Bug report
+description: Something crashes, fails, or behaves unexpectedly in LaserLab
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing LaserLab. Please do not upload private recordings, names, access tokens, or full personal file paths.
+  - type: input
+    id: version
+    attributes:
+      label: LaserLab version
+      description: Release tag or BUILD-INFO.json version, if known
+      placeholder: "e.g. v0.8.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS Intel
+        - macOS Apple Silicon
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where did this happen?
+      options:
+        - Install or startup
+        - Setup / Add Capture
+        - Run
+        - Review / Compare
+        - Export
+        - CLI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open ... 2. Click ... 3. See ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: Safe, redacted error messages are welcome. Review any diagnostic bundle before sharing.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed private paths, identifying information, secrets, and unconsented media.
+          required: true

@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an improvement to the desktop app, detectors, documentation, or community workflow
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the user-facing problem before proposing an implementation.
+      placeholder: "As a first-time researcher, I have trouble..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested improvement
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - First-run and interface
+        - Capture / experimental design
+        - Analysis / detector
+        - Reports / export
+        - Documentation / community
+        - Packaging / cross-platform
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Scientific, privacy, or accessibility considerations
+      description: How should this preserve controls, reproducibility, blinding, and user privacy?
+    validations:
+      required: false
