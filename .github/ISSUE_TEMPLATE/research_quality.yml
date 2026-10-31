@@ -1,7 +1,6 @@
 name: Research or evidence-quality concern
 description: Report a reproducible false positive, control mismatch, statistical concern, or scientific validity bug
 title: "[Research Quality]: "
-labels: ["research"]
 body:
   - type: markdown
     attributes:
