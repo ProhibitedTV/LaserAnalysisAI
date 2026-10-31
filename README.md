@@ -49,6 +49,8 @@ LaserLab can optionally **browse published Veilbreak protocols and experiments**
 
 **[Read the Veilbreak integration guide](docs/VEILBREAK_INTEGRATION.md)** for the current functionality, limitations, privacy boundaries, and future collaboration plan.
 
+**Want a Veilbreak REST API key for your own tools?** Choose **Help > Get optional Veilbreak API key** (or the button in Export's community data tools). This opens Veilbreak's official [API Access page](https://veilbreak.ai/api-access), where you request the key yourself. An email address is required; no account is needed. Veilbreak documents one active key per email and 30-day expiry. LaserLab never requests, receives, or stores keys, and **its public MCP catalog doesn't need one**.
+
 ## Quick Start
 
 See the [Researcher Workflow](docs/researcher_workflow.md) for the complete dashboard flow, capture guidance, interpretation rules, sharing steps, and platform troubleshooting.
