@@ -13,6 +13,21 @@ LaserLab is **not** a replacement for [Project Veilbreak](https://veilbreak.ai/)
 
 This is a **read-only, user-initiated bridge**. The standalone LaserLab app and current local JSON/CSV import tools work without the network.
 
+## Getting a Veilbreak API key (optional)
+
+The **public MCP catalog does not require a key**. LaserLab's current bridge reads this public catalog and does **not** accept, use, save, or upload API keys.
+
+For community members who also want to use **Veilbreak's separate read-only REST API** in their own tools:
+
+1. In LaserLab, open **Help > Get optional Veilbreak API key**, or use **Export > Show community data tools > Get optional Veilbreak API key**.
+2. LaserLab opens Veilbreak's official [API Access](https://veilbreak.ai/api-access) webpage in the default browser. The webpage, not LaserLab, handles requesting the key.
+3. Follow the website's instructions and provide your email address there. Veilbreak currently documents **no account required**, **one active key per email**, and **30-day validity**. Regenerating a key invalidates the previous one.
+4. Keep the resulting key private. Do not paste it into Discord, GitHub issues, LaserLab experiment files, screenshots, or chat.
+
+**This button only opens Veilbreak's official website.** It cannot create an API key on your behalf, connect authenticated REST queries inside LaserLab, extend a key's expiry, or verify that Veilbreak issued one.
+
+Veilbreak's REST API is read-only: it does not authorize publishing or updating research results. The published URL is `https://veilbreak.ai/api-access`; sample snippets on the page may contain a different placeholder hostname, so check the provider's current documentation before using an endpoint.
+
 ## Why the live catalog may not open
 
 Veilbreak documents an MCP server, but its public website also describes a **separate authenticated REST API**, and its main page and MCP page advertise different historical MCP URLs. This client uses the current main-domain MCP documentation's \`https://veilbreak.ai/api/mcp\` endpoint. The website's transport behavior was not integration-tested in a live app session as part of this change. If the server changes or is unavailable, LaserLab shows an error and **does not silently switch** to an unknown host or ask for an API key.
