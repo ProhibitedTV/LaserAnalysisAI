@@ -156,6 +156,7 @@ def _seal_result(result: dict[str, Any]) -> dict[str, Any]:
         "roi_overlay_path",
         "structure_score",
         "primary_metric_score",
+        "inference_metric_score",
         "persistence_score",
     }
     sealed = {key: value for key, value in result.items() if key in allowed}
@@ -180,6 +181,8 @@ def _restore_result(result: dict[str, Any], sample: dict[str, Any]) -> dict[str,
             "source_path": sample.get("path", ""),
             "source_sha256": sample.get("source_sha256", ""),
             "input_source_sha256": sample.get("input_source_sha256", ""),
+            "capture_source_sha256": sample.get("capture_source_sha256", ""),
+            "synthetic": sample.get("synthetic", False),
             "capture_metadata": sample.get("capture_metadata", {}),
             "media_metadata": sample.get("media_metadata", {}),
             "provenance_warnings": sample.get("provenance_warnings", []),

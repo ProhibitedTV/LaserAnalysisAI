@@ -64,15 +64,18 @@ Set a blind seed and save it with the experiment. In **Review**, inspect blind I
 
 Each OCR attempt records its engine/version, ROI or `full_frame` reference, preprocessing metadata, runtime, boxes, text state, and failure reason. Empty output and an unavailable engine are different recorded outcomes. Candidate regions are proposals for review, not evidence that the region contains a symbol.
 
-When candidate inspection is complete, choose **Mark review complete**, then **Unblind and compare**. This irreversible action restores source roles and provenance, computes q-values and matched-control statistics, and unlocks Setup and Run for the next experiment.
+When candidate inspection is complete, choose **Mark review complete**, then **Unblind and compare**. This irreversible action restores source roles and provenance, separates generated probes from recorded controls, and evaluates the declared independent capture-pair design. Candidate q-values are not estimated for related frames/variants. Setup and Run then unlock for the next experiment.
 
 Interpret the evidence ladder conservatively:
 
-- `no signal`: selected metrics did not beat controls.
+- `not tested`: no suitable declared empirical comparison or independent design; exploratory, not a null result.
+- `insufficient independent samples`: fewer than five independent matched capture pairs; extra frames do not count as repeats.
+- `no signal`: a supported capture-pair comparison did not clear the selected threshold.
 - `artifact`: control behavior or processing explains the result better.
 - `anomaly`: a feature is elevated but not supported as a controlled finding.
-- `above-control candidate`: the run passes configured control comparisons.
-- `repeatable candidate`: above-control behavior also persists across frames or captures.
+- `above-control candidate`: capture-level scores pass the declared paired permutation comparison.
+
+Within-video persistence is descriptive and never establishes independent replication. Generated nulls and calibration images remain separate from empirical controls. In advanced capture details, declare a non-identifying **Independent matched pair ID** shared by exactly one laser recording and one `matched_control`, and acknowledge a justified within-pair exchangeable design. Leave these unset when unknown; never invent independent repeats. Read [Statistical inference](statistical_inference.md) before interpreting significance or reopening legacy results.
 
 Evidence colors are consistent in the dashboard and HTML report: cyan for neutral or `no signal`, amber for warnings and artifacts, violet for context/anomaly states, magenta for sealed or above-control attention states, and mint for passed/repeatable states. Every state remains labeled in text for accessibility and auditability.
 

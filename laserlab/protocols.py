@@ -61,7 +61,7 @@ PROTOCOL_PRESETS: dict[str, dict[str, Any]] = {
             "texture features",
             "edge/line density",
             "frame persistence",
-            "FDR correction",
+            "Independent matched-pair inference; candidate FDR withheld",
         ],
     },
 }

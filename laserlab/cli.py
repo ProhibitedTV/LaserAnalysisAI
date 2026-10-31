@@ -39,6 +39,8 @@ def main(argv: list[str] | None = None) -> int:
                 experiment_dir=Path(args.experiment),
                 frame_interval=1 if args.all_frames else args.frame_interval,
                 max_frames=args.max_frames,
+                capture_metadata={"independent_pair_id": args.independent_pair_id,
+                                  "pair_exchangeability_acknowledged": args.acknowledge_pair_exchangeability},
                 sampling_profile=args.sampling_profile,
                 sampling_mode="all_frames" if args.all_frames and args.max_frames is None else "capped_all_frames" if args.all_frames else args.sampling_mode,
                 deduplicate=not args.keep_duplicates,
@@ -72,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             unblinded_at = run_record.get("review_state", {}).get("unblinded_at") or "legacy run"
             print(f"Review state: unblinded at {unblinded_at}")
             print(f"Evidence ladder: {run_record['aggregate_statistics']['evidence_ladder']}")
+            print(run_record["aggregate_statistics"].get("null_result_language", ""))
             return 0
         if args.command == "report":
             manifest = load_manifest(Path(args.experiment))
@@ -153,6 +156,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init", help="Create or append to an experiment manifest.")
+    init_parser.add_argument("--independent-pair-id", help="Non-identifying predeclared ID shared by one independently acquired laser/control pair.")
+    init_parser.add_argument("--acknowledge-pair-exchangeability", action="store_true", help="Declare a justified design in which conditions are exchangeable within each independent pair under the null.")
     init_parser.add_argument("--source", required=True, help="Video file or directory/file of images.")
     init_parser.add_argument("--kind", required=True, choices=["video", "image-set"])
     init_parser.add_argument("--label", required=True, choices=sorted(CAPTURE_ROLES))

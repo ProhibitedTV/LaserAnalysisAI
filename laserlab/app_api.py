@@ -7,13 +7,15 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from .artifacts import load_json
+from .artifacts import load_json, relative_to, write_json
 from .bundle import export_review_bundle as _export_review_bundle
 from .ingest import init_experiment
 from .manifest import latest_run_dir, load_manifest, load_or_create_manifest, write_manifest
 from .pipeline import run_experiment, unblind_latest_run as _unblind_latest_run
 from .protocols import describe_protocol, list_protocol_presets as _list_protocol_presets
 from .report import build_report
+from .report import write_html_report
+from .capture_inference import STATISTICS_VERSION
 from .capture_protocol import normalize_study_context
 from .community_data import (
     export_symbol_transcriptions_csv as _export_symbol_transcriptions_csv,
@@ -342,11 +344,21 @@ def load_latest_report(experiment_dir: Path) -> dict[str, Any]:
         report = build_report(experiment_dir, run_dir, run_record)
     else:
         report = load_json(report_path)
+    html_path = run_dir / "report.html"
+    if report.get("aggregate_statistics", {}).get("statistics_version") != STATISTICS_VERSION:
+        report = build_report(experiment_dir, run_dir, load_json(results_path), write_html=False)
+        # Preserve old artifacts byte-for-byte; point the UI at a versioned view.
+        report_path = run_dir / "report.statistics-v2.json"
+        html_path = run_dir / "report.statistics-v2.html"
+        report["artifacts"].update(report_json=relative_to(report_path, experiment_dir),
+                                   report_html=relative_to(html_path, experiment_dir))
+        write_json(report_path, report)
+        write_html_report(html_path, report)
     report["local_paths"] = {
         "run_dir": str(run_dir),
         "results_json": str(results_path),
         "report_json": str(report_path),
-        "report_html": str(run_dir / "report.html"),
+        "report_html": str(html_path),
     }
     return report
 
@@ -404,7 +416,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
         "roi_overlay_path",
     ]
     if unblinded:
-        fields[3:3] = ["unblinded_label", "source_path", "frame_index", "control_type"]
+        fields[3:3] = ["unblinded_label", "source_class", "source_path", "frame_index", "control_type"]
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -434,6 +446,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
                 record.update(
                     {
                         "unblinded_label": item.get("unblinded_label", ""),
+                        "source_class": item.get("source_class", "unverified_origin"),
                         "source_path": item.get("source_path", ""),
                         "frame_index": item.get("frame_index", ""),
                         "control_type": item.get("control_type", ""),
