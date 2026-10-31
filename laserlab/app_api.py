@@ -185,6 +185,36 @@ def import_external_dataset_reference(
     return payload
 
 
+
+def link_veilbreak_reference(
+    experiment_dir: Path,
+    public_record: dict[str, Any],
+) -> dict[str, Any]:
+    """Attach a selected public Veilbreak protocol/experiment as context only.
+
+    No network is accessed here: the caller must explicitly browse the public
+    catalog first. Neither measurements nor user footage are sent externally.
+    """
+    from .veilbreak_bridge import linked_record
+
+    experiment_dir = Path(experiment_dir)
+    manifest = load_or_create_manifest(experiment_dir)
+    _require_editable_manifest(manifest, "linking a Veilbreak reference")
+    reference = linked_record(public_record)
+    existing = [
+        item for item in manifest.get("external_dataset_references", [])
+        if not (
+            item.get("source") == "veilbreak"
+            and item.get("record_type") == reference["record_type"]
+            and item.get("record_id") == reference["record_id"]
+        )
+    ]
+    existing.append(reference)
+    manifest["external_dataset_references"] = existing
+    write_manifest(experiment_dir, manifest)
+    return reference
+
+
 def import_symbol_transcriptions(
     experiment_dir: Path,
     source_path: Path,
