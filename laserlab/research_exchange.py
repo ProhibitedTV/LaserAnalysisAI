@@ -156,7 +156,7 @@ def prepare_exchange(experiment_dir: Path, *, include_source_hashes: bool = Fals
                    "preprocessing_profile": _enum(run.get("profile"), {"baseline", "wide"}),
                    "detectors": sorted({value for value in (configuration.get("detectors") or []) if isinstance(value, str)} & set(DEFAULT_DETECTORS)),
                    "preprocessing_intensity": _enum(configuration.get("preprocessing_intensity"), {"standard", "wide"}),
-                   "control_generation": _enum(configuration.get("control_generation"), {"none", "standard"}),
+                   "control_generation": _enum(configuration.get("control_generation"), {"none", "standard", "strict"}),
                    "roi": {key: _number(roi.get(key), 0) for key in ("x", "y", "width", "height")},
                    "frame_sampling_mode": _enum(configuration.get("frame_sampling_mode"), {"interval", "scene_change", "all_frames", "capped_all_frames"}),
                    "evidence_thresholds": dict(EVIDENCE_THRESHOLDS)},

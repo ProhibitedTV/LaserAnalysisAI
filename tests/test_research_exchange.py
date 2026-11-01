@@ -190,6 +190,13 @@ class ExchangeTests(unittest.TestCase):
         self.assertIsNone(document["method"]["roi"]["x"])
         self.assertEqual(document["method"]["detectors"], ["ocr"])
 
+    def test_all_supported_control_generation_modes_are_retained(self):
+        for mode in ("none", "standard", "strict"):
+            self.run["analysis_configuration"]["control_generation"] = mode
+            self.save()
+            document = prepare_exchange(self.experiment)["document"]
+            self.assertEqual(document["method"]["control_generation"], mode)
+
     def test_cli_preview_token_and_save_use_the_same_explicit_options(self):
         output = io.StringIO()
         with redirect_stdout(output):
