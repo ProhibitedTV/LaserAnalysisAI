@@ -13,13 +13,13 @@ from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from . import __version__
 from .community_data import normalize_external_reference
 
 MCP_ENDPOINT = "https://veilbreak.ai/api/mcp"
 MCP_VERSION = "2025-03-26"
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 TIMEOUT_SECONDS = 12
-RECORD_LIMIT = 200
 
 _TOOLS = {
     "protocols": ("get_protocols", "get_protocol_by_id"),
@@ -38,7 +38,10 @@ class _NoRedirects(HTTPRedirectHandler):
 
 def _parse_rpc_response(raw: bytes, content_type: str, expected_id: int) -> dict[str, Any]:
     """Accept a JSON-RPC response or MCP's SSE-delivered JSON-RPC message."""
-    text = raw.decode("utf-8-sig")
+    try:
+        text = raw.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
+    except UnicodeDecodeError as exc:
+        raise VeilbreakError("Veilbreak returned invalid UTF-8 data.") from exc
     candidates: list[Any] = []
     if "text/event-stream" in content_type.lower():
         for event in text.split("\n\n"):
@@ -106,7 +109,13 @@ class VeilbreakClient:
                 mime = response.headers.get("Content-Type", "")
                 if len(data) > MAX_RESPONSE_BYTES:
                     raise VeilbreakError("Veilbreak response exceeds the safe size limit.")
-        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        except HTTPError as exc:
+            if exc.code == 429:
+                raise VeilbreakError("Veilbreak is rate limiting requests. Wait before browsing again.") from exc
+            if exc.code in (401, 403):
+                raise VeilbreakError("Veilbreak refused public catalog access. The MCP catalog is documented as keyless; do not enter a key in LaserLab.") from exc
+            raise VeilbreakError("Veilbreak's public MCP endpoint returned an HTTP error. Try again later or import a local JSON/CSV export.") from exc
+        except (URLError, TimeoutError, OSError) as exc:
             raise VeilbreakError(
                 "Could not reach Veilbreak's public MCP endpoint. "
                 "Try again later or import a local JSON/CSV export."
@@ -126,38 +135,55 @@ class VeilbreakClient:
             args = {"id": args["id"]}
         else:
             args = {}
+        session = self._initialize()
+        result, _ = self._rpc("tools/call", {"name": tool, "arguments": args}, 2, session)
+        return _tool_payload(result)
+
+    def _initialize(self) -> str | None:
         init, session = self._rpc(
             "initialize",
             {"protocolVersion": MCP_VERSION, "capabilities": {},
-             "clientInfo": {"name": "LaserLab", "version": "0.8"}},
+             "clientInfo": {"name": "LaserLab", "version": __version__}},
             1,
         )
-        if not init.get("protocolVersion"):
-            raise VeilbreakError("Veilbreak did not complete the MCP initialization.")
+        if init.get("protocolVersion") != MCP_VERSION:
+            raise VeilbreakError("Veilbreak negotiated an unsupported MCP version. Check compatibility before retrying.")
         self._rpc("notifications/initialized", {}, 0, session, notification=True)
-        result, _ = self._rpc("tools/call", {"name": tool, "arguments": args}, 2, session)
-        if result.get("isError"):
-            raise VeilbreakError("Veilbreak reported an error reading the public catalog.")
-        if isinstance(result.get("structuredContent"), (dict, list)):
-            return result["structuredContent"]
-        blocks = result.get("content", [])
-        if isinstance(blocks, list):
-            for block in blocks:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    try:
-                        return json.loads(block["text"])
-                    except (KeyError, TypeError, json.JSONDecodeError):
-                        continue
-        raise VeilbreakError("Veilbreak returned a catalog format LaserLab could not parse.")
+        return session
+
+
+def _tool_payload(result: Mapping[str, Any]) -> Any:
+    if result.get("isError"):
+        raise VeilbreakError("Veilbreak reported an error reading the public catalog.")
+    if isinstance(result.get("structuredContent"), (dict, list)):
+        return result["structuredContent"]
+    blocks = result.get("content", [])
+    if isinstance(blocks, list):
+        for block in blocks:
+            if isinstance(block, dict) and block.get("type") == "text":
+                try:
+                    return json.loads(block["text"])
+                except (KeyError, TypeError, json.JSONDecodeError):
+                    continue
+    raise VeilbreakError("Veilbreak returned a catalog format LaserLab could not parse.")
 
 
 def _records(payload: Any, kind: str) -> list[Mapping[str, Any]]:
     if isinstance(payload, list):
-        return [row for row in payload if isinstance(row, Mapping)][:RECORD_LIMIT]
+        return [row for row in payload if isinstance(row, Mapping)]
     if isinstance(payload, Mapping):
+        pagination = payload.get("pagination")
+        if (isinstance(pagination, Mapping) and (
+            pagination.get("has_more") or pagination.get("total_pages") not in (None, 0, 1)
+        )) or any(payload.get(key) for key in ("nextCursor", "next_cursor", "next")):
+            raise VeilbreakError("Veilbreak returned a partial catalog. Its MCP tools do not advertise pagination; LaserLab will not silently omit remaining records.")
         for key in ("data", kind, "records", "items", "results"):
             if key in payload:
-                return _records(payload[key], kind)
+                records = _records(payload[key], kind)
+                total = pagination.get("total") if isinstance(pagination, Mapping) else None
+                if isinstance(total, int) and total > len(records):
+                    raise VeilbreakError("Veilbreak returned a partial catalog. Remaining records are unavailable through the advertised MCP tools.")
+                return records
         if "id" in payload:
             return [payload]
     raise VeilbreakError("Veilbreak returned an unsupported catalog shape.")
@@ -172,19 +198,47 @@ def safe_public_record(record: Mapping[str, Any], kind: str) -> dict[str, Any]:
         raise VeilbreakError("Veilbreak record has no valid numeric ID.")
     identifier = int(identifier)
     title = str(record.get("title") or f"Veilbreak {kind[:-1]} #{identifier}")[:160]
-    source = {key: record[key] for key in (
+    optical_keys = (
         "laser_wavelength_nm", "wavelength_nm", "laser_power", "rated_power_mw",
-        "laser_class", "laser_class_label", "projection_distance",
+        "laser_class", "laser_class_label", "projection_distance", "projection_distance_ft",
         "projection_distance_meters", "equipment", "laser_pattern_type", "tags",
-    ) if key in record}
+        "laser_wavelength",
+    )
+    meta = record.get("meta")
+    meta = meta if isinstance(meta, Mapping) else {}
+    source = {}
+    origins = {}
+    for key in optical_keys:
+        for candidate, prefix in ((record, ""), (meta, "meta.")):
+            if key in candidate and candidate[key] not in (None, ""):
+                source[key] = candidate[key]
+                origins[key] = prefix + key
+                break
     # Veilbreak's published schema calls this field laser_wavelength, while
     # LaserLab's normalizer expects wavelength_nm or laser_wavelength_nm.
-    if "laser_wavelength" in record and not any(
+    if "laser_wavelength" in source and not any(
         key in source for key in ("wavelength_nm", "laser_wavelength_nm")
     ):
-        source["wavelength_nm"] = record["laser_wavelength"]
+        source["wavelength_nm"] = source["laser_wavelength"]
+        origins["wavelength_nm"] = origins["laser_wavelength"]
+    # The live get_schema response defines projection_distance in FEET, unlike
+    # the generic community-import default of meters. Explicit unit keys win.
+    if "projection_distance" in source:
+        source.setdefault("projection_distance_ft", source["projection_distance"])
+        origins.setdefault("projection_distance_ft", origins["projection_distance"])
+        del source["projection_distance"]
     # Never save free-form descriptions, questionnaire answers, or perceived symbols.
-    normalized = normalize_external_reference(source, record_index=identifier)
+    try:
+        normalized = normalize_external_reference(source, record_index=identifier)
+    except (TypeError, ValueError) as exc:
+        raise VeilbreakError("Veilbreak returned invalid optical metadata. No reference was linked.") from exc
+    confidence = normalized.get("field_confidence", {})
+    for detail in confidence.values():
+        field = detail.get("source_field")
+        if field in origins:
+            detail["source_field"] = origins[field]
+        if field == "projection_distance_ft":
+            detail["note"] = "Veilbreak reports feet; normalized to meters. Reported context, not a local measurement."
     return {
         "source": "veilbreak",
         "record_type": kind[:-1],
@@ -196,7 +250,7 @@ def safe_public_record(record: Mapping[str, Any], kind: str) -> dict[str, Any]:
                 "projection_distance_meters", "laser_pattern_type", "equipment", "tags",
             )
         },
-        "field_confidence": normalized.get("field_confidence", {}),
+        "field_confidence": confidence,
         "evidence_role": "context_only",
         "excluded_from_detector_scoring": True,
     }
@@ -210,6 +264,73 @@ def browse_public(kind: str, *, client: VeilbreakClient | None = None) -> list[d
     return [safe_public_record(record, kind) for record in _records(payload, kind)]
 
 
+def check_public_compatibility(*, client: VeilbreakClient | None = None) -> dict[str, Any]:
+    """Explicit live protocol check returning counts/schema facts, never raw records.
+
+    Does not run at startup, during ordinary analysis, or in offline test/CI.
+    Maintainer coordination, experiment-record acceptance and contribution
+    authorization are separate from this point-in-time public protocol probe.
+    """
+    client = client or VeilbreakClient()
+    session = client._initialize()
+    discovery, _ = client._rpc("tools/list", {}, 2, session)
+    if discovery.get("nextCursor"):
+        raise VeilbreakError("Veilbreak tool discovery is incomplete; check compatibility manually.")
+    advertised = discovery.get("tools")
+    if not isinstance(advertised, list):
+        raise VeilbreakError("Veilbreak returned an unsupported tool-discovery schema.")
+    tools = {tool["name"]: tool for tool in advertised
+             if isinstance(tool, Mapping) and isinstance(tool.get("name"), str)}
+    expected = {name for names in _TOOLS.values() for name in names} | {"get_schema"}
+    if not expected.issubset(tools):
+        raise VeilbreakError("Veilbreak is missing an expected read-only catalog tool.")
+
+    def obj(value: Any) -> Mapping[str, Any]:
+        return value if isinstance(value, Mapping) else {}
+
+    for name in ("get_protocol_by_id", "get_experiment_by_id"):
+        schema = obj(tools[name].get("inputSchema"))
+        required = schema.get("required")
+        if (obj(obj(schema.get("properties")).get("id")).get("type") not in ("integer", "number")
+                or not isinstance(required, list) or "id" not in required):
+            raise VeilbreakError("Veilbreak's record-ID schema changed; check compatibility manually.")
+
+    def invoke(name: str, args: dict[str, Any], request_id: int) -> Any:
+        result, _ = client._rpc("tools/call", {"name": name, "arguments": args}, request_id, session)
+        return _tool_payload(result)
+
+    schema = invoke("get_schema", {}, 3)
+    fields = obj(obj(obj(schema).get("fields")).get("protocol"))
+    units = {"laser_wavelength": "nanometers", "laser_power": "milliwatts", "projection_distance": "feet"}
+    if any(unit not in str(obj(fields.get(field)).get("description", "")).lower()
+           for field, unit in units.items()):
+        raise VeilbreakError("Veilbreak's reported optical units changed or are missing. Do not assume local measurement units.")
+    records = [safe_public_record(row, "protocols") for row in _records(invoke("get_protocols", {}, 4), "protocols")]
+    by_id_checked = False
+    if records:
+        identifier = records[0]["record_id"]
+        returned = _records(invoke("get_protocol_by_id", {"id": identifier}, 5), "protocols")
+        if len(returned) != 1 or safe_public_record(returned[0], "protocols")["record_id"] != identifier:
+            raise VeilbreakError("Veilbreak's protocol-ID lookup did not match the catalog.")
+        by_id_checked = True
+    error_result, _ = client._rpc("tools/call", {"name": "get_protocol_by_id", "arguments": {"id": 9007199254740991}}, 6, session)
+    if error_result.get("isError") is not True:
+        raise VeilbreakError("Veilbreak did not return the expected missing-protocol error; check compatibility manually.")
+    return {
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "endpoint": MCP_ENDPOINT,
+        "protocol_version": MCP_VERSION,
+        "read_only_tools": sorted(expected),
+        "protocol_records": len(records),
+        "protocol_by_id_checked": by_id_checked,
+        "missing_protocol_reported_as_error": error_result.get("isError") is True,
+        "reported_units": units,
+        "optical_field_counts": {field: sum(record["optical_metadata"].get(field) is not None for record in records)
+                                 for field in ("wavelength_nm", "rated_power_mw", "projection_distance_meters")},
+        "scope": "Point-in-time public protocol transport/schema check; not native, volunteer, experiment-record or authorized contribution acceptance.",
+    }
+
+
 def read_public_record(kind: str, record_id: int, *,
                        client: VeilbreakClient | None = None) -> dict[str, Any]:
     """Get one published record by numeric ID, reducing it to safe metadata."""
@@ -219,9 +340,12 @@ def read_public_record(kind: str, record_id: int, *,
         raise ValueError("Record ID must be a positive integer.")
     payload = (client or VeilbreakClient()).call(_TOOLS[kind][1], {"id": record_id})
     entries = _records(payload, kind)
-    if not entries or int(entries[0].get("id", 0)) != record_id:
+    if len(entries) != 1:
         raise VeilbreakError("Veilbreak returned no matching published record.")
-    return safe_public_record(entries[0], kind)
+    record = safe_public_record(entries[0], kind)
+    if record["record_id"] != record_id:
+        raise VeilbreakError("Veilbreak returned no matching published record.")
+    return record
 
 
 def linked_record(public_record: Mapping[str, Any]) -> dict[str, Any]:
