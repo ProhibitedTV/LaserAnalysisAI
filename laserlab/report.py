@@ -51,6 +51,8 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "profile": run_record["profile"],
         "protocol": run_record.get("protocol", "anomaly"),
         "analysis_plan": run_record.get("analysis_plan", {}),
+        "analysis_configuration": run_record.get("analysis_configuration", {}),
+        "replication_context": "Frame persistence and repeats within a capture are descriptive. Across-capture and independent-session replication require provenance and compatible predeclared designs; this single-run report does not establish them.",
         "blind_seed": run_record["blind_seed"],
         "review_state": run_record.get("review_state", {"unblinded": True, "unblinded_at": None}),
         "review_session": run_record.get("review_session", {"complete": False, "completed_at": None}),
@@ -263,6 +265,7 @@ def render_html_report(report: dict[str, Any]) -> str:
   <h1>LaserAnalysisAI Blinded Signal Report</h1>
   {migration_html}
   {inference_html}
+  <p>{html.escape(report.get('replication_context', 'Frame persistence is descriptive, not independent-session replication.'))}</p>
   {quality_html}
   <div class="summary">
     <p>{badges}</p>

@@ -37,6 +37,8 @@ After unblinding, `source_class` distinguishes generated probes, synthetic calib
 
 Frame persistence can describe stability within a recording. It never produces `repeatable candidate` or proves across-capture/session replication, language, or origin. Pair-design assumptions and the limitations remain in reproducible reports alongside the method version, seed, permutation count, and independent sample sizes.
 
+Development source also supports an optional [local session comparison](session_comparison.md). It checks explicitly unblinded runs, prospective hypothesis commitments, original acquisition lineage and compatible settings. Per-session outcomes stay separate; no pooled significance is computed, and missing declarations remain exploratory.
+
 This distinction between repeated observations and experimental units follows the [pseudoreplication analysis by Lazic](https://pmc.ncbi.nlm.nih.gov/articles/PMC2817684/). The whole-pair exchangeability test and randomized plus-one convention follow the [paired-sample permutation description in SciPy's documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.permutation_test.html). The implementation uses the standard library; SciPy is not a runtime dependency.
 
 ## Saved experiments and exports

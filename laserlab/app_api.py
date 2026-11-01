@@ -32,6 +32,24 @@ def create_experiment(experiment_dir: Path) -> dict[str, Any]:
     return manifest
 
 
+def record_replication_plan(experiment_dir: Path, hypothesis_token: str, independent_acquisition: bool,
+                            protocol: str | None = None, primary_metric: str | None = None) -> dict[str, Any]:
+    from .replication import record_replication_plan as record_plan
+    return record_plan(Path(experiment_dir), hypothesis_token, independent_acquisition, protocol, primary_metric)
+
+
+def compare_sessions(experiment_dirs: list[Path]) -> dict[str, Any]:
+    from .replication import compare_sessions as compare
+    return compare([Path(directory) for directory in experiment_dirs])
+
+
+def export_session_comparison(experiment_dirs: list[Path], output_path: Path, *, privacy_acknowledged: bool = False,
+                              expected_snapshot: str | None = None) -> Path:
+    from .replication import export_comparison
+    return export_comparison(experiment_dirs, Path(output_path), privacy_acknowledged=privacy_acknowledged,
+                             expected_snapshot=expected_snapshot)
+
+
 def add_capture(
     experiment_dir: Path,
     source: Path,

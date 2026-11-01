@@ -43,6 +43,7 @@ from PyQt5.QtWidgets import (
 from laserlab import __version__, app_api
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
+from laserlab.replication import comparison_html
 from laserlab.veilbreak_bridge import browse_public
 from laserlab.diagnostics import (
     collect_diagnostics,
@@ -91,6 +92,8 @@ class LabDashboardWindow(QMainWindow):
         self.latest_report: dict[str, Any] | None = None
         self.worker: ApiWorker | None = None
         self._busy = False
+        self.session_comparison: dict[str, Any] | None = None
+        self.comparison_directories: list[Path] = []
         self.preferences = preferences if preferences is not None else load_preferences()
         self.protocol_presets = app_api.list_protocol_presets()
         self._build_ui()
@@ -441,6 +444,11 @@ class LabDashboardWindow(QMainWindow):
         ):
             advanced_layout.addWidget(QLabel(label), row, 0)
             advanced_layout.addWidget(field, row, 1, 1, 3)
+        self.acquisition_source_hash = QLineEdit()
+        self.acquisition_source_hash.setPlaceholderText("Optional known original acquisition SHA-256; leave unknown lineage unset")
+        self.acquisition_source_hash.setToolTip("For session replication: record the original acquisition hash, including when importing a derived clip. Shared originals are not independent sessions.")
+        advanced_layout.addWidget(QLabel("Original acquisition SHA-256"), 18, 0)
+        advanced_layout.addWidget(self.acquisition_source_hash, 18, 1, 1, 3)
         self.capture_advanced.setVisible(False)
         self.capture_advanced_button.toggled.connect(self.capture_advanced.setVisible)
         self.capture_advanced_button.toggled.connect(
@@ -523,6 +531,20 @@ class LabDashboardWindow(QMainWindow):
         experimental_layout.addWidget(self.import_trials_button)
         experimental_layout.addWidget(self.psychophysics_status, 1)
         advanced_layout.addWidget(experimental)
+        replication = QGroupBox("Optional independent-session plan — record before the first run")
+        replication_form = QFormLayout(replication)
+        self.replication_hypothesis = QLineEdit()
+        self.replication_hypothesis.setPlaceholderText("Shared non-identifying hypothesis token; no personal details")
+        self.replication_independent = QCheckBox("These sessions use independently acquired original recordings, not copied or derived repeats")
+        self.record_replication_button = QPushButton("Record pre-run replication plan")
+        self.record_replication_button.clicked.connect(self.record_session_plan)
+        replication_form.addRow("Hypothesis token", self.replication_hypothesis)
+        replication_form.addRow(self.replication_independent)
+        replication_form.addRow(self.record_replication_button)
+        replication_note = QLabel("Fixes the current protocol/primary metric and criterion: each session must exceed its own matched controls. Local declarations cannot prove independence or external preregistration.")
+        replication_note.setWordWrap(True)
+        replication_form.addRow(replication_note)
+        advanced_layout.addWidget(replication)
         self.protocol_advanced.setVisible(False)
         self.protocol_advanced_button.toggled.connect(self.protocol_advanced.setVisible)
         self.protocol_advanced_button.toggled.connect(
@@ -768,11 +790,31 @@ class LabDashboardWindow(QMainWindow):
         self.family_table.setHorizontalHeaderLabels(["Detector family", "Mean", "Low", "High"])
         self.family_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.family_table.verticalHeader().setVisible(False)
+        self.family_table.setMaximumHeight(180)
         layout.addWidget(QLabel("Detector-family comparison across laser samples"))
         layout.addWidget(self.family_table, 1)
         self.compare_notes = QTextEdit()
         self.compare_notes.setReadOnly(True)
+        self.compare_notes.setMaximumHeight(120)
         layout.addWidget(self.compare_notes)
+        sessions = QGroupBox("Optional comparison across local sessions")
+        session_layout = QVBoxLayout(sessions)
+        self.session_compare_button = QPushButton("Compare unblinded sessions")
+        self.session_compare_button.clicked.connect(self.compare_local_sessions)
+        session_layout.addWidget(self.session_compare_button)
+        self.session_comparison_details = QTextEdit()
+        self.session_comparison_details.setReadOnly(True)
+        self.session_comparison_details.setMinimumHeight(170)
+        self.session_comparison_details.setPlainText("Choose two to eight explicitly unblinded experiments. Outcomes remain separate; no pooled significance or upload.")
+        session_layout.addWidget(self.session_comparison_details)
+        self.session_privacy = QCheckBox("I reviewed this pseudonymized summary and its privacy implications before local export")
+        self.session_privacy.toggled.connect(lambda: self.session_export_button.setEnabled(bool(self.session_comparison) and self.session_privacy.isChecked() and not self._busy))
+        session_layout.addWidget(self.session_privacy)
+        self.session_export_button = QPushButton("Export local session summary")
+        self.session_export_button.setEnabled(False)
+        self.session_export_button.clicked.connect(self.export_session_summary)
+        session_layout.addWidget(self.session_export_button)
+        layout.addWidget(sessions, 2)
         return page
 
     def _fixtures_tab(self) -> QWidget:
@@ -961,6 +1003,7 @@ class LabDashboardWindow(QMainWindow):
             manifest = app_api.create_experiment(experiment_dir)
             self.experiment_dir = experiment_dir
             self.pair_quality_details.setPlainText("Check Pair Quality for this experiment before Run.")
+            self._clear_session_comparison("Choose unblinded experiments to compare their separate session outcomes.")
             self._populate_captures(manifest)
             plan = manifest.get("analysis_plan", {})
             self._set_combo_data(self.protocol_combo, plan.get("protocol", manifest.get("protocol", "anomaly")))
@@ -1203,6 +1246,70 @@ class LabDashboardWindow(QMainWindow):
         self._run_worker("Checking comparison quality", lambda: app_api.assess_pair_quality(experiment),
                          lambda result: self._show_pair_quality(result, experiment))
 
+    def record_session_plan(self) -> None:
+        if self._busy:
+            return
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        try:
+            app_api.record_replication_plan(experiment, self.replication_hypothesis.text().strip(),
+                                            self.replication_independent.isChecked(), self._current_protocol(),
+                                            self.primary_metric_combo.currentText())
+            self.replication_hypothesis.clear()
+            self.status.showMessage("Local pre-run plan recorded; acquisition and preregistration remain unverified declarations")
+        except Exception as exc:
+            self._error(str(exc))
+
+    def compare_local_sessions(self) -> None:
+        if self._busy:
+            return
+        if self.latest_report and not self._review_is_unblinded():
+            self._error("Finish and explicitly unblind the active review before comparing sessions.")
+            return
+        count, accepted = QInputDialog.getInt(self, "Compare local sessions", "Number of unblinded experiments", 2, 2, 8)
+        if not accepted:
+            return
+        directories = []
+        for number in range(count):
+            selected = QFileDialog.getExistingDirectory(self, f"Choose unblinded experiment {number + 1} of {count}",
+                                                        str(self.experiment_dir or default_experiments_dir()))
+            if not selected:
+                return
+            directories.append(Path(selected))
+        self._run_worker("Comparing local sessions", lambda: app_api.compare_sessions(directories),
+                         lambda result: self._session_comparison_ready(result, directories))
+
+    def _session_comparison_ready(self, summary: dict[str, Any], directories: list[Path]) -> None:
+        if self.latest_report and not self._review_is_unblinded():
+            self._error("The active review is blinded; compare sessions after explicit unblinding.")
+            return
+        self.session_comparison = summary
+        self.comparison_directories = list(directories)
+        self.session_comparison_details.setHtml(comparison_html(summary))
+        self.session_privacy.setChecked(False)
+        self.session_export_button.setEnabled(False)
+
+    def _clear_session_comparison(self, message: str) -> None:
+        self.session_comparison = None
+        self.comparison_directories = []
+        self.session_comparison_details.setPlainText(message)
+        self.session_privacy.setChecked(False)
+        self.session_export_button.setEnabled(False)
+
+    def export_session_summary(self) -> None:
+        if not self.session_comparison or not self.session_privacy.isChecked():
+            self._error("Review the session summary and acknowledge privacy before export.")
+            return
+        output, _ = QFileDialog.getSaveFileName(self, "Export local session summary", "session-comparison.json", "JSON (*.json)")
+        if not output:
+            return
+        directories = list(self.comparison_directories)
+        snapshot = self.session_comparison["_snapshot_sha256"]
+        self._run_worker("Exporting local session summary", lambda: app_api.export_session_comparison(
+            directories, Path(output), privacy_acknowledged=True, expected_snapshot=snapshot),
+            lambda result: self.status.showMessage("Local session summary exported; no upload"))
+
     def _show_pair_quality(self, assessment: dict[str, Any], experiment: Path) -> bool:
         if self.experiment_dir != experiment:
             self._error("The experiment changed. Check Pair Quality again before Run.")
@@ -1237,6 +1344,7 @@ class LabDashboardWindow(QMainWindow):
         # Role-specific setup details must not survive into sealed review widgets.
         self.pair_quality_details.setPlainText("Pair Quality source details are sealed during review.")
         self.quality_checklist.setPlainText("Source details remain sealed until explicit unblinding.")
+        self._clear_session_comparison("Session comparison is unavailable during the active sealed review.")
         self._run_worker("Running analysis", lambda: app_api.run_analysis(experiment_dir=experiment, **run_options),
                          self._analysis_finished)
 
@@ -1246,6 +1354,7 @@ class LabDashboardWindow(QMainWindow):
             return
         self.experiment_path.setText(self.demo_experiment_path.text())
         self.experiment_dir = Path(self.demo_experiment_path.text())
+        self._clear_session_comparison("Session comparison is unavailable during the active sealed review.")
         protocol = self.demo_protocol.currentData() or "anomaly"
         max_frames = self.demo_max_frames.value()
 
@@ -1743,12 +1852,14 @@ class LabDashboardWindow(QMainWindow):
         self.tabs.setTabVisible(1, unblinded)
         self.include_media.setEnabled(unblinded)
         if not unblinded:
+            self._clear_session_comparison("Session comparison is unavailable during the active sealed review.")
             self.pair_quality_details.setPlainText("Pair Quality source details are sealed during review.")
             self.quality_checklist.setPlainText("Source details remain sealed until explicit unblinding.")
             self.include_media.setChecked(False)
             self.tabs.setCurrentIndex(2)
         else:
             self.pair_quality_details.setHtml(pair_quality_html(report.get("pre_run_quality")))
+        self.session_compare_button.setEnabled(unblinded and not self._busy)
         for key, label in self.metric_labels.items():
             value = summary.get(key, stats.get(key))
             label.setText("n/a" if value is None else str(value))
@@ -1978,6 +2089,7 @@ class LabDashboardWindow(QMainWindow):
     def _capture_metadata(self) -> dict[str, Any]:
         return {
             "independent_pair_id": self.independent_pair_id.text().strip() or None,
+            "acquisition_source_sha256": self.acquisition_source_hash.text().strip() or None,
             "pair_exchangeability_acknowledged": self.pair_exchangeability.isChecked(),
             "footage_class": self.footage_class_combo.currentData() or "other",
             "laser_pattern_type": self.laser_pattern_combo.currentText(),
@@ -2073,6 +2185,9 @@ class LabDashboardWindow(QMainWindow):
         for button in (
             self.run_button,
             self.pair_quality_button,
+            self.session_compare_button,
+            self.session_export_button,
+            self.record_replication_button,
             self.home_analyze_button,
             self.home_open_button,
             self.add_capture_button,
@@ -2094,6 +2209,8 @@ class LabDashboardWindow(QMainWindow):
             complete = bool(report.get("review_session", {}).get("complete"))
             self.unblind_button.setEnabled(not unblinded and complete)
             self.complete_review_button.setEnabled(not unblinded and not complete)
+            self.session_compare_button.setEnabled(not report or unblinded)
+            self.session_export_button.setEnabled(bool(self.session_comparison) and self.session_privacy.isChecked() and (not report or unblinded))
 
     def _error(self, message: str) -> None:
         LOGGER.warning("User-visible error: %s", message)

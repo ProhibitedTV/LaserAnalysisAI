@@ -29,6 +29,8 @@ from .stats import current_statistics, summarize_blinded_results, summarize_resu
 from .synthetic import create_synthetic_positive
 from .capture_protocol import capture_protocol_summary
 from .capture_inference import sample_class
+from .artifacts import sha256_json
+from .manifest import DEFAULT_DETECTORS
 from .pair_quality import assess_experiment
 
 
@@ -196,6 +198,14 @@ def run_experiment(
         "results": seal_results(results, blinded_samples),
         "aggregate_statistics": aggregate,
         "pre_run_quality": {"sealed": True},
+        "replication_plan": {"sealed": True},
+        "analysis_configuration": {"version": "analysis-config-v1", "detectors": sorted(DEFAULT_DETECTORS),
+                                   "preprocessing_profile_sha256": sha256_json(profile),
+                                   "preprocessing_intensity": preprocessing_intensity, "control_generation": control_generation,
+                                   "roi": roi, "frame_sampling_mode": plan.get("frame_sampling_mode"),
+                                   "ocr_engines": sorted({(str(attempt.get("engine_id")), str(attempt.get("engine_version")),
+                                                           bool(attempt.get("available")))
+                                                          for result in results for attempt in result.get("ocr_attempts", [])})},
         "provenance_summary": {
             "capture_count": len(manifest.get("captures", [])),
             "warning_count": sum(
