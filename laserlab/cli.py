@@ -104,6 +104,22 @@ def main(argv: list[str] | None = None) -> int:
                 for item in fetched:
                     print(f"{item['status']}: {item['id']} -> {item.get('path', item.get('reason', ''))}")
                 return 0
+        if args.command == "benchmark":
+            from .optical_benchmark import generate_benchmark_pack, evaluate_benchmark_pack
+            if args.benchmark_action == "generate":
+                manifest = generate_benchmark_pack(Path(args.output))
+                print(f"Generated {len(manifest['cases'])} synthetic cases: {Path(args.output) / 'benchmark_manifest.json'}")
+                return 0
+            from .ocr_adapters import TesseractAdapter
+            adapter = TesseractAdapter() if args.ocr == "tesseract" else None
+            record = evaluate_benchmark_pack(Path(args.pack), ocr_adapter=adapter)
+            destination = Path(args.output)
+            if destination.exists():
+                raise FileExistsError("Choose a new benchmark report path; existing reports are preserved.")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            print(f"Evaluated {record['probe_count']} synthetic probes; OCR {record['ocr_mode']}: {destination}")
+            return 0
         if args.command == "protocols":
             if args.protocol_action == "list":
                 for item in list_protocol_presets():
@@ -154,6 +170,15 @@ def build_parser() -> argparse.ArgumentParser:
         description="Blinded signal validation pipeline for laser captures.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    benchmark = subparsers.add_parser("benchmark", help="Offline synthetic optical probes; never empirical research evidence.")
+    benchmark_actions = benchmark.add_subparsers(dest="benchmark_action", required=True)
+    generate = benchmark_actions.add_parser("generate", help="Generate a deterministic pack into a new directory.")
+    generate.add_argument("--output", required=True)
+    evaluate = benchmark_actions.add_parser("run", help="Verify hashes/recipe and report descriptive feature errors.")
+    evaluate.add_argument("--pack", required=True)
+    evaluate.add_argument("--output", required=True)
+    evaluate.add_argument("--ocr", choices=["off", "tesseract"], default="off", help="Optional real OCR. Missing/failed OCR remains unscored.")
 
     init_parser = subparsers.add_parser("init", help="Create or append to an experiment manifest.")
     init_parser.add_argument("--independent-pair-id", help="Non-identifying predeclared ID shared by one independently acquired laser/control pair.")

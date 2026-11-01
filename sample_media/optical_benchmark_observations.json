@@ -1,0 +1,1190 @@
+{
+  "benchmark_version": "optical-probes-v1",
+  "by_variant": {
+    "blur": {
+      "frame_persistence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 2,
+        "not_evaluated": 0,
+        "positive_count": 8,
+        "true_negative": 2,
+        "true_positive": 8,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "ocr_text_presence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 4,
+        "false_positive_rate": 0.5714285714285714,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 3,
+        "true_positive": 3,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "periodic_pattern": {
+        "evaluated": 5,
+        "false_negative": 1,
+        "false_negative_rate": 0.5,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 3,
+        "not_evaluated": 0,
+        "positive_count": 2,
+        "true_negative": 3,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 5
+      },
+      "pixel_clipping": {
+        "evaluated": 0,
+        "false_negative": 0,
+        "false_negative_rate": null,
+        "false_positive": 0,
+        "false_positive_rate": null,
+        "negative_count": 0,
+        "not_evaluated": 0,
+        "positive_count": 0,
+        "true_negative": 0,
+        "true_positive": 0,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 10
+      },
+      "text_like_components": {
+        "evaluated": 10,
+        "false_negative": 2,
+        "false_negative_rate": 0.6666666666666666,
+        "false_positive": 3,
+        "false_positive_rate": 0.42857142857142855,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 4,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      }
+    },
+    "blur_jpeg35": {
+      "frame_persistence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 2,
+        "not_evaluated": 0,
+        "positive_count": 8,
+        "true_negative": 2,
+        "true_positive": 8,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "ocr_text_presence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 3,
+        "false_positive_rate": 0.42857142857142855,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 4,
+        "true_positive": 3,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "periodic_pattern": {
+        "evaluated": 5,
+        "false_negative": 1,
+        "false_negative_rate": 0.5,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 3,
+        "not_evaluated": 0,
+        "positive_count": 2,
+        "true_negative": 3,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 5
+      },
+      "pixel_clipping": {
+        "evaluated": 0,
+        "false_negative": 0,
+        "false_negative_rate": null,
+        "false_positive": 0,
+        "false_positive_rate": null,
+        "negative_count": 0,
+        "not_evaluated": 0,
+        "positive_count": 0,
+        "true_negative": 0,
+        "true_positive": 0,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 10
+      },
+      "text_like_components": {
+        "evaluated": 10,
+        "false_negative": 2,
+        "false_negative_rate": 0.6666666666666666,
+        "false_positive": 3,
+        "false_positive_rate": 0.42857142857142855,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 4,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      }
+    },
+    "jpeg35": {
+      "frame_persistence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 2,
+        "not_evaluated": 0,
+        "positive_count": 8,
+        "true_negative": 2,
+        "true_positive": 8,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "ocr_text_presence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 4,
+        "false_positive_rate": 0.5714285714285714,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 3,
+        "true_positive": 3,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "periodic_pattern": {
+        "evaluated": 5,
+        "false_negative": 1,
+        "false_negative_rate": 0.5,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 3,
+        "not_evaluated": 0,
+        "positive_count": 2,
+        "true_negative": 3,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 5
+      },
+      "pixel_clipping": {
+        "evaluated": 0,
+        "false_negative": 0,
+        "false_negative_rate": null,
+        "false_positive": 0,
+        "false_positive_rate": null,
+        "negative_count": 0,
+        "not_evaluated": 0,
+        "positive_count": 0,
+        "true_negative": 0,
+        "true_positive": 0,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 10
+      },
+      "text_like_components": {
+        "evaluated": 10,
+        "false_negative": 2,
+        "false_negative_rate": 0.6666666666666666,
+        "false_positive": 1,
+        "false_positive_rate": 0.14285714285714285,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 6,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      }
+    },
+    "original": {
+      "frame_persistence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 2,
+        "not_evaluated": 0,
+        "positive_count": 8,
+        "true_negative": 2,
+        "true_positive": 8,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "ocr_text_presence": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 4,
+        "false_positive_rate": 0.5714285714285714,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 3,
+        "true_positive": 3,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "periodic_pattern": {
+        "evaluated": 5,
+        "false_negative": 1,
+        "false_negative_rate": 0.5,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 3,
+        "not_evaluated": 0,
+        "positive_count": 2,
+        "true_negative": 3,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 5
+      },
+      "pixel_clipping": {
+        "evaluated": 10,
+        "false_negative": 0,
+        "false_negative_rate": 0.0,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "negative_count": 9,
+        "not_evaluated": 0,
+        "positive_count": 1,
+        "true_negative": 9,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      },
+      "text_like_components": {
+        "evaluated": 10,
+        "false_negative": 2,
+        "false_negative_rate": 0.6666666666666666,
+        "false_positive": 1,
+        "false_positive_rate": 0.14285714285714285,
+        "negative_count": 7,
+        "not_evaluated": 0,
+        "positive_count": 3,
+        "true_negative": 6,
+        "true_positive": 1,
+        "unit": "case-variant probes; correlated derivatives, not independent experiments",
+        "unknown_ground_truth": 0
+      }
+    }
+  },
+  "case_count": 10,
+  "environment": {
+    "numpy": "2.4.6",
+    "opencv": "4.13.0",
+    "python": "3.11.8"
+  },
+  "limitations": [
+    "Finite deterministic software probes, not a population estimate or physical optics validation.",
+    "No significance, confidence intervals, matched-control evidence or validated-language classification is produced.",
+    "Case variants and repeated frames are correlated; counts are descriptive probe counts, not independent n.",
+    "Missing, failed, unavailable and null-text OCR are unscored, not true negatives or false negatives.",
+    "OCR uses one full-frame request per case/variant; it does not benchmark the full ROI search pipeline.",
+    "Features are measured on the first frame except clipping and the actual pipeline persistence over three frames.",
+    "Image encoding and blur can vary with library versions; replay requires the recorded stack and matching hashes."
+  ],
+  "manifest_sha256": "000a6db02abbd20f10ec753b3e2adc317aba51b71adc144b19b5805ee80da782",
+  "observations": [
+    {
+      "case_id": "fringes",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "fringes",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "fringes",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "fringes",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "speckle",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "SO ee ce a\n8\nSEAT aia Caters ater n te See Att Diehaett S eT ASG",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "speckle",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "SAEED ON\nee A reel Sey Snes\nes",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "speckle",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "Fo\npeepee ae eg eS\noe\nSo",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "speckle",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "Aas.",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "compression_blocks",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "pane,\nter os Lie Ee",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "compression_blocks",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "x. i",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "compression_blocks",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "pare,\nete os Lie Ee",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "compression_blocks",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "saturated_patch",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": true,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": true,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "saturated_patch",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": true,
+        "text_like_components": false
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "saturated_patch",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": true,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "saturated_patch",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": true,
+        "text_like_components": false
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "sensor_noise",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "oe ce\nee oe ae\noe",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "sensor_noise",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "rit eet * Rae eee RAS,\nSeaver & 4 ay ie\nagua emea reac tee",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "sensor_noise",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "Psp ee es AE ES\na\nee",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "sensor_noise",
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "deh Se hy en ke\nSs: Fe ey *",
+      "predictions": {
+        "frame_persistence": false,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "static_texture",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "PPrrrererrerrererererre\nPPeeeeeeeeeeeeeee\nPPeeeeeeeeeeeeeee\nPPeeeeeeeeeeeeeee\nPPeeeeeeeeeeeeeee\nPPeeeeeeeeeeeeeee\nPPeeeeeeeeeeeeeee\nPPeeeeeeeeeeeeeee\nPPeeeeeeeeeeeeeee\nPeeeeererereeeee eee",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "static_texture",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "ppprrerrrrrerrrrye\nPeeeeeereeeeeee ce\nPeeeeeereeeeeee ce\nPeeeeeereeeeeee ce\nPeeeeeereeeeeee ce\nPeeeeeereeeeeee ce\nPeeeeeereeeeeee ce\nPeeeeeereeeeeee ce\nPeeeeeereeeeeee ce\nrPeeeeeeeeereererercec",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "static_texture",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "Pprrrrrrrerrerre ere\nTe eeeeercrrrecererere\nTe eeeeercrrrecererere\nTe eeeeercrrrecererere\nTe eeeeercrrrecererere\nTe eeeeercrrrecererere\nTe eeeeercrrrecererere\nTe eeeeercrrrecererere\nTe eeeeercrrrecererere\nreeeeeeecrrcecrererrerer",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "static_texture",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "perererrrrrrrrry\nPeeeeerereereeree cece\nPeeeeerereereeree cece\nPeeeeerereereeree cece\nPeeeeerereereeree cece\nPeeeeerereereeree cece\nPeeeeerereereeree cece\nPeeeeerereereeree cece\nPeeeeerereereeree cece\nDla dladlalalaalalataatalaae",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "known_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "known_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "known_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "known_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "small_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "small_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "small_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "small_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "dark_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "dark_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "dark_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "dark_text",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": null,
+        "text_like_components": true
+      },
+      "known_text_exact_match": true,
+      "ocr_text": "LASER 314",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "variant": "blur_jpeg35"
+    },
+    {
+      "case_id": "blank",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "original"
+    },
+    {
+      "case_id": "blank",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur"
+    },
+    {
+      "case_id": "blank",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "jpeg35"
+    },
+    {
+      "case_id": "blank",
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": null,
+        "text_like_components": false
+      },
+      "known_text_exact_match": null,
+      "ocr_text": "",
+      "predictions": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "variant": "blur_jpeg35"
+    }
+  ],
+  "ocr_engine_versions": [
+    "5.5.0.20241111"
+  ],
+  "ocr_scope": "One full-frame Tesseract request per synthetic case/variant; local reference observations, not a portable OCR golden or real-world accuracy.",
+  "probe_count": 40,
+  "schema_version": 1,
+  "spec_sha256": "77344dd0d69fe290ebf81947dba683a3b077cc41ee8271206ec11aef5a6e38b9",
+  "summary": {
+    "frame_persistence": {
+      "evaluated": 40,
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "false_positive": 0,
+      "false_positive_rate": 0.0,
+      "negative_count": 8,
+      "not_evaluated": 0,
+      "positive_count": 32,
+      "true_negative": 8,
+      "true_positive": 32,
+      "unit": "case-variant probes; correlated derivatives, not independent experiments",
+      "unknown_ground_truth": 0
+    },
+    "ocr_text_presence": {
+      "evaluated": 40,
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "false_positive": 15,
+      "false_positive_rate": 0.5357142857142857,
+      "negative_count": 28,
+      "not_evaluated": 0,
+      "positive_count": 12,
+      "true_negative": 13,
+      "true_positive": 12,
+      "unit": "case-variant probes; correlated derivatives, not independent experiments",
+      "unknown_ground_truth": 0
+    },
+    "periodic_pattern": {
+      "evaluated": 20,
+      "false_negative": 4,
+      "false_negative_rate": 0.5,
+      "false_positive": 0,
+      "false_positive_rate": 0.0,
+      "negative_count": 12,
+      "not_evaluated": 0,
+      "positive_count": 8,
+      "true_negative": 12,
+      "true_positive": 4,
+      "unit": "case-variant probes; correlated derivatives, not independent experiments",
+      "unknown_ground_truth": 20
+    },
+    "pixel_clipping": {
+      "evaluated": 10,
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "false_positive": 0,
+      "false_positive_rate": 0.0,
+      "negative_count": 9,
+      "not_evaluated": 0,
+      "positive_count": 1,
+      "true_negative": 9,
+      "true_positive": 1,
+      "unit": "case-variant probes; correlated derivatives, not independent experiments",
+      "unknown_ground_truth": 30
+    },
+    "text_like_components": {
+      "evaluated": 40,
+      "false_negative": 8,
+      "false_negative_rate": 0.6666666666666666,
+      "false_positive": 8,
+      "false_positive_rate": 0.2857142857142857,
+      "negative_count": 28,
+      "not_evaluated": 0,
+      "positive_count": 12,
+      "true_negative": 20,
+      "true_positive": 4,
+      "unit": "case-variant probes; correlated derivatives, not independent experiments",
+      "unknown_ground_truth": 0
+    }
+  }
+}

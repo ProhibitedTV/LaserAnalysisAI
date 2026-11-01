@@ -22,11 +22,13 @@ REQUIRED_FIXTURE_FIELDS = {
     "expected_behavior",
     "limitations",
     "redistributable",
+    "fixture_type",
 }
 
 FIXTURE_CATALOG: list[dict[str, Any]] = [
     {
         "id": "commons-double-slit-experiment",
+        "fixture_type": "demonstration",
         "title": "Double slit experiment",
         "kind": "video",
         "label": "control",
@@ -44,6 +46,7 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "commons-young-double-slit",
+        "fixture_type": "demonstration",
         "title": "Young's double slit experiment video clip",
         "kind": "video",
         "label": "laser",
@@ -61,6 +64,7 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "commons-two-pinhole-laser-interference",
+        "fixture_type": "demonstration",
         "title": "3D interference of laser light through 2 pinholes",
         "kind": "video",
         "label": "laser",
@@ -78,6 +82,7 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "commons-focused-laguerre-gaussian",
+        "fixture_type": "demonstration",
         "title": "Focused Laguerre-Gaussian beam",
         "kind": "video",
         "label": "control",
@@ -95,6 +100,7 @@ FIXTURE_CATALOG: list[dict[str, Any]] = [
     },
     {
         "id": "iwu-single-photon-video-set",
+        "fixture_type": "demonstration",
         "title": "Single-photon double-slit and ghost imaging videos",
         "kind": "external-video-set",
         "label": "laser",
@@ -129,6 +135,7 @@ def fixture_metadata(fixture_id: str) -> dict[str, Any]:
     item = get_fixture(fixture_id)
     return {
         "footage_class": "demo_fixture",
+        "fixture_type": item["fixture_type"],
         "laser_pattern_type": "unknown",
         "fixture_id": item["id"],
         "fixture_title": item["title"],
@@ -153,6 +160,8 @@ def validate_fixture_catalog(media_dir: Path | None = None, require_bundled_file
             errors.append(f"{fixture_id}: missing {', '.join(missing)}")
         if fixture_id in seen_ids:
             errors.append(f"{fixture_id}: duplicate fixture id")
+        if item.get("fixture_type") not in {"synthetic", "demonstration", "real_matched_research_fixture"}:
+            errors.append(f"{fixture_id}: unknown fixture type")
         seen_ids.add(fixture_id)
         if item.get("redistributable") and not item.get("filename"):
             errors.append(f"{fixture_id}: redistributable fixture has no filename")
