@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 class VeilbreakCatalogDialog(QDialog):
     PAGE_SIZE = 50
 
-    def __init__(self, kind: str, records: list[dict[str, Any]], parent=None):
+    def __init__(self, kind: str, records: list[dict[str, Any]], parent=None, *, source_note: str = ""):
         super().__init__(parent)
         self.setWindowTitle("Veilbreak public references")
         self.resize(800, 520)
@@ -25,6 +25,10 @@ class VeilbreakCatalogDialog(QDialog):
         note = QLabel("Search the downloaded public catalog locally. Published metadata is context, not a measurement of your setup.")
         note.setWordWrap(True)
         layout.addWidget(note)
+        if source_note:
+            source = QLabel(source_note)
+            source.setWordWrap(True)
+            layout.addWidget(source)
         filters = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search title, equipment or tags")

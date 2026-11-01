@@ -44,7 +44,7 @@ from laserlab import __version__, app_api
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
 from laserlab.replication import comparison_html
-from laserlab.veilbreak_bridge import browse_public
+from laserlab.catalog_cache import CatalogCache, refresh_catalog, open_saved_catalog
 from laserlab.diagnostics import (
     collect_diagnostics,
     configure_logging,
@@ -53,7 +53,7 @@ from laserlab.diagnostics import (
 )
 from laserlab.fixtures import list_fixtures
 from laserlab.manifest import load_manifest
-from laserlab.preferences import load_preferences, remember_experiment, set_last_source_directory
+from laserlab.preferences import load_preferences, remember_experiment, set_last_source_directory, set_veilbreak_cache_enabled
 from laserlab.runtime import default_experiments_dir
 from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
 from .veilbreak_catalog import VeilbreakCatalogDialog
@@ -995,11 +995,12 @@ class LabDashboardWindow(QMainWindow):
         self.exchange_button.setToolTip("After explicit unblinding, preview a media-free summary before saving. Nothing is submitted to a provider.")
         self.exchange_button.clicked.connect(self.prepare_research_exchange)
         self.community_data_status = QLabel("No local community data attached")
-        self.veilbreak_protocols_button = QPushButton("Browse public Veilbreak protocols")
+        self.community_data_status.setWordWrap(True)
+        self.veilbreak_protocols_button = QPushButton("Browse / refresh public protocols")
         self.veilbreak_protocols_button.clicked.connect(
             lambda: self.browse_veilbreak("protocols")
         )
-        self.veilbreak_experiments_button = QPushButton("Browse public Veilbreak experiments")
+        self.veilbreak_experiments_button = QPushButton("Browse / refresh public experiments")
         self.veilbreak_experiments_button.clicked.connect(
             lambda: self.browse_veilbreak("experiments")
         )
@@ -1025,6 +1026,23 @@ class LabDashboardWindow(QMainWindow):
         community_grid.addWidget(self.veilbreak_key_button, 3, 0, 1, 2)
         community_grid.addWidget(self.veilbreak_note, 4, 0, 1, 3)
         community_grid.addWidget(self.exchange_button, 5, 0, 1, 3)
+        self.veilbreak_cache_optin = QCheckBox("Save public catalogs on this device for offline use (24 hours)")
+        self.veilbreak_cache_optin.setChecked(self.preferences.get("veilbreak_cache_enabled") is True)
+        self.veilbreak_cache_optin.toggled.connect(self._cache_choice_changed)
+        self.saved_protocols_button = QPushButton("Open saved protocols")
+        self.saved_protocols_button.clicked.connect(lambda: self.browse_saved_veilbreak("protocols"))
+        self.saved_experiments_button = QPushButton("Open saved experiments")
+        self.saved_experiments_button.clicked.connect(lambda: self.browse_saved_veilbreak("experiments"))
+        self.clear_catalog_cache_button = QPushButton("Clear saved catalogs")
+        self.clear_catalog_cache_button.clicked.connect(self.clear_public_catalog_cache)
+        cache_note = QLabel("Saved copies contain public titles and limited optical metadata with retrieval/expiry times and a license-policy reference. Copies remain on disk until cleared; they become unavailable after 24 hours. Refresh explicitly reads the public service.")
+        cache_note.setWordWrap(True)
+        community_grid.addWidget(self.veilbreak_cache_optin, 6, 0, 1, 3)
+        community_grid.addWidget(self.saved_protocols_button, 7, 0)
+        community_grid.addWidget(self.saved_experiments_button, 7, 1)
+        community_grid.addWidget(self.clear_catalog_cache_button, 7, 2)
+        community_grid.addWidget(cache_note, 8, 0, 1, 3)
+        self._update_cache_controls()
         self.community_tools.setVisible(False)
         self.community_tools_button.toggled.connect(self.community_tools.setVisible)
         self.community_tools_button.toggled.connect(
@@ -1730,26 +1748,63 @@ class LabDashboardWindow(QMainWindow):
             experiment, Path(output), expected_snapshot=snapshot, privacy_acknowledged=True, **options),
             lambda result: self.status.showMessage("Reviewed results exchange saved locally; no upload."))
 
+    def _update_cache_controls(self) -> None:
+        available = self.veilbreak_cache_optin.isChecked() and not self._busy
+        self.saved_protocols_button.setEnabled(available)
+        self.saved_experiments_button.setEnabled(available)
+        self.veilbreak_cache_optin.setEnabled(not self._busy)
+        self.clear_catalog_cache_button.setEnabled(not self._busy)
+
+    def _cache_choice_changed(self, enabled: bool) -> None:
+        previous = self.preferences.get("veilbreak_cache_enabled") is True
+        try:
+            self.preferences = set_veilbreak_cache_enabled(enabled)
+        except (OSError, ValueError):
+            self.veilbreak_cache_optin.blockSignals(True)
+            self.veilbreak_cache_optin.setChecked(previous)
+            self.veilbreak_cache_optin.blockSignals(False)
+            self._error("The public cache choice could not be saved. No new choice was applied.")
+        self._update_cache_controls()
+
+    def clear_public_catalog_cache(self) -> None:
+        self._run_worker("Clearing saved public catalogs", lambda: CatalogCache().clear(),
+                         lambda count: self.community_data_status.setText(f"Cleared {count} saved public catalog(s)."))
+
+    def browse_saved_veilbreak(self, kind: str) -> None:
+        enabled = self.veilbreak_cache_optin.isChecked()
+        self._run_worker("Opening saved public catalog", lambda: open_saved_catalog(kind, cache_enabled=enabled),
+                         lambda view: self._catalog_ready(kind, view))
+
+    def _catalog_ready(self, kind: str, view: dict[str, Any]) -> None:
+        source = view["provenance"]
+        origin = "Saved copy" if source["origin"] == "saved" else "Public service"
+        note = f"{origin}. Retrieved {source['retrieved_at']}; expires {source['expires_at']}. Per-record license/attribution remains unverified."
+        if view["cache_status"] == "save_failed":
+            note += " Saving the offline copy failed; these records are available in this live view only."
+        self.community_data_status.setText(note)
+        self._choose_veilbreak_record(kind, view["records"], source_note=note)
+
     def browse_veilbreak(self, kind: str) -> None:
         """Fetch published community metadata on demand, never in the background."""
         if kind not in ("protocols", "experiments"):
             self._error("Unknown Veilbreak catalog.")
             return
+        enabled = self.veilbreak_cache_optin.isChecked()
         self._run_worker(
             f"Reading Veilbreak public {kind}",
-            lambda: browse_public(kind),
-            lambda records: self._choose_veilbreak_record(kind, records),
+            lambda: refresh_catalog(kind, cache_enabled=enabled),
+            lambda view: self._catalog_ready(kind, view),
         )
 
     def _choose_veilbreak_record(
-        self, kind: str, records: list[dict[str, Any]]
+        self, kind: str, records: list[dict[str, Any]], *, source_note: str = ""
     ) -> None:
         if not records:
             QMessageBox.information(
                 self, "Veilbreak catalog", "No published records were returned."
             )
             return
-        dialog = VeilbreakCatalogDialog(kind, records, self)
+        dialog = VeilbreakCatalogDialog(kind, records, self, source_note=source_note)
         if not dialog.exec_():
             return
         record = dialog.selected_record()
@@ -2415,6 +2470,7 @@ class LabDashboardWindow(QMainWindow):
             self.complete_review_button,
         ):
             button.setEnabled(enabled)
+        self._update_cache_controls()
         if enabled:
             report = self.latest_report or {}
             unblinded = bool(report.get("review_state", {}).get("unblinded", True))

@@ -12,10 +12,27 @@ from laserlab.preferences import (
     remember_experiment,
     save_preferences,
     set_last_source_directory,
+    set_veilbreak_cache_enabled,
 )
 
 
 class PreferencesTests(unittest.TestCase):
+    def test_cache_is_off_unless_explicitly_enabled_and_navigation_preserves_choice(self):
+        self.assertFalse(load_preferences(self.preferences_file)["veilbreak_cache_enabled"])
+        for value in ("true", 1, {}, []):
+            with self.assertRaises(ValueError):
+                set_veilbreak_cache_enabled(value, self.preferences_file)
+            saved = save_preferences({"veilbreak_cache_enabled": value}, self.preferences_file)
+            self.assertFalse(saved["veilbreak_cache_enabled"])
+        set_veilbreak_cache_enabled(True, self.preferences_file)
+        experiment = self._directory("with-cache")
+        remember_experiment(experiment, self.preferences_file)
+        self.assertTrue(load_preferences(self.preferences_file)["veilbreak_cache_enabled"])
+        set_veilbreak_cache_enabled(False, self.preferences_file)
+        saved = load_preferences(self.preferences_file)
+        self.assertFalse(saved["veilbreak_cache_enabled"])
+        self.assertEqual(saved["recent_experiments"], [str(experiment.resolve())])
+
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
@@ -46,7 +63,7 @@ class PreferencesTests(unittest.TestCase):
         on_disk = json.loads(self.preferences_file.read_text(encoding="utf-8"))
         self.assertEqual(
             set(on_disk),
-            {"schema_version", "recent_experiments", "last_source_directory"},
+            {"schema_version", "recent_experiments", "last_source_directory", "veilbreak_cache_enabled"},
         )
         self.assertEqual(on_disk["schema_version"], SCHEMA_VERSION)
         self.assertEqual(on_disk["recent_experiments"], [str(experiment.resolve())])
@@ -78,7 +95,9 @@ class PreferencesTests(unittest.TestCase):
             "schema_version": SCHEMA_VERSION,
             "recent_experiments": [],
             "last_source_directory": None,
+            "veilbreak_cache_enabled": False,
         }
+
 
         self.preferences_file.write_text("{not-json", encoding="utf-8")
         self.assertEqual(load_preferences(self.preferences_file), default)
