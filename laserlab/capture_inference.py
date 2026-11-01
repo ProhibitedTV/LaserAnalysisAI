@@ -50,7 +50,8 @@ def sample_class(record: dict[str, Any]) -> str:
 
 
 def paired_capture_inference(frames: list[dict[str, Any]], seed: int, resamples: int,
-                             quality_gate: dict[str, Any] | None = None) -> dict[str, Any]:
+                             quality_gate: dict[str, Any] | None = None,
+                             measurement_gate: dict[str, Any] | None = None) -> dict[str, Any]:
     """Flip whole declared pairs, using one equally weighted median per capture."""
     inference: dict[str, Any] = {
         "method": "paired_capture_sign_flip", "version": STATISTICS_VERSION,
@@ -82,6 +83,8 @@ def paired_capture_inference(frames: list[dict[str, Any]], seed: int, resamples:
     counts = inference["empirical_capture_counts"]
     if not counts["laser"] or not counts["matched_control"]:
         return stop("not_tested", "Exploratory: no empirical laser / declared matched-capture comparison. Generated nulls, fixtures, other controls and sensor noise do not establish a matched experiment.")
+    if measurement_gate and measurement_gate.get("status") == "incomplete":
+        return stop("primary_metric_unavailable", "Not tested: OCR was not completed for every empirical laser/matched observation. Unavailable engines, failed or null attempts and missing audit states are not measured zeros. Successful empty recognition remains a measured zero. Establish OCR readiness before a new predeclared run.")
     pairs: dict[str, dict[str, float]] = defaultdict(dict)
     seen_sources: set[str] = set()
     seen_frames: set[str] = set()

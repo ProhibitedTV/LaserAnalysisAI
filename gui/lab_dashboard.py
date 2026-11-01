@@ -2161,7 +2161,8 @@ class LabDashboardWindow(QMainWindow):
         for row, candidate in enumerate(candidates):
             common = [
                 candidate.get("blind_id", ""),
-                str(candidate.get("primary_metric_score", candidate.get("structure_score", ""))),
+                ("Unscored OCR" if candidate.get("primary_metric_measurement", {}).get("status") == "unscored"
+                 else str(candidate.get("primary_metric_score", candidate.get("structure_score", "")))),
                 str(candidate.get("persistence_score", "")),
                 candidate.get("preprocessing_variant", ""),
                 candidate.get("ocr_text", "")[:80],
@@ -2233,7 +2234,9 @@ class LabDashboardWindow(QMainWindow):
         self.filmstrip_table.setHorizontalHeaderLabels(headers)
         self.filmstrip_table.setRowCount(len(candidates))
         for row, candidate in enumerate(candidates):
-            values = [candidate.get("blind_id", ""), str(candidate.get("primary_metric_score", ""))]
+            score = ("Unscored OCR" if candidate.get("primary_metric_measurement", {}).get("status") == "unscored"
+                     else str(candidate.get("primary_metric_score", "")))
+            values = [candidate.get("blind_id", ""), score]
             if unblinded:
                 values.extend([source_class_label(candidate), candidate.get("source_path", "")])
             for column, value in enumerate(values):

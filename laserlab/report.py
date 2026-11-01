@@ -13,6 +13,7 @@ from .psychophysics import build_falsification_matrix
 from .theme import badge_class, evidence_tone, report_stylesheet
 from .stats import current_statistics
 from .capture_inference import sample_class, source_class_label
+from .metric_validity import assess_metric_result
 
 
 PAIR_QUALITY_REPORT_VERSION = 1
@@ -23,7 +24,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
     aggregate = run_record["aggregate_statistics"]
     unblinded = is_unblinded(run_record)
     primary_metric = aggregate.get("primary_metric", "structure_score")
-    candidates = top_candidates(run_record["results"], score_key="primary_metric_score", unblinded=unblinded)
+    candidates = top_candidates(run_record["results"], score_key="primary_metric_score", unblinded=unblinded, primary_metric=primary_metric)
     annotations = run_record.get("review_annotations", {})
     for candidate in candidates:
         candidate["review_annotation"] = annotations.get(candidate["blind_id"], {})
@@ -45,6 +46,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "schema_version": 1,
         "pair_quality_report_version": PAIR_QUALITY_REPORT_VERSION,
         "statistics_migration": run_record.get("statistics_migration"),
+        "metric_validity_migration": run_record.get("metric_validity_migration"),
         "experiment_id": run_record["experiment_id"],
         "experiment_purpose": "demo" if run_record.get("experiment_purpose") == "demo" else "research",
         "run_id": run_record["run_id"],
@@ -100,6 +102,7 @@ def top_candidates(
     limit: int = 20,
     score_key: str = "structure_score",
     unblinded: bool = True,
+    primary_metric: str | None = None,
 ) -> list[dict[str, Any]]:
     best_by_sample: dict[str, dict[str, Any]] = {}
     for result in results:
@@ -112,13 +115,16 @@ def top_candidates(
     candidates = sorted(best_by_sample.values(), key=lambda item: _candidate_rank(item, score_key), reverse=True)[:limit]
     records = []
     for item in candidates:
+        metric = primary_metric or item.get("primary_metric", "structure_score")
+        measurement = assess_metric_result(item, metric)
         record = {
             "blind_id": item["blind_id"],
             "sample_id": item["sample_id"],
             "blinded_label": item["blinded_label"],
             "structure_score": item["structure_score"],
-            "primary_metric": item.get("primary_metric", "structure_score"),
-            "primary_metric_score": item.get("primary_metric_score", item["structure_score"]),
+            "primary_metric": metric,
+            "primary_metric_measurement": measurement,
+            "primary_metric_score": item.get("primary_metric_score", item["structure_score"]) if measurement["status"] != "unscored" else None,
             "persistence_score": item.get("persistence_score", 0.0),
             "preprocessing_variant": item["preprocessing_variant"],
             "ocr_text": item.get("ocr", {}).get("text", ""),
@@ -194,6 +200,8 @@ def render_html_report(report: dict[str, Any]) -> str:
             + "</pre></details>"
         )
     migration_html = "<p>" + html.escape(report["statistics_migration"]) + "</p>" if report.get("statistics_migration") else ""
+    if report.get("metric_validity_migration"):
+        migration_html += "<p>" + html.escape(report["metric_validity_migration"]) + "</p>"
     ladder_tone = evidence_tone(summary.get("evidence_ladder"))
     if unblinded:
         metrics_html = f"""
@@ -372,6 +380,8 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
     media = _candidate_media(candidate)
     ocr_text = candidate.get("ocr_text") or ""
     annotation = candidate.get("review_annotation") or {}
+    score = ("Unscored OCR" if candidate.get("primary_metric_measurement", {}).get("status") == "unscored"
+             else _fmt(candidate.get("primary_metric_score", candidate["structure_score"])))
     review_text = ", ".join(annotation.get("flags", []))
     if annotation.get("note"):
         review_text = (review_text + " | " if review_text else "") + str(annotation["note"])
@@ -380,7 +390,7 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
       <tr>
         <td><code>{html.escape(candidate['blind_id'])}</code></td>
         <td>{html.escape(source_class_label(candidate))}</td>
-        <td>{_fmt(candidate.get('primary_metric_score', candidate['structure_score']))}</td>
+        <td>{score}</td>
         <td>{_fmt(candidate.get('persistence_score'))}</td>
         <td>{_fmt(candidate.get('q_value'))}</td>
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
@@ -393,7 +403,7 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
     return f"""
       <tr>
         <td><code>{html.escape(candidate['blind_id'])}</code></td>
-        <td>{_fmt(candidate.get('primary_metric_score', candidate['structure_score']))}</td>
+        <td>{score}</td>
         <td>{_fmt(candidate.get('persistence_score'))}</td>
         <td>{html.escape(candidate['preprocessing_variant'])}</td>
         <td>{html.escape(ocr_text[:120])}</td>

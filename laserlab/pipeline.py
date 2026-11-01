@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .metric_validity import assess_metric_result
 from .artifacts import ensure_dir, load_json, relative_to, resolve_experiment_path, sha256_file, utc_now_iso, write_json
 from .blinding import (
     UNBLIND_FILENAME,
@@ -178,7 +179,9 @@ def run_experiment(
 
     # Within-recording persistence is descriptive, not independent replication.
     for result in results:
-        result["inference_metric_score"] = float(metric_score(result, primary_metric))
+        result["primary_metric_measurement"] = assess_metric_result(result, primary_metric)
+        result["inference_metric_score"] = (float(metric_score(result, primary_metric))
+                                             if result["primary_metric_measurement"]["status"] != "unscored" else None)
     _apply_persistence_scores(results, masks_for_persistence)
     for result in results:
         result["primary_metric_score"] = round(float(metric_score(result, result["primary_metric"])), 6)

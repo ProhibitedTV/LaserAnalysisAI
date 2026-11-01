@@ -43,6 +43,16 @@ This distinction between repeated observations and experimental units follows th
 
 ## Saved experiments and exports
 
+### OCR measurement eligibility
+
+Development source additionally records `primary-metric-v1`. For an OCR primary metric, every saved OCR attempt for each empirical laser/matched observation must explicitly report an available engine, no failure, and string output. Successfully recognized empty text is a measured zero. Unavailable engines, failed attempts, null output, missing attempts or unaudited legacy summaries are **unscored**, not measured zeros.
+
+One incomplete empirical observation withholds the whole paired test, including when another ROI or preprocessing variant succeeded. No successful subset is selected after seeing results. Incomplete groups have no primary-score mean, and the outcome is **not tested**, with no p-value. Generated probes and calibration failures remain separate diagnostics. Optional OCR availability does not gate another predeclared primary metric. This check establishes completion, not OCR accuracy, optical validity, language, or origin; all other design and quality gates still apply.
+
+GUI/HTML candidate scores say **Unscored OCR**; CSV scores are blank with `primary_metric_status=unscored`. Aggregate coverage counts appear only after unblinding and count sample observations, not independent experiments. Raw saved detector values remain available for audit and must be interpreted with their measurement state.
+
+Opening an older OCR report creates `report.metric-validity-v1.json` / `.html` using saved attempt states. Missing states are not reconstructed as successful measurements. Original reports/results remain intact; review bundles and reviewed local exchanges use the reassessed view. Already shared artifacts and native v0.8.2 downloads retain their original behavior. Establish OCR readiness and a predeclared plan before another inferential run.
+
 Legacy results lack some provenance needed for independent-unit inference. Missing data downgrade evidence; no new pair identities or acquisition assumptions are invented. Re-run analysis with valid declarations to record the needed provenance. Old frame-level p-values, confidence intervals, and candidate q-values are superseded in current views.
 
 For old captures without these declarations, create a separate experiment and re-import the original authorized recordings with truthful pair metadata. Do not append duplicate copies and call them new independent acquisitions. Keep the old experiment for its audit trail.
