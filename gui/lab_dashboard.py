@@ -57,6 +57,7 @@ from laserlab.preferences import load_preferences, remember_experiment, set_last
 from laserlab.runtime import default_experiments_dir
 from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
 from .veilbreak_catalog import VeilbreakCatalogDialog
+from .research_exchange import ResearchExchangeDialog
 
 
 VEILBREAK_API_KEY_PAGE = "https://veilbreak.ai/api-access"
@@ -990,6 +991,9 @@ class LabDashboardWindow(QMainWindow):
         self.import_symbols_button.clicked.connect(self.import_symbol_file)
         self.export_symbols_button = QPushButton("Export symbol transcriptions")
         self.export_symbols_button.clicked.connect(self.export_symbol_file)
+        self.exchange_button = QPushButton("Review local results exchange")
+        self.exchange_button.setToolTip("After explicit unblinding, preview a media-free summary before saving. Nothing is submitted to a provider.")
+        self.exchange_button.clicked.connect(self.prepare_research_exchange)
         self.community_data_status = QLabel("No local community data attached")
         self.veilbreak_protocols_button = QPushButton("Browse public Veilbreak protocols")
         self.veilbreak_protocols_button.clicked.connect(
@@ -1020,6 +1024,7 @@ class LabDashboardWindow(QMainWindow):
         community_grid.addWidget(self.veilbreak_experiments_button, 2, 1)
         community_grid.addWidget(self.veilbreak_key_button, 3, 0, 1, 2)
         community_grid.addWidget(self.veilbreak_note, 4, 0, 1, 3)
+        community_grid.addWidget(self.exchange_button, 5, 0, 1, 3)
         self.community_tools.setVisible(False)
         self.community_tools_button.toggled.connect(self.community_tools.setVisible)
         self.community_tools_button.toggled.connect(
@@ -1701,6 +1706,30 @@ class LabDashboardWindow(QMainWindow):
                 "Opened Veilbreak's API key page. No key is required for public catalog browsing."
             )
 
+    def prepare_research_exchange(self) -> None:
+        if not self.experiment_dir:
+            self._error("Open an analyzed experiment and explicitly unblind its review first.")
+            return
+        experiment = self.experiment_dir
+        self._run_worker("Preparing local results exchange", lambda: app_api.prepare_research_exchange(experiment),
+                         lambda preview: self._review_research_exchange(experiment, preview))
+
+    def _review_research_exchange(self, experiment: Path, preview: dict[str, Any]) -> None:
+        if self.experiment_dir != experiment:
+            self._error("The experiment changed. Prepare a new exchange preview.")
+            return
+        dialog = ResearchExchangeDialog(preview, lambda **options: app_api.prepare_research_exchange(experiment, **options), self)
+        if not dialog.exec_() or dialog.preview is None or not dialog.privacy.isChecked():
+            return
+        output, _ = QFileDialog.getSaveFileName(self, "Save reviewed local results exchange", "research-exchange.json", "JSON (*.json)")
+        if not output:
+            return
+        snapshot = dialog.preview["_snapshot_sha256"]
+        options = dialog.options()
+        self._run_worker("Saving reviewed local results exchange", lambda: app_api.export_research_exchange(
+            experiment, Path(output), expected_snapshot=snapshot, privacy_acknowledged=True, **options),
+            lambda result: self.status.showMessage("Reviewed results exchange saved locally; no upload."))
+
     def browse_veilbreak(self, kind: str) -> None:
         """Fetch published community metadata on demand, never in the background."""
         if kind not in ("protocols", "experiments"):
@@ -2364,6 +2393,7 @@ class LabDashboardWindow(QMainWindow):
         self.profile_combo.setEnabled(enabled)
         self.blind_seed.setEnabled(enabled)
         for button in (
+            self.exchange_button,
             self.try_own_button,
             self.run_button,
             self.pair_quality_button,

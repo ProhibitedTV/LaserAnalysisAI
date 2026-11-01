@@ -57,11 +57,11 @@ In the meantime, you can use **Import reference metadata** with a user-downloade
 
 ## Next steps for deeper collaboration
 
-These are follow-on projects, **not** features implemented by this bridge:
+The reviewed local exchange is implemented in development source. These coordination and acceptance steps remain:
 
 1. Agree with Veilbreak maintainers on a stable API/MCP version, schemas, rate limits, and license/attribution conventions.
 2. Confirm canonical protocol-ID deep links and optional saved local catalog cache for offline use; no persistent catalog cache is implemented.
-3. Add a **user-reviewed, export-only** results mapping so researchers can submit appropriate analysis metadata to Veilbreak through Veilbreak's own authorized contribution workflow.
+3. Development source provides a [reviewed local results exchange](research_exchange.md) with optional linked reference IDs and recorded hashes, fixed evidence/settings fields and privacy gates. This draft format does not imply Veilbreak accepts it. Agree on an authorized contribution workflow and provider mapping before any submission.
 4. Agree on a published common dataset format for control pairs, hashes, detector settings, blinded review status, and replication outcomes.
 5. Keep network reads opt-in and any possible future write/upload actions separately consented, reviewed, and clearly labeled.
 

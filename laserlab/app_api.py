@@ -82,6 +82,21 @@ def compare_sessions(experiment_dirs: list[Path]) -> dict[str, Any]:
     return compare([Path(directory) for directory in experiment_dirs])
 
 
+def prepare_research_exchange(experiment_dir: Path, *, include_source_hashes: bool = False,
+                              reference: dict[str, Any] | None = None) -> dict[str, Any]:
+    from .research_exchange import prepare_exchange
+    return prepare_exchange(Path(experiment_dir), include_source_hashes=include_source_hashes, reference=reference)
+
+
+def export_research_exchange(experiment_dir: Path, output_path: Path, *, expected_snapshot: str,
+                             privacy_acknowledged: bool = False, include_source_hashes: bool = False,
+                             reference: dict[str, Any] | None = None) -> Path:
+    from .research_exchange import export_exchange
+    return export_exchange(Path(experiment_dir), Path(output_path), expected_snapshot=expected_snapshot,
+                           privacy_acknowledged=privacy_acknowledged, include_source_hashes=include_source_hashes,
+                           reference=reference)
+
+
 def export_session_comparison(experiment_dirs: list[Path], output_path: Path, *, privacy_acknowledged: bool = False,
                               expected_snapshot: str | None = None) -> Path:
     from .replication import export_comparison
