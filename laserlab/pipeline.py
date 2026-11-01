@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from . import __version__
 from .artifacts import ensure_dir, load_json, relative_to, resolve_experiment_path, sha256_file, utc_now_iso, write_json
 from .blinding import (
     UNBLIND_FILENAME,
@@ -187,6 +188,7 @@ def run_experiment(
     protocol_summary = capture_protocol_summary(manifest.get("captures", []))
     run_record = {
         "schema_version": 1,
+        "laserlab_version": __version__,
         "run_id": run_id,
         "created_at": utc_now_iso(),
         "experiment_id": manifest["experiment_id"],

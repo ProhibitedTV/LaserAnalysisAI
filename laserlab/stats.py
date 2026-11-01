@@ -9,6 +9,7 @@ from typing import Any
 
 from .capture_inference import STATISTICS_VERSION, paired_capture_inference, sample_class
 
+EVIDENCE_THRESHOLDS = {"maximum_p_value": .05, "minimum_mean_difference": .02, "anomaly_mean_difference": .05}
 
 def summarize_blinded_results(sample_results: list[dict[str, Any]], primary_metric: str = "structure_score") -> dict[str, Any]:
     scores = _sample_scores(sample_results)
@@ -153,11 +154,11 @@ def evidence_ladder(stats: dict[str, Any]) -> str:
     if inference.get("status") != "tested":
         return "not tested"
     difference = stats.get("mean_difference") or 0
-    if difference <= .02:
+    if difference <= EVIDENCE_THRESHOLDS["minimum_mean_difference"]:
         return "no signal"
-    if stats["permutation_p_value"] <= .05:
+    if stats["permutation_p_value"] <= EVIDENCE_THRESHOLDS["maximum_p_value"]:
         return "above-control candidate"
-    return "anomaly" if difference > .05 else "artifact"
+    return "anomaly" if difference > EVIDENCE_THRESHOLDS["anomaly_mean_difference"] else "artifact"
 
 
 def null_result_language(stats: dict[str, Any]) -> str:

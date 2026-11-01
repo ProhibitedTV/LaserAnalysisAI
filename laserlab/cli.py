@@ -31,6 +31,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "exchange":
+            from .research_exchange import prepare_exchange, export_exchange
+            if (args.reference_kind is None) != (args.reference_id is None):
+                raise ValueError("Provide both a linked reference kind and numeric ID, or leave both unset.")
+            reference = ({"source": "veilbreak", "record_type": args.reference_kind, "record_id": args.reference_id}
+                         if args.reference_kind is not None else None)
+            if args.exchange_action == "preview":
+                preview = prepare_exchange(Path(args.experiment), include_source_hashes=args.include_source_hashes, reference=reference)
+                print(json.dumps({"review_token": preview["_snapshot_sha256"], "document": preview["document"]}, indent=2, allow_nan=False))
+            else:
+                print(export_exchange(Path(args.experiment), Path(args.output), expected_snapshot=args.review_token,
+                                     privacy_acknowledged=args.acknowledge_privacy,
+                                     include_source_hashes=args.include_source_hashes, reference=reference))
+            return 0
         if args.command == "init":
             manifest = init_experiment(
                 source=Path(args.source),
@@ -184,6 +198,19 @@ def build_parser() -> argparse.ArgumentParser:
         description="Blinded signal validation pipeline for laser captures.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    exchange = subparsers.add_parser("exchange", help="Preview and save a reviewed, media-free local results exchange.")
+    exchange_actions = exchange.add_subparsers(dest="exchange_action", required=True)
+    for action in ("preview", "export"):
+        command = exchange_actions.add_parser(action)
+        command.add_argument("--experiment", required=True)
+        command.add_argument("--include-source-hashes", action="store_true", help="Opt in to recorded media hashes that can link recordings.")
+        command.add_argument("--reference-kind", choices=["protocol", "experiment"], help="Optional reference already linked locally.")
+        command.add_argument("--reference-id", type=int)
+        if action == "export":
+            command.add_argument("--output", required=True, help="New local JSON file; existing files are preserved.")
+            command.add_argument("--review-token", required=True, help="Token from the exact preview with these options.")
+            command.add_argument("--acknowledge-privacy", action="store_true")
 
     sessions = subparsers.add_parser("sessions", help="Local unblinded session comparison; no pooled significance or upload.")
     session_actions = sessions.add_subparsers(dest="session_action", required=True)
