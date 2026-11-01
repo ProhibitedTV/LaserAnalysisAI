@@ -26,6 +26,7 @@ from .runtime import resource_path
 
 DIAGNOSTIC_SCHEMA = "laserlab.diagnostics"
 DIAGNOSTIC_SCHEMA_VERSION = 1
+PATH_REDACTION_VERSION = "filesystem-paths-v2"
 SUPPORT_LOG_BYTES = 256 * 1024
 _LOGGER_NAME = "laserlab"
 _FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
@@ -166,6 +167,7 @@ def collect_diagnostics(experiment_dir: str | os.PathLike[str] | None = None) ->
         "experiment": _experiment_record(experiment_dir),
         "privacy": {
             "paths_redacted": True,
+            "path_redaction_version": PATH_REDACTION_VERSION,
             "manifest_read": False,
             "source_media_included": False,
         },
@@ -329,21 +331,35 @@ def _redact_value(value: Any) -> Any:
 
 
 def _redact_text(value: str) -> str:
-    redacted = str(value)
-    for path, replacement in _redaction_roots():
-        variants = {path, path.replace("\\", "/"), path.replace("/", "\\")}
-        for variant in sorted(variants, key=len, reverse=True):
-            if variant:
-                redacted = re.sub(re.escape(variant), replacement, redacted, flags=re.IGNORECASE)
+    # Preserve useful root categories, but never retain private descendants.
+    roots = _redaction_roots()
+
+    def path_label(path: str) -> str:
+        marker = re.match(r"<(HOME|TEMP|INSTALL|PATH)>", path)
+        if marker:
+            return marker.group()
+        normalized = path.replace("\\", "/").casefold()
+        for root, replacement in roots:
+            root = root.replace("\\", "/").rstrip("/").casefold()
+            if normalized == root or normalized.startswith(root + "/"):
+                return replacement
+        return "<PATH>"
+
+    # A matching quote gives an unambiguous boundary, including spaces and
+    # apostrophes inside double-quoted paths. Also sanitize older masked roots.
+    start = r"(?:[A-Za-z]:[\\/]|\\\\|/|<(?:HOME|TEMP|INSTALL|PATH)>)"
     redacted = re.sub(
-        r"(?i)(?<![A-Za-z0-9:/])(?:[A-Z]:[\\/]|\\\\)[^\s\"']+",
-        "<PATH>",
-        redacted,
+        rf"(?P<quote>[\"'])(?P<path>{start}[^\r\n]*?)(?P=quote)",
+        lambda match: match["quote"] + path_label(match["path"]) + match["quote"],
+        str(value),
     )
+    # Unquoted paths have no reliable end boundary: spaces, apostrophes and '='
+    # can all occur in names. Consume the rest of that line rather than guess;
+    # error classes and context on surrounding lines remain available.
+    tail = r"[^\r\n]*"
     redacted = re.sub(
-        r"(?<![A-Za-z0-9:/])/(?:[^\s\"']+/)*[^\s\"']+",
-        "<PATH>",
-        redacted,
+        rf"(?i)(?<![A-Za-z0-9:/])(?:[A-Z]:[\\/]|\\\\|/|<(?:HOME|TEMP|INSTALL)>[\\/]|<PATH>[ \\/]){tail}",
+        lambda match: path_label(match.group()), redacted,
     )
     return redacted
 

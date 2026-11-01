@@ -1318,8 +1318,8 @@ class LabDashboardWindow(QMainWindow):
             return
         try:
             exported = write_support_bundle(Path(path), self.experiment_dir)
-            self.export_log.append(f"Exported privacy-safe support bundle: {exported}")
-            self.status.showMessage(f"Support bundle exported: {exported}")
+            self.export_log.append(f"Support bundle exported: {exported}\nReview diagnostics and the log before sharing.")
+            self.status.showMessage(f"Support bundle exported: {exported}. Review its contents before sharing.")
         except Exception as exc:
             LOGGER.exception("Support bundle export failed")
             self._error(f"Support bundle export failed: {exc}")

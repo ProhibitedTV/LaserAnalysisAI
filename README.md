@@ -74,7 +74,7 @@ Run tests:
 & $PY -m unittest discover -s tests
 ```
 
-Check an installation or create a privacy-safe support bundle:
+Check an installation or create a local support bundle with path redaction. Review its diagnostics and log before sharing:
 
 ```powershell
 & $PY -m laserlab.cli diagnostics --format json
