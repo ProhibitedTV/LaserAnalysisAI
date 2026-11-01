@@ -56,6 +56,11 @@ jobs:
           python -m laserlab.cli unblind --experiment experiments\ci-smoke
           python -m laserlab.cli bundle --experiment experiments\ci-smoke --output release_dumps\ci-smoke-unblinded-bundle.zip
 
+      - name: Offline synthetic benchmark
+        run: |
+          python -m laserlab.cli benchmark generate --output release_dumps/optical-probes
+          python -m laserlab.cli benchmark run --pack release_dumps/optical-probes --output release_dumps/optical-probes.json
+
       - name: Protocol smoke
         shell: pwsh
         run: |

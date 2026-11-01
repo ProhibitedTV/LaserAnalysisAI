@@ -215,6 +215,8 @@ terms are confirmed.
 
 See the [Fixture Catalog](docs/fixture_catalog.md) for expected detector behavior, limitations, licenses, and provenance rules.
 
+Development source also includes a small offline [optical benchmark](docs/optical_benchmark.md): ten synthetic cases, blur/JPEG probes, explicit ground truth, raw/processed hashes and recorded false-positive baselines. It keeps optical artifacts and optional OCR responses separate from empirical evidence. Existing native v0.8.2 downloads do not include the benchmark command.
+
 ## Capture Better Footage
 
 - Capture laser and control footage under matched camera settings, exposure, focus, distance, and surface geometry.

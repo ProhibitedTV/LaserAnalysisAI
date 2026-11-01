@@ -1,0 +1,1631 @@
+{
+  "benchmark_version": "optical-probes-v1",
+  "cases": [
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "16-pixel integer cosine-like lookup; stationary vertical fringes",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "No intentionally inserted text; structure and OCR can still respond to artifacts",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "height": 160,
+      "id": "fringes",
+      "known_text": null,
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "fringes/blur/frame_000.png",
+            "pixel_sha256": "856d70e41ecaeb88f517c2663355a5a9089e91980b4d4f024092e5dd4c96821f",
+            "sha256": "7c0a79c3c033993f8677b21268e0c18d14d87e312932b3d767cb7673015ae4a1"
+          },
+          {
+            "index": 1,
+            "path": "fringes/blur/frame_001.png",
+            "pixel_sha256": "856d70e41ecaeb88f517c2663355a5a9089e91980b4d4f024092e5dd4c96821f",
+            "sha256": "7c0a79c3c033993f8677b21268e0c18d14d87e312932b3d767cb7673015ae4a1"
+          },
+          {
+            "index": 2,
+            "path": "fringes/blur/frame_002.png",
+            "pixel_sha256": "856d70e41ecaeb88f517c2663355a5a9089e91980b4d4f024092e5dd4c96821f",
+            "sha256": "7c0a79c3c033993f8677b21268e0c18d14d87e312932b3d767cb7673015ae4a1"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "fringes/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "4b587c2b35def6c50125234a40485c91fd960790a35936d36dac5fd0b600f68f",
+            "sha256": "ce62206bdb45893662609371fa5e9ca8034bff52c81645593a5fac76fc208659"
+          },
+          {
+            "index": 1,
+            "path": "fringes/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "4b587c2b35def6c50125234a40485c91fd960790a35936d36dac5fd0b600f68f",
+            "sha256": "ce62206bdb45893662609371fa5e9ca8034bff52c81645593a5fac76fc208659"
+          },
+          {
+            "index": 2,
+            "path": "fringes/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "4b587c2b35def6c50125234a40485c91fd960790a35936d36dac5fd0b600f68f",
+            "sha256": "ce62206bdb45893662609371fa5e9ca8034bff52c81645593a5fac76fc208659"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "fringes/jpeg35/frame_000.png",
+            "pixel_sha256": "05cd517f0830a59ef2349361a0677429c97e44853fbf3d68cf7fa30680c7855f",
+            "sha256": "bc8fd7ad2bbfe65b3d238091f1ebbb4eca6e8dfa4d022bdeed2ed99568adeefe"
+          },
+          {
+            "index": 1,
+            "path": "fringes/jpeg35/frame_001.png",
+            "pixel_sha256": "05cd517f0830a59ef2349361a0677429c97e44853fbf3d68cf7fa30680c7855f",
+            "sha256": "bc8fd7ad2bbfe65b3d238091f1ebbb4eca6e8dfa4d022bdeed2ed99568adeefe"
+          },
+          {
+            "index": 2,
+            "path": "fringes/jpeg35/frame_002.png",
+            "pixel_sha256": "05cd517f0830a59ef2349361a0677429c97e44853fbf3d68cf7fa30680c7855f",
+            "sha256": "bc8fd7ad2bbfe65b3d238091f1ebbb4eca6e8dfa4d022bdeed2ed99568adeefe"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "fringes/original/frame_000.png",
+            "pixel_sha256": "447d33af210f62cf34b09ee3a8fe63a77df2b23cfbb98b55e9dfea6e5bd00646",
+            "sha256": "c4932c499865de5938b52e5905b908a92af477e2a1473a557a6dcd24b6bd0757"
+          },
+          {
+            "index": 1,
+            "path": "fringes/original/frame_001.png",
+            "pixel_sha256": "447d33af210f62cf34b09ee3a8fe63a77df2b23cfbb98b55e9dfea6e5bd00646",
+            "sha256": "c4932c499865de5938b52e5905b908a92af477e2a1473a557a6dcd24b6bd0757"
+          },
+          {
+            "index": 2,
+            "path": "fringes/original/frame_002.png",
+            "pixel_sha256": "447d33af210f62cf34b09ee3a8fe63a77df2b23cfbb98b55e9dfea6e5bd00646",
+            "sha256": "c4932c499865de5938b52e5905b908a92af477e2a1473a557a6dcd24b6bd0757"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "fringes/raw/frame_000.png",
+          "pixel_sha256": "447d33af210f62cf34b09ee3a8fe63a77df2b23cfbb98b55e9dfea6e5bd00646",
+          "sha256": "c4932c499865de5938b52e5905b908a92af477e2a1473a557a6dcd24b6bd0757"
+        },
+        {
+          "index": 1,
+          "path": "fringes/raw/frame_001.png",
+          "pixel_sha256": "447d33af210f62cf34b09ee3a8fe63a77df2b23cfbb98b55e9dfea6e5bd00646",
+          "sha256": "c4932c499865de5938b52e5905b908a92af477e2a1473a557a6dcd24b6bd0757"
+        },
+        {
+          "index": 2,
+          "path": "fringes/raw/frame_002.png",
+          "pixel_sha256": "447d33af210f62cf34b09ee3a8fe63a77df2b23cfbb98b55e9dfea6e5bd00646",
+          "sha256": "c4932c499865de5938b52e5905b908a92af477e2a1473a557a6dcd24b6bd0757"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Periodic fringe approximation",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": false,
+          "text_like_components": false
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "SHAKE-256 intensity lookup approximating an exponential distribution; independent frames",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "No intentionally inserted text; structure and OCR can still respond to artifacts",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "height": 160,
+      "id": "speckle",
+      "known_text": null,
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "speckle/blur/frame_000.png",
+            "pixel_sha256": "a49780a0ea0fe5fe06dda3fb399042aae9d3cd9f82ccd23091020ff3f35e9fd6",
+            "sha256": "6908face198a4ca080b5f7a26d5b6e3a84bfd547f51a30a97d1c8dfbba02929a"
+          },
+          {
+            "index": 1,
+            "path": "speckle/blur/frame_001.png",
+            "pixel_sha256": "b5ada3006d0c2af40bbeb9f272db56e18fbdc3d40ed0b6932eb215dd10205fe3",
+            "sha256": "1f24547706128aafc8d2ec4813b24f8fe32c6accdd890da23141d3f9433675ce"
+          },
+          {
+            "index": 2,
+            "path": "speckle/blur/frame_002.png",
+            "pixel_sha256": "79eae6c795c9aea9ce3530e2fec61db8f1ac15225a70ed0623eb2f0cc78dd26a",
+            "sha256": "b89b6082decc4b03640c223a698dddf3481a5afc8c7575eafa02387bd4379968"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "speckle/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "8d18b9e30ad6a0732c74802973bceb091b74824d51cd4a0e82d54c3729fad7d4",
+            "sha256": "747f5200235212a594bb0ced83a28fd9668c74e5ffc622cff01626e15a110f12"
+          },
+          {
+            "index": 1,
+            "path": "speckle/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "426545fd897dd9429f57701e5e818de5cb142696b5fdd423d7bb4c95d6f46502",
+            "sha256": "18d66ec4397b7c623dcf8ff8f3cbad1ae0564f87d50b76abfda12e57cfd83d3c"
+          },
+          {
+            "index": 2,
+            "path": "speckle/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "a8d46ad3face0fe760250304f3e88c7544bf47a654b00cdacaeaebcdb2e32d39",
+            "sha256": "47ba45316c1e45c8dff09da635184f95e4c2ab249af0dc80fa78020358a7bbb0"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "speckle/jpeg35/frame_000.png",
+            "pixel_sha256": "341110ca399da8cb057c34b4795e268bc3629914501b19969cec8f9e8d2041d4",
+            "sha256": "dfa6fb1072f027b4dd7700b548f740b63e54d5f4372496416979e12d56d3acf8"
+          },
+          {
+            "index": 1,
+            "path": "speckle/jpeg35/frame_001.png",
+            "pixel_sha256": "1f8533f4dbee4e9cde557f100aff21656f0783b902f5ee8b679d90f2c1a95574",
+            "sha256": "4fcab5815b42064cda3c469302ae29a8ecfec63d5410168d6fc1edd0f896098c"
+          },
+          {
+            "index": 2,
+            "path": "speckle/jpeg35/frame_002.png",
+            "pixel_sha256": "e25371a41ea31f50b86778c6ed7efaf6a8265fee74236ac3a989b962c57ca75e",
+            "sha256": "f194d9ab52d6f6bc4b8050050f85a7d3250dfc97318ca590f0597a9702e72955"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "speckle/original/frame_000.png",
+            "pixel_sha256": "5acab7f9f7f8ce9c0e1673afc6fd344db6c7a07fc017b0286f3e8e63d954c4bc",
+            "sha256": "0ec015f9832075f0f66592b591d6685c74a6b9010d625c7c8b9822876bea75d2"
+          },
+          {
+            "index": 1,
+            "path": "speckle/original/frame_001.png",
+            "pixel_sha256": "85706898d5005619575ef2d81678696bd1b8abce9a62250d3859ecda57793361",
+            "sha256": "ee430e2524468251e1106c9e293291603c2c99118715df6b00f4a16999885c80"
+          },
+          {
+            "index": 2,
+            "path": "speckle/original/frame_002.png",
+            "pixel_sha256": "8f6e74cd827f4bb4a1ed9c06a39be790c8757e420fcb04d3a78118a2c165e56c",
+            "sha256": "79a3bd899fbd2c0a55663e4d5c0b5a6928ff2bd073ee26ba3451c808420a8c0b"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "speckle/raw/frame_000.png",
+          "pixel_sha256": "5acab7f9f7f8ce9c0e1673afc6fd344db6c7a07fc017b0286f3e8e63d954c4bc",
+          "sha256": "0ec015f9832075f0f66592b591d6685c74a6b9010d625c7c8b9822876bea75d2"
+        },
+        {
+          "index": 1,
+          "path": "speckle/raw/frame_001.png",
+          "pixel_sha256": "85706898d5005619575ef2d81678696bd1b8abce9a62250d3859ecda57793361",
+          "sha256": "ee430e2524468251e1106c9e293291603c2c99118715df6b00f4a16999885c80"
+        },
+        {
+          "index": 2,
+          "path": "speckle/raw/frame_002.png",
+          "pixel_sha256": "8f6e74cd827f4bb4a1ed9c06a39be790c8757e420fcb04d3a78118a2c165e56c",
+          "sha256": "79a3bd899fbd2c0a55663e4d5c0b5a6928ff2bd073ee26ba3451c808420a8c0b"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Dynamic speckle-like intensity",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "blur_jpeg35": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "jpeg35": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "original": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": false,
+          "text_like_components": false
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "8x8 constant blocks from a fixed pseudorandom field; stationary, no inserted text",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "No intentionally inserted text; structure and OCR can still respond to artifacts",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "height": 160,
+      "id": "compression_blocks",
+      "known_text": null,
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "compression_blocks/blur/frame_000.png",
+            "pixel_sha256": "0eefb2a9a3f431f3dfbcd32dc1f4aa9776e7228aafbd79b9703fe2978694dd7d",
+            "sha256": "95970b18e19cb9b63f0b782e9fc17f7616a5869d15f490a5e18b1544e2f3e9cf"
+          },
+          {
+            "index": 1,
+            "path": "compression_blocks/blur/frame_001.png",
+            "pixel_sha256": "0eefb2a9a3f431f3dfbcd32dc1f4aa9776e7228aafbd79b9703fe2978694dd7d",
+            "sha256": "95970b18e19cb9b63f0b782e9fc17f7616a5869d15f490a5e18b1544e2f3e9cf"
+          },
+          {
+            "index": 2,
+            "path": "compression_blocks/blur/frame_002.png",
+            "pixel_sha256": "0eefb2a9a3f431f3dfbcd32dc1f4aa9776e7228aafbd79b9703fe2978694dd7d",
+            "sha256": "95970b18e19cb9b63f0b782e9fc17f7616a5869d15f490a5e18b1544e2f3e9cf"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "compression_blocks/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "517873d1b3a3087f0b60e83b44ff7547184769676faec3def03d95e97fcb6188",
+            "sha256": "865c9f66fbe08d61597115f0fec37994904f291d6ddf15612ad4746a8ad204ac"
+          },
+          {
+            "index": 1,
+            "path": "compression_blocks/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "517873d1b3a3087f0b60e83b44ff7547184769676faec3def03d95e97fcb6188",
+            "sha256": "865c9f66fbe08d61597115f0fec37994904f291d6ddf15612ad4746a8ad204ac"
+          },
+          {
+            "index": 2,
+            "path": "compression_blocks/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "517873d1b3a3087f0b60e83b44ff7547184769676faec3def03d95e97fcb6188",
+            "sha256": "865c9f66fbe08d61597115f0fec37994904f291d6ddf15612ad4746a8ad204ac"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "compression_blocks/jpeg35/frame_000.png",
+            "pixel_sha256": "41e957377efb6d8cd9fc521bf148caa3bcd219a4df7174feeef9f8dd67461419",
+            "sha256": "a2f21e1cfa2ca1c8bea24af789908d81e55ee6577ca572468d45130e935d3a84"
+          },
+          {
+            "index": 1,
+            "path": "compression_blocks/jpeg35/frame_001.png",
+            "pixel_sha256": "41e957377efb6d8cd9fc521bf148caa3bcd219a4df7174feeef9f8dd67461419",
+            "sha256": "a2f21e1cfa2ca1c8bea24af789908d81e55ee6577ca572468d45130e935d3a84"
+          },
+          {
+            "index": 2,
+            "path": "compression_blocks/jpeg35/frame_002.png",
+            "pixel_sha256": "41e957377efb6d8cd9fc521bf148caa3bcd219a4df7174feeef9f8dd67461419",
+            "sha256": "a2f21e1cfa2ca1c8bea24af789908d81e55ee6577ca572468d45130e935d3a84"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "compression_blocks/original/frame_000.png",
+            "pixel_sha256": "bc8df3412a0a3059d4db900ee067d448914cc5549564c468e3bcb0462b4a8b7c",
+            "sha256": "f7490b2fb31d342461b3c71e318f113867c672d986f0fc2161c726ee2170e6cd"
+          },
+          {
+            "index": 1,
+            "path": "compression_blocks/original/frame_001.png",
+            "pixel_sha256": "bc8df3412a0a3059d4db900ee067d448914cc5549564c468e3bcb0462b4a8b7c",
+            "sha256": "f7490b2fb31d342461b3c71e318f113867c672d986f0fc2161c726ee2170e6cd"
+          },
+          {
+            "index": 2,
+            "path": "compression_blocks/original/frame_002.png",
+            "pixel_sha256": "bc8df3412a0a3059d4db900ee067d448914cc5549564c468e3bcb0462b4a8b7c",
+            "sha256": "f7490b2fb31d342461b3c71e318f113867c672d986f0fc2161c726ee2170e6cd"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "compression_blocks/raw/frame_000.png",
+          "pixel_sha256": "bc8df3412a0a3059d4db900ee067d448914cc5549564c468e3bcb0462b4a8b7c",
+          "sha256": "f7490b2fb31d342461b3c71e318f113867c672d986f0fc2161c726ee2170e6cd"
+        },
+        {
+          "index": 1,
+          "path": "compression_blocks/raw/frame_001.png",
+          "pixel_sha256": "bc8df3412a0a3059d4db900ee067d448914cc5549564c468e3bcb0462b4a8b7c",
+          "sha256": "f7490b2fb31d342461b3c71e318f113867c672d986f0fc2161c726ee2170e6cd"
+        },
+        {
+          "index": 2,
+          "path": "compression_blocks/raw/frame_002.png",
+          "pixel_sha256": "bc8df3412a0a3059d4db900ee067d448914cc5549564c468e3bcb0462b4a8b7c",
+          "sha256": "f7490b2fb31d342461b3c71e318f113867c672d986f0fc2161c726ee2170e6cd"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Repeated block artifact",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": false,
+          "text_like_components": false
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "64x64 rectangle with red channel 255 on a dark field; stationary",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "No intentionally inserted text; structure and OCR can still respond to artifacts",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": null,
+        "pixel_clipping": true,
+        "text_like_components": false
+      },
+      "height": 160,
+      "id": "saturated_patch",
+      "known_text": null,
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "saturated_patch/blur/frame_000.png",
+            "pixel_sha256": "f3c1b106fc336559a0355f79bee268767c37dbae197f89806efd1c873edd54c8",
+            "sha256": "e8776fb0503b9da53d0185542b45f3c2dbf09223ceee1b622b8a6426f1c4727e"
+          },
+          {
+            "index": 1,
+            "path": "saturated_patch/blur/frame_001.png",
+            "pixel_sha256": "f3c1b106fc336559a0355f79bee268767c37dbae197f89806efd1c873edd54c8",
+            "sha256": "e8776fb0503b9da53d0185542b45f3c2dbf09223ceee1b622b8a6426f1c4727e"
+          },
+          {
+            "index": 2,
+            "path": "saturated_patch/blur/frame_002.png",
+            "pixel_sha256": "f3c1b106fc336559a0355f79bee268767c37dbae197f89806efd1c873edd54c8",
+            "sha256": "e8776fb0503b9da53d0185542b45f3c2dbf09223ceee1b622b8a6426f1c4727e"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "saturated_patch/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "ec8f61ad20cfb2e6a35feb3c216b3521e79152e16e354b38bb5388801006d6a6",
+            "sha256": "8f6b8713694f6c704f7755b9a9eb155dfad479e928ca605a048055a8f0b5f7f7"
+          },
+          {
+            "index": 1,
+            "path": "saturated_patch/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "ec8f61ad20cfb2e6a35feb3c216b3521e79152e16e354b38bb5388801006d6a6",
+            "sha256": "8f6b8713694f6c704f7755b9a9eb155dfad479e928ca605a048055a8f0b5f7f7"
+          },
+          {
+            "index": 2,
+            "path": "saturated_patch/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "ec8f61ad20cfb2e6a35feb3c216b3521e79152e16e354b38bb5388801006d6a6",
+            "sha256": "8f6b8713694f6c704f7755b9a9eb155dfad479e928ca605a048055a8f0b5f7f7"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "saturated_patch/jpeg35/frame_000.png",
+            "pixel_sha256": "a27e0bd37f6c160eb4bbbebf786d443d893c3ee29a358a5f5006820beb2e369c",
+            "sha256": "0d376aa85383d45b8ebe406c1dbe5dee51e9591550a84dcb41faa73d1a6c4614"
+          },
+          {
+            "index": 1,
+            "path": "saturated_patch/jpeg35/frame_001.png",
+            "pixel_sha256": "a27e0bd37f6c160eb4bbbebf786d443d893c3ee29a358a5f5006820beb2e369c",
+            "sha256": "0d376aa85383d45b8ebe406c1dbe5dee51e9591550a84dcb41faa73d1a6c4614"
+          },
+          {
+            "index": 2,
+            "path": "saturated_patch/jpeg35/frame_002.png",
+            "pixel_sha256": "a27e0bd37f6c160eb4bbbebf786d443d893c3ee29a358a5f5006820beb2e369c",
+            "sha256": "0d376aa85383d45b8ebe406c1dbe5dee51e9591550a84dcb41faa73d1a6c4614"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "saturated_patch/original/frame_000.png",
+            "pixel_sha256": "5a4716008a4fa94a743fe117c198680cdb51a40555c2ddf2ec48d1474d216ada",
+            "sha256": "c69c31ec85e56c6dd13ddca6bc8836ed517fd347a6e8ea11802c66fa0587c92c"
+          },
+          {
+            "index": 1,
+            "path": "saturated_patch/original/frame_001.png",
+            "pixel_sha256": "5a4716008a4fa94a743fe117c198680cdb51a40555c2ddf2ec48d1474d216ada",
+            "sha256": "c69c31ec85e56c6dd13ddca6bc8836ed517fd347a6e8ea11802c66fa0587c92c"
+          },
+          {
+            "index": 2,
+            "path": "saturated_patch/original/frame_002.png",
+            "pixel_sha256": "5a4716008a4fa94a743fe117c198680cdb51a40555c2ddf2ec48d1474d216ada",
+            "sha256": "c69c31ec85e56c6dd13ddca6bc8836ed517fd347a6e8ea11802c66fa0587c92c"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "saturated_patch/raw/frame_000.png",
+          "pixel_sha256": "5a4716008a4fa94a743fe117c198680cdb51a40555c2ddf2ec48d1474d216ada",
+          "sha256": "c69c31ec85e56c6dd13ddca6bc8836ed517fd347a6e8ea11802c66fa0587c92c"
+        },
+        {
+          "index": 1,
+          "path": "saturated_patch/raw/frame_001.png",
+          "pixel_sha256": "5a4716008a4fa94a743fe117c198680cdb51a40555c2ddf2ec48d1474d216ada",
+          "sha256": "c69c31ec85e56c6dd13ddca6bc8836ed517fd347a6e8ea11802c66fa0587c92c"
+        },
+        {
+          "index": 2,
+          "path": "saturated_patch/raw/frame_002.png",
+          "pixel_sha256": "5a4716008a4fa94a743fe117c198680cdb51a40555c2ddf2ec48d1474d216ada",
+          "sha256": "c69c31ec85e56c6dd13ddca6bc8836ed517fd347a6e8ea11802c66fa0587c92c"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Single-channel clipped region",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": null,
+          "pixel_clipping": true,
+          "text_like_components": false
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "SHAKE-256 uniform grayscale bytes mapped to 30..219; independent frames",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "No intentionally inserted text; structure and OCR can still respond to artifacts",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": false,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "height": 160,
+      "id": "sensor_noise",
+      "known_text": null,
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "sensor_noise/blur/frame_000.png",
+            "pixel_sha256": "b3835e82fea0e61093108c7ee9fc0e2ad84a82beb8bd04dc0a71c22869b57540",
+            "sha256": "1ec42baa6252d5b69295c4f163c3b623e42d5cc7a33d49e22584a0f8c6620599"
+          },
+          {
+            "index": 1,
+            "path": "sensor_noise/blur/frame_001.png",
+            "pixel_sha256": "f0fe32aada781ab79fedbbafb25b1718ed2ce9ec9ed946d5697d13d42cdcf11b",
+            "sha256": "97470035af36f0e65e2c47fd035c6b3eb0dbbb354b7132942aa841cb9daf540d"
+          },
+          {
+            "index": 2,
+            "path": "sensor_noise/blur/frame_002.png",
+            "pixel_sha256": "c2819c41abaf3712660ff989c4682aefcea67e97d01a9e093fec7c9746efae22",
+            "sha256": "ae16a9c3d584ef6dd41555c8d1f2545cac17997d40fe92a690ea624528938eb8"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "sensor_noise/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "aa11d05ca4208047bb167a517847500b8bec7cf1c6607285f4396174801abf34",
+            "sha256": "1f5fb95ebb2fd8af467089c9f7e3dfc1129bdad44b2ea72f553acf637f3e5da7"
+          },
+          {
+            "index": 1,
+            "path": "sensor_noise/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "09646cd5e657241fbb8d4684e25bb55dd292e83108b52034a84c9dfe8ea83972",
+            "sha256": "b4e9e1a511ae435839b9592e51ee5d84c7f10cd6eba54f93b5249925d2ff701b"
+          },
+          {
+            "index": 2,
+            "path": "sensor_noise/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "60ba449975408417b5a475ea6e2f45a1a33a8edd1273a6bfdddada223a51ba07",
+            "sha256": "495df63dd5fe8455d5067da3e513edf184e7b81b4955dd8d5d409456c62a9a65"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "sensor_noise/jpeg35/frame_000.png",
+            "pixel_sha256": "8efc8c00e52507ed1d7faf7fa927240235891862ee2aa64e78b8dbdfb96d6072",
+            "sha256": "fd6f3813dcf6bb2b65afec6aac610b82124e6182ead7cc757714e758fc9d4a3f"
+          },
+          {
+            "index": 1,
+            "path": "sensor_noise/jpeg35/frame_001.png",
+            "pixel_sha256": "e4e346d06d2e91e042fdf16e4685e10aab62d8b18e9bc7f557ccac9ec78e5171",
+            "sha256": "36a3b74b8b567c174a020deebb2fcb55fabb491d5d7c824d51f4b5c26a3c2117"
+          },
+          {
+            "index": 2,
+            "path": "sensor_noise/jpeg35/frame_002.png",
+            "pixel_sha256": "6c71677ae14ae4577b7616802e73e2291fcf49700b6970fa4c2c47ed2b8fe08b",
+            "sha256": "bb594c9d01519102bcaee927dcd20611856a34ebc12c2317296ed39edb570c1e"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "sensor_noise/original/frame_000.png",
+            "pixel_sha256": "b9464e329c3022c1f1f88742a1f93b16b1a38bdff9dbebc75bb7def44eb138c5",
+            "sha256": "57bb672c1765ccfe5e7b960b068c2d523d80afe73abd38605b93cedb193d3222"
+          },
+          {
+            "index": 1,
+            "path": "sensor_noise/original/frame_001.png",
+            "pixel_sha256": "cd01222084a7e0338abeaccbc8d9539d416f59d8cce079e0c05077511df45922",
+            "sha256": "df4cd053ede8288745d5bd71187831ed01bf3003e20b1fc21c953408c61dc5ba"
+          },
+          {
+            "index": 2,
+            "path": "sensor_noise/original/frame_002.png",
+            "pixel_sha256": "2a17cdf1093713ca21838a71f2c5f27d65d64fae667ad8c253178da17e56f8f5",
+            "sha256": "cfa6aee9227f673523272f56a751841662f2aac2f799818307f381b6eda8392b"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "sensor_noise/raw/frame_000.png",
+          "pixel_sha256": "b9464e329c3022c1f1f88742a1f93b16b1a38bdff9dbebc75bb7def44eb138c5",
+          "sha256": "57bb672c1765ccfe5e7b960b068c2d523d80afe73abd38605b93cedb193d3222"
+        },
+        {
+          "index": 1,
+          "path": "sensor_noise/raw/frame_001.png",
+          "pixel_sha256": "cd01222084a7e0338abeaccbc8d9539d416f59d8cce079e0c05077511df45922",
+          "sha256": "df4cd053ede8288745d5bd71187831ed01bf3003e20b1fc21c953408c61dc5ba"
+        },
+        {
+          "index": 2,
+          "path": "sensor_noise/raw/frame_002.png",
+          "pixel_sha256": "2a17cdf1093713ca21838a71f2c5f27d65d64fae667ad8c253178da17e56f8f5",
+          "sha256": "cfa6aee9227f673523272f56a751841662f2aac2f799818307f381b6eda8392b"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Independent sensor-noise approximation",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "blur_jpeg35": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "jpeg35": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "original": {
+          "frame_persistence": false,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": false,
+          "text_like_components": false
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "16x16 repeating corner/checker texture; stationary, no encoded letters",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "No intentionally inserted text; structure and OCR can still respond to artifacts",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": true,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "height": 160,
+      "id": "static_texture",
+      "known_text": null,
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "static_texture/blur/frame_000.png",
+            "pixel_sha256": "753316de65a605f96a46769a1a9d2c20491c702614d46e37ee15741ab665620f",
+            "sha256": "70a51ac814645997dccd55a389523edcf96e9535033818301af31897ff478d76"
+          },
+          {
+            "index": 1,
+            "path": "static_texture/blur/frame_001.png",
+            "pixel_sha256": "753316de65a605f96a46769a1a9d2c20491c702614d46e37ee15741ab665620f",
+            "sha256": "70a51ac814645997dccd55a389523edcf96e9535033818301af31897ff478d76"
+          },
+          {
+            "index": 2,
+            "path": "static_texture/blur/frame_002.png",
+            "pixel_sha256": "753316de65a605f96a46769a1a9d2c20491c702614d46e37ee15741ab665620f",
+            "sha256": "70a51ac814645997dccd55a389523edcf96e9535033818301af31897ff478d76"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "static_texture/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "49fd365670c2dd14e7406c1f4c20cc0dd1d247b3091655b2a9c99a07ca0e6998",
+            "sha256": "2e20f92ab9bb5ea458da633b83efbfc433740e54ec067df664f1a7f8f1bbca39"
+          },
+          {
+            "index": 1,
+            "path": "static_texture/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "49fd365670c2dd14e7406c1f4c20cc0dd1d247b3091655b2a9c99a07ca0e6998",
+            "sha256": "2e20f92ab9bb5ea458da633b83efbfc433740e54ec067df664f1a7f8f1bbca39"
+          },
+          {
+            "index": 2,
+            "path": "static_texture/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "49fd365670c2dd14e7406c1f4c20cc0dd1d247b3091655b2a9c99a07ca0e6998",
+            "sha256": "2e20f92ab9bb5ea458da633b83efbfc433740e54ec067df664f1a7f8f1bbca39"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "static_texture/jpeg35/frame_000.png",
+            "pixel_sha256": "728c9f7e35016e8fc9d3f7352e346d2001a40d6478a0f418c21a2c14de87f3c9",
+            "sha256": "4e88564823ef980cefc9575a56d77888f6ea46a099472eef29cefe577719428a"
+          },
+          {
+            "index": 1,
+            "path": "static_texture/jpeg35/frame_001.png",
+            "pixel_sha256": "728c9f7e35016e8fc9d3f7352e346d2001a40d6478a0f418c21a2c14de87f3c9",
+            "sha256": "4e88564823ef980cefc9575a56d77888f6ea46a099472eef29cefe577719428a"
+          },
+          {
+            "index": 2,
+            "path": "static_texture/jpeg35/frame_002.png",
+            "pixel_sha256": "728c9f7e35016e8fc9d3f7352e346d2001a40d6478a0f418c21a2c14de87f3c9",
+            "sha256": "4e88564823ef980cefc9575a56d77888f6ea46a099472eef29cefe577719428a"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "static_texture/original/frame_000.png",
+            "pixel_sha256": "eadab478d0d1e8d79b7f7b21a0b6bea819722e30b760ef160caf1051064c2512",
+            "sha256": "e8eee8b087813b16588f2dd2db8b524039bcf2810946f7e29dbe6378b83c4159"
+          },
+          {
+            "index": 1,
+            "path": "static_texture/original/frame_001.png",
+            "pixel_sha256": "eadab478d0d1e8d79b7f7b21a0b6bea819722e30b760ef160caf1051064c2512",
+            "sha256": "e8eee8b087813b16588f2dd2db8b524039bcf2810946f7e29dbe6378b83c4159"
+          },
+          {
+            "index": 2,
+            "path": "static_texture/original/frame_002.png",
+            "pixel_sha256": "eadab478d0d1e8d79b7f7b21a0b6bea819722e30b760ef160caf1051064c2512",
+            "sha256": "e8eee8b087813b16588f2dd2db8b524039bcf2810946f7e29dbe6378b83c4159"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "static_texture/raw/frame_000.png",
+          "pixel_sha256": "eadab478d0d1e8d79b7f7b21a0b6bea819722e30b760ef160caf1051064c2512",
+          "sha256": "e8eee8b087813b16588f2dd2db8b524039bcf2810946f7e29dbe6378b83c4159"
+        },
+        {
+          "index": 1,
+          "path": "static_texture/raw/frame_001.png",
+          "pixel_sha256": "eadab478d0d1e8d79b7f7b21a0b6bea819722e30b760ef160caf1051064c2512",
+          "sha256": "e8eee8b087813b16588f2dd2db8b524039bcf2810946f7e29dbe6378b83c4159"
+        },
+        {
+          "index": 2,
+          "path": "static_texture/raw/frame_002.png",
+          "pixel_sha256": "eadab478d0d1e8d79b7f7b21a0b6bea819722e30b760ef160caf1051064c2512",
+          "sha256": "e8eee8b087813b16588f2dd2db8b524039bcf2810946f7e29dbe6378b83c4159"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Repeated glyph-like geometric texture",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": true,
+          "pixel_clipping": false,
+          "text_like_components": false
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "Original 5x7 glyphs at scale 4; light text on dark background",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "Known inserted text",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "height": 160,
+      "id": "known_text",
+      "known_text": "LASER 314",
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "known_text/blur/frame_000.png",
+            "pixel_sha256": "21879fce140529bc0f08f98d98fb02ed31eeb0f4f1e4534f6214b647a4cd300d",
+            "sha256": "6a8fc0bb07dea5ec103c6d4acd9173cd41d9357d3968028cab7eb4624beb336c"
+          },
+          {
+            "index": 1,
+            "path": "known_text/blur/frame_001.png",
+            "pixel_sha256": "21879fce140529bc0f08f98d98fb02ed31eeb0f4f1e4534f6214b647a4cd300d",
+            "sha256": "6a8fc0bb07dea5ec103c6d4acd9173cd41d9357d3968028cab7eb4624beb336c"
+          },
+          {
+            "index": 2,
+            "path": "known_text/blur/frame_002.png",
+            "pixel_sha256": "21879fce140529bc0f08f98d98fb02ed31eeb0f4f1e4534f6214b647a4cd300d",
+            "sha256": "6a8fc0bb07dea5ec103c6d4acd9173cd41d9357d3968028cab7eb4624beb336c"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "known_text/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "715bc0dde8d67ab6c9274d17a499c7c6fd1c2bda664935fa70d1ac475b0f46f3",
+            "sha256": "ba0c5eb75b14ec3644f1f8d00ed987daea36eafdb8a4444bb72eacbd77dfb03b"
+          },
+          {
+            "index": 1,
+            "path": "known_text/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "715bc0dde8d67ab6c9274d17a499c7c6fd1c2bda664935fa70d1ac475b0f46f3",
+            "sha256": "ba0c5eb75b14ec3644f1f8d00ed987daea36eafdb8a4444bb72eacbd77dfb03b"
+          },
+          {
+            "index": 2,
+            "path": "known_text/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "715bc0dde8d67ab6c9274d17a499c7c6fd1c2bda664935fa70d1ac475b0f46f3",
+            "sha256": "ba0c5eb75b14ec3644f1f8d00ed987daea36eafdb8a4444bb72eacbd77dfb03b"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "known_text/jpeg35/frame_000.png",
+            "pixel_sha256": "ddea08ecdfa3adf40833d51f7251573fcda0e8ccae001afcd0b6539f6b071339",
+            "sha256": "12b91c0abb98869308277a44db61c1c56edb88f5927fca0da8feace18fe7b32e"
+          },
+          {
+            "index": 1,
+            "path": "known_text/jpeg35/frame_001.png",
+            "pixel_sha256": "ddea08ecdfa3adf40833d51f7251573fcda0e8ccae001afcd0b6539f6b071339",
+            "sha256": "12b91c0abb98869308277a44db61c1c56edb88f5927fca0da8feace18fe7b32e"
+          },
+          {
+            "index": 2,
+            "path": "known_text/jpeg35/frame_002.png",
+            "pixel_sha256": "ddea08ecdfa3adf40833d51f7251573fcda0e8ccae001afcd0b6539f6b071339",
+            "sha256": "12b91c0abb98869308277a44db61c1c56edb88f5927fca0da8feace18fe7b32e"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "known_text/original/frame_000.png",
+            "pixel_sha256": "7b49d521ed84d704696d89f1ba45d6ded8887f5229915f5fd0a0d4d76d6334c9",
+            "sha256": "67a4f4fabea54ea896873115cd1acbf8e6e20c8d6b92821d2f4a5392a4bad253"
+          },
+          {
+            "index": 1,
+            "path": "known_text/original/frame_001.png",
+            "pixel_sha256": "7b49d521ed84d704696d89f1ba45d6ded8887f5229915f5fd0a0d4d76d6334c9",
+            "sha256": "67a4f4fabea54ea896873115cd1acbf8e6e20c8d6b92821d2f4a5392a4bad253"
+          },
+          {
+            "index": 2,
+            "path": "known_text/original/frame_002.png",
+            "pixel_sha256": "7b49d521ed84d704696d89f1ba45d6ded8887f5229915f5fd0a0d4d76d6334c9",
+            "sha256": "67a4f4fabea54ea896873115cd1acbf8e6e20c8d6b92821d2f4a5392a4bad253"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "known_text/raw/frame_000.png",
+          "pixel_sha256": "7b49d521ed84d704696d89f1ba45d6ded8887f5229915f5fd0a0d4d76d6334c9",
+          "sha256": "67a4f4fabea54ea896873115cd1acbf8e6e20c8d6b92821d2f4a5392a4bad253"
+        },
+        {
+          "index": 1,
+          "path": "known_text/raw/frame_001.png",
+          "pixel_sha256": "7b49d521ed84d704696d89f1ba45d6ded8887f5229915f5fd0a0d4d76d6334c9",
+          "sha256": "67a4f4fabea54ea896873115cd1acbf8e6e20c8d6b92821d2f4a5392a4bad253"
+        },
+        {
+          "index": 2,
+          "path": "known_text/raw/frame_002.png",
+          "pixel_sha256": "7b49d521ed84d704696d89f1ba45d6ded8887f5229915f5fd0a0d4d76d6334c9",
+          "sha256": "67a4f4fabea54ea896873115cd1acbf8e6e20c8d6b92821d2f4a5392a4bad253"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Light-on-dark text calibration",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": false,
+          "text_like_components": true
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "Original 5x7 glyphs at scale 2; light text on dark background",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "Known inserted text",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "height": 160,
+      "id": "small_text",
+      "known_text": "LASER 314",
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "small_text/blur/frame_000.png",
+            "pixel_sha256": "5a143aefbf734a58b87f01bf0b710fde3acc7a7c7fe0013e39358d17b5501e05",
+            "sha256": "917e0477da1c8441b6fb11a7cf2def98880c4a4a2991b82a411719dd8f2b0a04"
+          },
+          {
+            "index": 1,
+            "path": "small_text/blur/frame_001.png",
+            "pixel_sha256": "5a143aefbf734a58b87f01bf0b710fde3acc7a7c7fe0013e39358d17b5501e05",
+            "sha256": "917e0477da1c8441b6fb11a7cf2def98880c4a4a2991b82a411719dd8f2b0a04"
+          },
+          {
+            "index": 2,
+            "path": "small_text/blur/frame_002.png",
+            "pixel_sha256": "5a143aefbf734a58b87f01bf0b710fde3acc7a7c7fe0013e39358d17b5501e05",
+            "sha256": "917e0477da1c8441b6fb11a7cf2def98880c4a4a2991b82a411719dd8f2b0a04"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "small_text/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "165603dfa4ef9890ce820ca535236f8d3d1d1df1e42573208b64c55941b59a11",
+            "sha256": "fa972c59cc635cb8d9f5fd23726e63da446fac21b31d14ff2d7cef91ac467f55"
+          },
+          {
+            "index": 1,
+            "path": "small_text/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "165603dfa4ef9890ce820ca535236f8d3d1d1df1e42573208b64c55941b59a11",
+            "sha256": "fa972c59cc635cb8d9f5fd23726e63da446fac21b31d14ff2d7cef91ac467f55"
+          },
+          {
+            "index": 2,
+            "path": "small_text/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "165603dfa4ef9890ce820ca535236f8d3d1d1df1e42573208b64c55941b59a11",
+            "sha256": "fa972c59cc635cb8d9f5fd23726e63da446fac21b31d14ff2d7cef91ac467f55"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "small_text/jpeg35/frame_000.png",
+            "pixel_sha256": "761fc0dd08ba4b8c5a0d30e852cbfbd5edc6676b7d9d55e229e1dcd7a9f9ee19",
+            "sha256": "051ca4f8eaaac068b50109a2959535c82d7a3be92b3fd646717b7b96a0117401"
+          },
+          {
+            "index": 1,
+            "path": "small_text/jpeg35/frame_001.png",
+            "pixel_sha256": "761fc0dd08ba4b8c5a0d30e852cbfbd5edc6676b7d9d55e229e1dcd7a9f9ee19",
+            "sha256": "051ca4f8eaaac068b50109a2959535c82d7a3be92b3fd646717b7b96a0117401"
+          },
+          {
+            "index": 2,
+            "path": "small_text/jpeg35/frame_002.png",
+            "pixel_sha256": "761fc0dd08ba4b8c5a0d30e852cbfbd5edc6676b7d9d55e229e1dcd7a9f9ee19",
+            "sha256": "051ca4f8eaaac068b50109a2959535c82d7a3be92b3fd646717b7b96a0117401"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "small_text/original/frame_000.png",
+            "pixel_sha256": "fb8803cf7cca4975e694049dd812ba08c42168a80da10d943e0170e19b083a20",
+            "sha256": "a9dcd3697f1d1ea559fc5d04b58b9d0e821ca54f6c2b3c2d9a2c53aadd9170b8"
+          },
+          {
+            "index": 1,
+            "path": "small_text/original/frame_001.png",
+            "pixel_sha256": "fb8803cf7cca4975e694049dd812ba08c42168a80da10d943e0170e19b083a20",
+            "sha256": "a9dcd3697f1d1ea559fc5d04b58b9d0e821ca54f6c2b3c2d9a2c53aadd9170b8"
+          },
+          {
+            "index": 2,
+            "path": "small_text/original/frame_002.png",
+            "pixel_sha256": "fb8803cf7cca4975e694049dd812ba08c42168a80da10d943e0170e19b083a20",
+            "sha256": "a9dcd3697f1d1ea559fc5d04b58b9d0e821ca54f6c2b3c2d9a2c53aadd9170b8"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "small_text/raw/frame_000.png",
+          "pixel_sha256": "fb8803cf7cca4975e694049dd812ba08c42168a80da10d943e0170e19b083a20",
+          "sha256": "a9dcd3697f1d1ea559fc5d04b58b9d0e821ca54f6c2b3c2d9a2c53aadd9170b8"
+        },
+        {
+          "index": 1,
+          "path": "small_text/raw/frame_001.png",
+          "pixel_sha256": "fb8803cf7cca4975e694049dd812ba08c42168a80da10d943e0170e19b083a20",
+          "sha256": "a9dcd3697f1d1ea559fc5d04b58b9d0e821ca54f6c2b3c2d9a2c53aadd9170b8"
+        },
+        {
+          "index": 2,
+          "path": "small_text/raw/frame_002.png",
+          "pixel_sha256": "fb8803cf7cca4975e694049dd812ba08c42168a80da10d943e0170e19b083a20",
+          "sha256": "a9dcd3697f1d1ea559fc5d04b58b9d0e821ca54f6c2b3c2d9a2c53aadd9170b8"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Small light-on-dark calibration",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": false,
+          "text_like_components": true
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "Original 5x7 glyphs at scale 4; dark text on light background",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "Known inserted text",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": true,
+        "periodic_pattern": null,
+        "pixel_clipping": false,
+        "text_like_components": true
+      },
+      "height": 160,
+      "id": "dark_text",
+      "known_text": "LASER 314",
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "dark_text/blur/frame_000.png",
+            "pixel_sha256": "97a3c70bc542e3318efd4f1b00b882a3852d51b15e49b89adedbf0a8b1953c79",
+            "sha256": "1f005212a8ce27e89be8a1b8d1fb8fc05f72b2a3691a6c0b93a82d94c5b3c2ef"
+          },
+          {
+            "index": 1,
+            "path": "dark_text/blur/frame_001.png",
+            "pixel_sha256": "97a3c70bc542e3318efd4f1b00b882a3852d51b15e49b89adedbf0a8b1953c79",
+            "sha256": "1f005212a8ce27e89be8a1b8d1fb8fc05f72b2a3691a6c0b93a82d94c5b3c2ef"
+          },
+          {
+            "index": 2,
+            "path": "dark_text/blur/frame_002.png",
+            "pixel_sha256": "97a3c70bc542e3318efd4f1b00b882a3852d51b15e49b89adedbf0a8b1953c79",
+            "sha256": "1f005212a8ce27e89be8a1b8d1fb8fc05f72b2a3691a6c0b93a82d94c5b3c2ef"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "dark_text/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "17f97bb9c572589e2cfbc066ef19bd65cdf27b36141067ed023810942ba862c7",
+            "sha256": "90c1a213a51ac3f4d7d4fc0d91fea60139b293b680da9c79882262f468fa5f12"
+          },
+          {
+            "index": 1,
+            "path": "dark_text/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "17f97bb9c572589e2cfbc066ef19bd65cdf27b36141067ed023810942ba862c7",
+            "sha256": "90c1a213a51ac3f4d7d4fc0d91fea60139b293b680da9c79882262f468fa5f12"
+          },
+          {
+            "index": 2,
+            "path": "dark_text/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "17f97bb9c572589e2cfbc066ef19bd65cdf27b36141067ed023810942ba862c7",
+            "sha256": "90c1a213a51ac3f4d7d4fc0d91fea60139b293b680da9c79882262f468fa5f12"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "dark_text/jpeg35/frame_000.png",
+            "pixel_sha256": "1daa56437e1f8eea6f369cbb3a1e331d97677b1d5ccde90ae8d4f022c0ee265c",
+            "sha256": "b4ef5fa4f6b04dab56f6781b4adfabfbc51b1f4251880ed2e77174c29040a5de"
+          },
+          {
+            "index": 1,
+            "path": "dark_text/jpeg35/frame_001.png",
+            "pixel_sha256": "1daa56437e1f8eea6f369cbb3a1e331d97677b1d5ccde90ae8d4f022c0ee265c",
+            "sha256": "b4ef5fa4f6b04dab56f6781b4adfabfbc51b1f4251880ed2e77174c29040a5de"
+          },
+          {
+            "index": 2,
+            "path": "dark_text/jpeg35/frame_002.png",
+            "pixel_sha256": "1daa56437e1f8eea6f369cbb3a1e331d97677b1d5ccde90ae8d4f022c0ee265c",
+            "sha256": "b4ef5fa4f6b04dab56f6781b4adfabfbc51b1f4251880ed2e77174c29040a5de"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "dark_text/original/frame_000.png",
+            "pixel_sha256": "4036ce54892c035a8cf58779a6d69eb8355cf8f62b12bdbbb35345c295fbed61",
+            "sha256": "c243c659d716485d5692acb9a725b9656fe561c62f7cbf94044ba027b5bbeeae"
+          },
+          {
+            "index": 1,
+            "path": "dark_text/original/frame_001.png",
+            "pixel_sha256": "4036ce54892c035a8cf58779a6d69eb8355cf8f62b12bdbbb35345c295fbed61",
+            "sha256": "c243c659d716485d5692acb9a725b9656fe561c62f7cbf94044ba027b5bbeeae"
+          },
+          {
+            "index": 2,
+            "path": "dark_text/original/frame_002.png",
+            "pixel_sha256": "4036ce54892c035a8cf58779a6d69eb8355cf8f62b12bdbbb35345c295fbed61",
+            "sha256": "c243c659d716485d5692acb9a725b9656fe561c62f7cbf94044ba027b5bbeeae"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "dark_text/raw/frame_000.png",
+          "pixel_sha256": "4036ce54892c035a8cf58779a6d69eb8355cf8f62b12bdbbb35345c295fbed61",
+          "sha256": "c243c659d716485d5692acb9a725b9656fe561c62f7cbf94044ba027b5bbeeae"
+        },
+        {
+          "index": 1,
+          "path": "dark_text/raw/frame_001.png",
+          "pixel_sha256": "4036ce54892c035a8cf58779a6d69eb8355cf8f62b12bdbbb35345c295fbed61",
+          "sha256": "c243c659d716485d5692acb9a725b9656fe561c62f7cbf94044ba027b5bbeeae"
+        },
+        {
+          "index": 2,
+          "path": "dark_text/raw/frame_002.png",
+          "pixel_sha256": "4036ce54892c035a8cf58779a6d69eb8355cf8f62b12bdbbb35345c295fbed61",
+          "sha256": "c243c659d716485d5692acb9a725b9656fe561c62f7cbf94044ba027b5bbeeae"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Dark-on-light text calibration",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": null,
+          "text_like_components": true
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": true,
+          "periodic_pattern": null,
+          "pixel_clipping": false,
+          "text_like_components": true
+        }
+      },
+      "width": 256
+    },
+    {
+      "attribution": "LaserAnalysisAI contributors; original software-generated arrays and geometric glyphs",
+      "design": "Uniform grayscale value 70; stationary",
+      "evidence_role": "software_calibration_only",
+      "expected_behavior": "No intentionally inserted text; structure and OCR can still respond to artifacts",
+      "fixture_type": "synthetic",
+      "footage_class": "regression_fixture",
+      "frame_count": 3,
+      "ground_truth": {
+        "frame_persistence": true,
+        "ocr_text_presence": false,
+        "periodic_pattern": false,
+        "pixel_clipping": false,
+        "text_like_components": false
+      },
+      "height": 160,
+      "id": "blank",
+      "known_text": null,
+      "license": "MIT",
+      "limitations": "Synthetic approximation, not a physical optics model, recorded control, independent acquisition or validated language.",
+      "processed_frames": {
+        "blur": [
+          {
+            "index": 0,
+            "path": "blank/blur/frame_000.png",
+            "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+            "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+          },
+          {
+            "index": 1,
+            "path": "blank/blur/frame_001.png",
+            "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+            "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+          },
+          {
+            "index": 2,
+            "path": "blank/blur/frame_002.png",
+            "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+            "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+          }
+        ],
+        "blur_jpeg35": [
+          {
+            "index": 0,
+            "path": "blank/blur_jpeg35/frame_000.png",
+            "pixel_sha256": "a36c8ad1e2ad0422a3779b73e09befe5d4d08cef64ab9239b50be6c32d8beb9d",
+            "sha256": "b8280b067a0feb19333987cafecaf0489d52729b3176c12552872bc7b2b886ac"
+          },
+          {
+            "index": 1,
+            "path": "blank/blur_jpeg35/frame_001.png",
+            "pixel_sha256": "a36c8ad1e2ad0422a3779b73e09befe5d4d08cef64ab9239b50be6c32d8beb9d",
+            "sha256": "b8280b067a0feb19333987cafecaf0489d52729b3176c12552872bc7b2b886ac"
+          },
+          {
+            "index": 2,
+            "path": "blank/blur_jpeg35/frame_002.png",
+            "pixel_sha256": "a36c8ad1e2ad0422a3779b73e09befe5d4d08cef64ab9239b50be6c32d8beb9d",
+            "sha256": "b8280b067a0feb19333987cafecaf0489d52729b3176c12552872bc7b2b886ac"
+          }
+        ],
+        "jpeg35": [
+          {
+            "index": 0,
+            "path": "blank/jpeg35/frame_000.png",
+            "pixel_sha256": "a36c8ad1e2ad0422a3779b73e09befe5d4d08cef64ab9239b50be6c32d8beb9d",
+            "sha256": "b8280b067a0feb19333987cafecaf0489d52729b3176c12552872bc7b2b886ac"
+          },
+          {
+            "index": 1,
+            "path": "blank/jpeg35/frame_001.png",
+            "pixel_sha256": "a36c8ad1e2ad0422a3779b73e09befe5d4d08cef64ab9239b50be6c32d8beb9d",
+            "sha256": "b8280b067a0feb19333987cafecaf0489d52729b3176c12552872bc7b2b886ac"
+          },
+          {
+            "index": 2,
+            "path": "blank/jpeg35/frame_002.png",
+            "pixel_sha256": "a36c8ad1e2ad0422a3779b73e09befe5d4d08cef64ab9239b50be6c32d8beb9d",
+            "sha256": "b8280b067a0feb19333987cafecaf0489d52729b3176c12552872bc7b2b886ac"
+          }
+        ],
+        "original": [
+          {
+            "index": 0,
+            "path": "blank/original/frame_000.png",
+            "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+            "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+          },
+          {
+            "index": 1,
+            "path": "blank/original/frame_001.png",
+            "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+            "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+          },
+          {
+            "index": 2,
+            "path": "blank/original/frame_002.png",
+            "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+            "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+          }
+        ]
+      },
+      "raw_frames": [
+        {
+          "index": 0,
+          "path": "blank/raw/frame_000.png",
+          "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+          "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+        },
+        {
+          "index": 1,
+          "path": "blank/raw/frame_001.png",
+          "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+          "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+        },
+        {
+          "index": 2,
+          "path": "blank/raw/frame_002.png",
+          "pixel_sha256": "8fa36c3820558d615a106335cde971cf1b8da278c038c344e42bf3560d5a33e9",
+          "sha256": "096cb13f1158731c63671d287e7506304f3aba915cbc17fa95dad9bf23f63957"
+        }
+      ],
+      "seed": 314159,
+      "source": "laserlab.optical_benchmark",
+      "title": "Uniform blank",
+      "variant_ground_truth": {
+        "blur": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "blur_jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "jpeg35": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": null,
+          "text_like_components": false
+        },
+        "original": {
+          "frame_persistence": true,
+          "ocr_text_presence": false,
+          "periodic_pattern": false,
+          "pixel_clipping": false,
+          "text_like_components": false
+        }
+      },
+      "width": 256
+    }
+  ],
+  "fixture_type": "synthetic",
+  "generator": {
+    "module": "laserlab.optical_benchmark",
+    "numpy": "2.4.6",
+    "opencv": "4.13.0",
+    "python": "3.11.8",
+    "version": "optical-probes-v1"
+  },
+  "license": "MIT",
+  "limitations": "Finite software probes, not estimates of real-world optical accuracy, statistical significance or independent replication.",
+  "schema_version": 1,
+  "spec_sha256": "77344dd0d69fe290ebf81947dba683a3b077cc41ee8271206ec11aef5a6e38b9",
+  "tasks": {
+    "frame_persistence": {
+      "metric": "mean_pipeline_mask_persistence",
+      "threshold": 0.8
+    },
+    "ocr_text_presence": {
+      "metric": "full_frame_nonempty_alphanumeric_ocr",
+      "threshold": null
+    },
+    "periodic_pattern": {
+      "metric": "fft_spectrum.peak_prominence",
+      "threshold": 8.0
+    },
+    "pixel_clipping": {
+      "metric": "any_channel_ge_250_fraction",
+      "threshold": 0.02
+    },
+    "text_like_components": {
+      "metric": "connected_components.text_like_count",
+      "threshold": 5
+    }
+  },
+  "variants": {
+    "blur": {
+      "blur_kernel": 5,
+      "jpeg_quality": null,
+      "sigma": 1.2
+    },
+    "blur_jpeg35": {
+      "blur_kernel": 5,
+      "jpeg_quality": 35,
+      "sigma": 1.2
+    },
+    "jpeg35": {
+      "blur_kernel": null,
+      "jpeg_quality": 35,
+      "sigma": null
+    },
+    "original": {
+      "blur_kernel": null,
+      "jpeg_quality": null,
+      "sigma": null
+    }
+  }
+}

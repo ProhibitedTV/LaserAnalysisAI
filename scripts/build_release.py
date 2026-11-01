@@ -104,6 +104,7 @@ def _smoke(gui_product: Path, cli_product: Path) -> None:
         unrelated_cwd = Path(temporary)
         subprocess.run([str(gui_executable), "--smoke"], cwd=unrelated_cwd, check=True, timeout=60)
         subprocess.run([str(gui_executable), "--smoke-resources"], cwd=unrelated_cwd, check=True, timeout=60)
+        subprocess.run([str(gui_executable), "--smoke-demo"], cwd=unrelated_cwd, check=True, timeout=120)
         subprocess.run([str(cli_product), "--help"], cwd=unrelated_cwd, check=True, timeout=60)
         diagnostics = subprocess.run(
             [str(cli_product), "diagnostics", "--format", "json"],
@@ -117,6 +118,14 @@ def _smoke(gui_product: Path, cli_product: Path) -> None:
         fixtures = record.get("fixtures", {})
         if not fixtures.get("catalog_valid") or fixtures.get("bundled_file_count") != fixtures.get("redistributable_count"):
             raise RuntimeError("Packaged diagnostics did not find every bundled fixture")
+        pack = unrelated_cwd / "synthetic-probes"
+        report_path = unrelated_cwd / "benchmark.json"
+        subprocess.run([str(cli_product), "benchmark", "generate", "--output", str(pack)], cwd=unrelated_cwd, check=True, timeout=60)
+        subprocess.run([str(cli_product), "benchmark", "run", "--pack", str(pack), "--output", str(report_path)],
+                       cwd=unrelated_cwd, check=True, timeout=60)
+        benchmark = json.loads(report_path.read_text(encoding="utf-8"))
+        if benchmark.get("case_count") != 10 or benchmark.get("probe_count") != 40 or benchmark.get("empirical_capture_count") != 0:
+            raise RuntimeError("Packaged synthetic benchmark did not preserve its scope")
 
 
 def _write_archive(bundle_dir: Path, archive_path: Path) -> None:

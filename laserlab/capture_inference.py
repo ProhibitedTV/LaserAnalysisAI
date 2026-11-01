@@ -23,6 +23,7 @@ def source_class_label(record: dict[str, Any]) -> str:
         "synthetic_positive": "Synthetic positive calibration",
         "synthetic_negative": "Synthetic negative calibration",
         "demonstration_fixture": "Demo/calibration fixture",
+        "synthetic_fixture": "Synthetic benchmark fixture",
     }.get(kind, "Unverified origin")
     if kind == "generated_null" and record.get("control_type"):
         return label + " / " + str(record["control_type"])
@@ -38,6 +39,8 @@ def sample_class(record: dict[str, Any]) -> str:
     if record.get("synthetic") or record.get("control_type") or record.get("parent_capture_id"):
         return "generated_null"
     metadata = record.get("capture_metadata") or {}
+    if metadata.get("fixture_type") == "synthetic":
+        return "synthetic_fixture"
     if metadata.get("fixture_id") or metadata.get("footage_class") in {"calibration_fixture", "regression_fixture", "demo_fixture"}:
         return "demonstration_fixture"
     if not record.get("capture_id") or metadata.get("footage_class") != "primary_wall_projection":

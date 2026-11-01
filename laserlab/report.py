@@ -319,6 +319,7 @@ def pair_quality_html(assessment: dict[str, Any] | None) -> str:
             if check.get("key") == "source_type":
                 labels = {"empirical_laser": "Recorded laser (declared)", "declared_matched_control": "Recorded matched control (declared)",
                           "demonstration_fixture": "Demo / calibration fixture", "generated_null": "Generated probe",
+                          "synthetic_fixture": "Synthetic benchmark fixture",
                           "other_empirical_control": "Other recorded control", "sensor_noise": "Sensor noise",
                           "synthetic_positive": "Synthetic positive", "synthetic_negative": "Synthetic negative", "unverified_origin": "Unverified origin"}
                 values = [labels.get(value, value) for value in values]
