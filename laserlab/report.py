@@ -15,6 +15,9 @@ from .stats import current_statistics
 from .capture_inference import sample_class, source_class_label
 
 
+PAIR_QUALITY_REPORT_VERSION = 1
+
+
 def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any], *, write_html: bool = True) -> dict[str, Any]:
     run_record = current_statistics(run_record)
     aggregate = run_record["aggregate_statistics"]
@@ -40,6 +43,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
     symbol_transcriptions = run_record.get("symbol_transcriptions") if unblinded else None
     report = {
         "schema_version": 1,
+        "pair_quality_report_version": PAIR_QUALITY_REPORT_VERSION,
         "statistics_migration": run_record.get("statistics_migration"),
         "experiment_id": run_record["experiment_id"],
         "run_id": run_record["run_id"],
@@ -53,6 +57,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "review_annotations": annotations,
         "provenance_summary": run_record.get("provenance_summary", {}),
         "capture_protocol_summary": run_record.get("capture_protocol_summary", {}),
+        "pre_run_quality": run_record.get("pre_run_quality") if unblinded else {"sealed": True},
         "study_context": run_record.get("study_context", {"sealed": not unblinded}),
         "subjective_reports": run_record.get("subjective_reports", []) if unblinded else [],
         "psychophysics_analysis": psychophysics,
@@ -152,6 +157,7 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 def render_html_report(report: dict[str, Any]) -> str:
     summary = report["summary"]
     unblinded = bool(report.get("review_state", {}).get("unblinded", True))
+    quality_html = pair_quality_html(report.get("pre_run_quality")) if unblinded else ""
     candidates = report["top_candidates"]
     rows = "\n".join(_candidate_row(candidate, unblinded=unblinded) for candidate in candidates)
     provenance_rows = "\n".join(_provenance_row(record) for record in report.get("source_provenance", []))
@@ -257,6 +263,7 @@ def render_html_report(report: dict[str, Any]) -> str:
   <h1>LaserAnalysisAI Blinded Signal Report</h1>
   {migration_html}
   {inference_html}
+  {quality_html}
   <div class="summary">
     <p>{badges}</p>
     <div class="metric"><strong>Evidence ladder</strong><span class="evidence-value evidence-value--{ladder_tone}">{html.escape(str(summary['evidence_ladder']))}</span></div>
@@ -284,6 +291,70 @@ def render_html_report(report: dict[str, Any]) -> str:
 </html>
 """
     return html_text
+
+
+def pair_quality_html(assessment: dict[str, Any] | None) -> str:
+    """Render setup/unblinded checks without original filenames or private notes."""
+    if not assessment:
+        return ("<h2>Pair Quality</h2><p>Not assessed in this saved run. Its original artifacts are preserved. "
+                "Open the unblinded experiment and check Pair Quality before a new analysis; "
+                "a saved result is not retroactively certified.</p>")
+    if assessment.get("sealed"):
+        return "<p>Pair Quality source details remain sealed until explicit unblinding.</p>"
+    esc = lambda value: html.escape(str(value if value is not None else "Unknown"))
+    colors = {"matched": "#74dbb4", "consistent": "#74dbb4", "mismatch": "#ff9d9d", "unknown": "#f3cd7c"}
+
+    def rows(checks: list[dict[str, Any]]) -> str:
+        result = []
+        ordered = sorted(checks, key=lambda check: (3 if check.get("descriptive") or check.get("key") == "brightness"
+                                                  else {"mismatch": 0, "unknown": 1, "matched": 2}.get(check.get("status"), 1)))
+        for check in ordered:
+            status = check.get("status", "unknown")
+            label = {"matched": "Matched", "mismatch": "Mismatch", "unknown": "Unknown"}.get(status, "Unknown")
+            if check.get("descriptive") or check.get("key") == "brightness":
+                label += " (descriptive)"
+                status = "descriptive"
+            approximate = " (approximate)" if check.get("approximate") else ""
+            values = [check.get("laser"), check.get("control")]
+            if check.get("key") == "source_type":
+                labels = {"empirical_laser": "Recorded laser (declared)", "declared_matched_control": "Recorded matched control (declared)",
+                          "demonstration_fixture": "Demo / calibration fixture", "generated_null": "Generated probe",
+                          "other_empirical_control": "Other recorded control", "sensor_noise": "Sensor noise",
+                          "synthetic_positive": "Synthetic positive", "synthetic_negative": "Synthetic negative", "unverified_origin": "Unverified origin"}
+                values = [labels.get(value, value) for value in values]
+            elif check.get("key") == "resolution":
+                values = [" x ".join(str(int(dimension)) for dimension in value) if isinstance(value, (tuple, list)) else value for value in values]
+            elif check.get("key") == "clipping":
+                values = [f"{value:.1%}" if isinstance(value, (int, float)) else value for value in values]
+            elif check.get("key") == "duration_ms":
+                values = [f"{value / 1000:g} s" if isinstance(value, (int, float)) else value for value in values]
+            result.append("<tr><td>" + esc(check.get("label", check.get("key", "Check"))) + approximate
+                          + "</td><td>" + esc(values[0]) + "</td><td>" + esc(values[1])
+                          + "</td><td style='color:" + ("#8ecdec" if status == "descriptive" else colors.get(status, colors["unknown"])) + "'>" + label
+                          + "</td><td>" + esc(check.get("message", "")) + "</td></tr>")
+        return "".join(result)
+
+    def table(checks: list[dict[str, Any]]) -> str:
+        if not checks:
+            return ""
+        return ("<table border='1' cellspacing='0' cellpadding='5' width='100%'><thead><tr>"
+                "<th>Check</th><th>Laser recording</th><th>Proposed control</th><th>Status</th><th>Meaning / next step</th>"
+                "</tr></thead><tbody>" + rows(checks) + "</tbody></table>")
+
+    status = assessment.get("status", "unknown")
+    text = ("<h2>Pair Quality: is this comparison fair?</h2><p style='color:" + colors.get(status, colors["unknown"])
+            + "'><strong>" + esc(assessment.get("summary", "Comparison details are incomplete.")) + "</strong></p>"
+            + "<p>Matched means these checks agree; it does not validate the experiment or prove independence. "
+            "Unknown means information is missing. Mismatch means a reported or measured difference needs review.</p>"
+            + table(assessment.get("checks", [])))
+    for index, pair in enumerate(assessment.get("pairs", []), 1):
+        text += "<h3>Comparison " + str(index) + "</h3><p>" + esc(pair.get("summary", "")) + "</p>"
+        text += "<p>Laser: <code>" + esc(pair.get("laser_capture_id")) + "</code> / Control: <code>" + esc(pair.get("control_capture_id")) + "</code></p>"
+        text += table(pair.get("checks", []))
+    if assessment.get("requires_exploratory"):
+        text += "<p><strong>Proceed as exploratory: inferential significance and effect-size claims will be withheld.</strong></p>"
+    text += "<ul>" + "".join("<li>" + esc(item) + "</li>" for item in assessment.get("limitations", [])) + "</ul>"
+    return text
 
 
 def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:

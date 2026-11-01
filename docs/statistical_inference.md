@@ -6,7 +6,7 @@ Development builds use `paired-capture-v2`. Existing native v0.8.2 downloads and
 
 An empirical laser capture and a user-declared `matched_control`, both classified as primary wall-projection footage, can form a comparison. Their role labels and metadata are declarations, not verified optical measurements. Ordinary `control` recordings and `sensor_noise` are separately reported descriptive controls. Synthetic negatives, generated rotations/shuffles/blanks, synthetic positive calibration, public demonstration fixtures, and unknown-origin records are also separate diagnostics. None substitutes for an empirical matched capture.
 
-No empirical matched comparison means **not tested / exploratory**, not “no signal.” Reported camera/beam motion or saturation withholds inference. Automated optical pair-quality measurement is a separate feature; unrecorded settings are not silently inferred as matched.
+No empirical matched comparison means **not tested / exploratory**, not “no signal.” Reported camera/beam motion or saturation withholds inference. New runs also use the bounded [Pair Quality setup check](pair_quality.md): unresolved comparison details withhold otherwise eligible inference. Unrecorded settings are not silently inferred as matched, and a consistent check cannot validate the optics or prove independence. Earlier saved runs disclose that Pair Quality was not assessed.
 
 ## Declare independent pairs before running
 

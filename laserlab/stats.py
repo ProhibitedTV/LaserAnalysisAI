@@ -30,14 +30,14 @@ def summarize_blinded_results(sample_results: list[dict[str, Any]], primary_metr
 
 
 def summarize_results(sample_results: list[dict[str, Any]], seed: int, permutations: int = 10000,
-                      primary_metric: str = "structure_score") -> dict[str, Any]:
+                      primary_metric: str = "structure_score", quality_gate: dict[str, Any] | None = None) -> dict[str, Any]:
     frames = _sample_scores(sample_results)
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for frame in frames:
         groups[sample_class(frame)].append(frame)
     laser, controls = groups["empirical_laser"], groups["declared_matched_control"]
     positives = [r["score"] for r in groups["synthetic_positive"]]
-    inference = paired_capture_inference(frames, seed, permutations)
+    inference = paired_capture_inference(frames, seed, permutations, quality_gate=quality_gate)
     tested = inference["status"] == "tested"
     laser_mean = inference.get("laser_mean") if tested else _mean([r["score"] for r in laser])
     control_mean = inference.get("control_mean") if tested else _mean([r["score"] for r in controls])
@@ -73,7 +73,11 @@ def summarize_results(sample_results: list[dict[str, Any]], seed: int, permutati
 
 def current_statistics(run_record: dict[str, Any]) -> dict[str, Any]:
     """Re-evaluate legacy unblinded records in memory; never rewrite source results."""
-    if run_record.get("aggregate_statistics", {}).get("statistics_version") == STATISTICS_VERSION:
+    unblinded = run_record.get("review_state", {"unblinded": True}).get("unblinded")
+    gate = run_record.get("pre_run_quality") if unblinded else None
+    needs_quality_gate = bool(gate and gate.get("requires_exploratory") and
+                              run_record.get("aggregate_statistics", {}).get("inference", {}).get("status") == "tested")
+    if run_record.get("aggregate_statistics", {}).get("statistics_version") == STATISTICS_VERSION and not needs_quality_gate:
         return run_record
     updated = dict(run_record)
     if not run_record.get("review_state", {"unblinded": True}).get("unblinded"):
@@ -87,10 +91,12 @@ def current_statistics(run_record: dict[str, Any]) -> dict[str, Any]:
     updated["aggregate_statistics"] = summarize_results(
         run_record.get("results", []), int(run_record.get("blind_seed", 1)),
         primary_metric=run_record.get("aggregate_statistics", {}).get("primary_metric", "structure_score"),
+        quality_gate=gate,
     )
     updated["results"] = [{**result, "q_value": None, "source_class": sample_class(result)} for result in run_record.get("results", [])]
     updated["samples"] = [{**sample, "source_class": sample_class(sample)} for sample in run_record.get("samples", [])]
-    updated["statistics_migration"] = "Legacy frame-level significance and candidate FDR are superseded. Original results and source media remain unchanged; re-run to record independent-unit provenance."
+    if not needs_quality_gate:
+        updated["statistics_migration"] = "Legacy frame-level significance and candidate FDR are superseded. Original results and source media remain unchanged; re-run to record independent-unit provenance."
     return updated
 
 

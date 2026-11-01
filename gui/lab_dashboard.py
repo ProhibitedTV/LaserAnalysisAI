@@ -41,7 +41,8 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
-from laserlab.capture_inference import source_class_label
+from laserlab.capture_inference import sample_class, source_class_label
+from laserlab.report import pair_quality_html
 from laserlab.veilbreak_bridge import browse_public
 from laserlab.diagnostics import (
     collect_diagnostics,
@@ -68,13 +69,17 @@ class ApiWorker(QThread):
     def __init__(self, task: Callable[[], Any]):
         super().__init__()
         self._task = task
+        self.result: Any = None
+        self.error: str | None = None
 
     def run(self) -> None:
         try:
-            self.finished_ok.emit(self._task())
+            self.result = self._task()
+            self.finished_ok.emit(self.result)
         except Exception as exc:  # pragma: no cover - exercised by manual GUI use
             LOGGER.exception("Background task failed")
-            self.failed.emit(str(exc))
+            self.error = str(exc)
+            self.failed.emit(self.error)
 
 
 class LabDashboardWindow(QMainWindow):
@@ -85,6 +90,7 @@ class LabDashboardWindow(QMainWindow):
         self.experiment_dir: Path | None = None
         self.latest_report: dict[str, Any] | None = None
         self.worker: ApiWorker | None = None
+        self._busy = False
         self.preferences = preferences if preferences is not None else load_preferences()
         self.protocol_presets = app_api.list_protocol_presets()
         self._build_ui()
@@ -280,17 +286,24 @@ class LabDashboardWindow(QMainWindow):
             self.footage_class_combo.addItem(label, value)
         self.laser_pattern_combo = QComboBox()
         self.laser_pattern_combo.addItems(["cross", "dot", "line", "grid", "fan", "unknown"])
+        self.laser_pattern_combo.setCurrentText("unknown")
         self.wavelength_nm = QDoubleSpinBox()
         self.wavelength_nm.setRange(0.0, 2000.0)
         self.wavelength_nm.setDecimals(1)
-        self.wavelength_nm.setValue(650.0)
+        self.wavelength_nm.setSpecialValueText("Unknown")
+        self.wavelength_nm.setValue(0.0)
         self.wavelength_nm.setSuffix(" nm")
         self.surface_combo = QComboBox()
         self.surface_combo.addItems(["matte_wall", "painted_drywall", "textured_paper", "fabric", "other", "unknown"])
+        self.surface_combo.setCurrentText("unknown")
         self.camera_fixed_check = QCheckBox("Camera fixed")
         self.beam_fixed_check = QCheckBox("Beam path fixed")
         self.non_reflective_check = QCheckBox("Non-reflective target")
         self.not_saturated_check = QCheckBox("Projected region not saturated")
+        for check in (self.camera_fixed_check, self.beam_fixed_check, self.non_reflective_check, self.not_saturated_check):
+            check.setTristate(True)
+            check.setCheckState(Qt.PartiallyChecked)
+            check.setToolTip("Partially checked: unknown. Checked: yes. Empty: no. Leave unknown facts unset.")
         self.safety_ack_check = QCheckBox("Laser safety reviewed")
         self.sampling_profile = QComboBox()
         self.sampling_profile.addItems(["quick", "baseline", "wide", "exhaustive"])
@@ -333,6 +346,9 @@ class LabDashboardWindow(QMainWindow):
         essential_layout.addWidget(self.non_reflective_check, 2, 2)
         essential_layout.addWidget(self.not_saturated_check, 2, 3)
         essential_layout.addWidget(self.safety_ack_check, 3, 0, 1, 2)
+        unknown_help = QLabel("For capture facts: partly checked = unknown, checked = yes, empty = no. Leave unknown settings unset.")
+        unknown_help.setWordWrap(True)
+        essential_layout.addWidget(unknown_help, 4, 0, 1, 4)
         layout.addWidget(essentials)
         safety_notice = QLabel(
             "Use a fixed mount, beam stop, non-reflective target, and trained handling. Never view or align a beam at eye level."
@@ -359,12 +375,19 @@ class LabDashboardWindow(QMainWindow):
         self.diffraction_optic = QLineEdit()
         self.mount_type = QComboBox()
         self.mount_type.addItems(["tripod", "clamp", "lab_stand", "handheld", "unknown"])
+        self.mount_type.setCurrentText("unknown")
         self.cross_center_visible = QCheckBox("Cross center visible")
         self.entire_cross_visible = QCheckBox("Entire cross visible")
         self.surface_texture_visible = QCheckBox("Surface texture visible")
         self.geometry_notes = QLineEdit()
         self.intermediate_notes = QLineEdit()
         self.room_lighting_notes = QLineEdit()
+        self.camera_description = QLineEdit()
+        self.exposure_description = QLineEdit()
+        self.focus_description = QLineEdit()
+        self.compression_description = QLineEdit()
+        for field in (self.camera_description, self.exposure_description, self.focus_description, self.compression_description):
+            field.setPlaceholderText("Optional; leave blank when unknown")
         self.external_dataset_reference = QLineEdit()
         self.external_dataset_reference.setPlaceholderText("Optional corpus/archive reference")
         self.symbol_corpus_compared = QCheckBox("Compared with a symbol corpus")
@@ -410,6 +433,14 @@ class LabDashboardWindow(QMainWindow):
         advanced_layout.addWidget(QLabel("Independent matched pair ID"), 12, 0)
         advanced_layout.addWidget(self.independent_pair_id, 12, 1, 1, 3)
         advanced_layout.addWidget(self.pair_exchangeability, 13, 0, 1, 4)
+        for row, label, field in (
+            (14, "Camera / device", self.camera_description),
+            (15, "Exposure settings", self.exposure_description),
+            (16, "Focus settings", self.focus_description),
+            (17, "Compression history", self.compression_description),
+        ):
+            advanced_layout.addWidget(QLabel(label), row, 0)
+            advanced_layout.addWidget(field, row, 1, 1, 3)
         self.capture_advanced.setVisible(False)
         self.capture_advanced_button.toggled.connect(self.capture_advanced.setVisible)
         self.capture_advanced_button.toggled.connect(
@@ -565,9 +596,22 @@ class LabDashboardWindow(QMainWindow):
         form.addRow(self.run_button, self.progress)
         layout.addWidget(controls)
 
+        pair_group = QGroupBox("Pair Quality — is this comparison fair?")
+        pair_layout = QVBoxLayout(pair_group)
+        self.pair_quality_button = QPushButton("Check pair quality")
+        self.pair_quality_button.clicked.connect(self.inspect_pair_quality)
+        pair_layout.addWidget(self.pair_quality_button)
+        self.pair_quality_details = QTextEdit()
+        self.pair_quality_details.setReadOnly(True)
+        self.pair_quality_details.setMinimumHeight(170)
+        self.pair_quality_details.setPlainText("Before Run, check the recorded laser/control pairs for mismatches and missing details. No original video is decoded again.")
+        pair_layout.addWidget(self.pair_quality_details)
+        layout.addWidget(pair_group, 2)
+
         self.quality_checklist = QTextEdit()
         self.quality_checklist.setReadOnly(True)
         self.quality_checklist.setObjectName("checklist")
+        self.quality_checklist.setMaximumHeight(120)
         layout.addWidget(self.quality_checklist)
 
         self.run_log = QTextEdit()
@@ -909,10 +953,14 @@ class LabDashboardWindow(QMainWindow):
                 LOGGER.warning("Could not persist the last source directory", exc_info=True)
 
     def open_experiment(self) -> None:
+        if self._busy:
+            self._error("Wait for the current task before switching experiments.")
+            return
         try:
             experiment_dir = Path(self.experiment_path.text())
             manifest = app_api.create_experiment(experiment_dir)
             self.experiment_dir = experiment_dir
+            self.pair_quality_details.setPlainText("Check Pair Quality for this experiment before Run.")
             self._populate_captures(manifest)
             plan = manifest.get("analysis_plan", {})
             self._set_combo_data(self.protocol_combo, plan.get("protocol", manifest.get("protocol", "anomaly")))
@@ -1129,26 +1177,73 @@ class LabDashboardWindow(QMainWindow):
         self._update_quality_checklist(estimate)
 
     def run_analysis(self) -> None:
+        if self._busy:
+            self._error("A task is already running.")
+            return
         experiment = self._require_experiment()
         if not experiment:
             return
-        profile = self.profile_combo.currentText()
+        # Read widgets on the GUI thread and keep the same context through preflight.
+        options = {
+            "profile": self.profile_combo.currentText(),
+            "blind_seed": self.blind_seed.value(),
+            "protocol": self._current_protocol(),
+            "roi": self._roi(),
+            "primary_metric": self.primary_metric_combo.currentText(),
+            "preprocessing_intensity": self.preprocessing_intensity.currentText(),
+            "control_generation": self.control_generation.currentText(),
+        }
+        self._run_worker("Checking comparison quality", lambda: app_api.assess_pair_quality(experiment),
+                         lambda result: self._pair_quality_ready(result, experiment, options))
 
-        def task() -> dict[str, Any]:
-            return app_api.run_analysis(
-                experiment_dir=experiment,
-                profile=profile,
-                blind_seed=self.blind_seed.value(),
-                protocol=self._current_protocol(),
-                roi=self._roi(),
-                primary_metric=self.primary_metric_combo.currentText(),
-                preprocessing_intensity=self.preprocessing_intensity.currentText(),
-                control_generation=self.control_generation.currentText(),
+    def inspect_pair_quality(self) -> None:
+        experiment = self._require_experiment()
+        if not experiment:
+            return
+        self._run_worker("Checking comparison quality", lambda: app_api.assess_pair_quality(experiment),
+                         lambda result: self._show_pair_quality(result, experiment))
+
+    def _show_pair_quality(self, assessment: dict[str, Any], experiment: Path) -> bool:
+        if self.experiment_dir != experiment:
+            self._error("The experiment changed. Check Pair Quality again before Run.")
+            return False
+        self.pair_quality_details.setHtml(pair_quality_html(assessment))
+        return True
+
+    def _pair_quality_ready(self, assessment: dict[str, Any], experiment: Path, run_options: dict[str, Any]) -> None:
+        if not self._show_pair_quality(assessment, experiment):
+            return
+        if assessment.get("requires_exploratory"):
+            choice = QMessageBox(self)
+            choice.setWindowTitle("Review comparison quality")
+            choice.setIcon(QMessageBox.Warning)
+            choice.setText(assessment.get("summary", "Comparison details are incomplete."))
+            choice.setInformativeText(
+                "Read the Pair Quality checks on Run. You can inspect patterns as an exploratory run; "
+                "significance and effect-size claims will be withheld. Cancel to review the recordings or missing details."
             )
+            proceed = choice.addButton("Proceed as exploratory", QMessageBox.AcceptRole)
+            cancel = choice.addButton(QMessageBox.Cancel)
+            choice.setDefaultButton(cancel)
+            choice.exec_()
+            if choice.clickedButton() is not proceed:
+                return
+        self._launch_analysis(experiment, run_options)
 
-        self._run_worker("Running analysis", task, self._analysis_finished)
+    def _launch_analysis(self, experiment: Path, run_options: dict[str, Any]) -> None:
+        if self.experiment_dir != experiment:
+            self._error("The experiment changed. Check Pair Quality again before Run.")
+            return
+        # Role-specific setup details must not survive into sealed review widgets.
+        self.pair_quality_details.setPlainText("Pair Quality source details are sealed during review.")
+        self.quality_checklist.setPlainText("Source details remain sealed until explicit unblinding.")
+        self._run_worker("Running analysis", lambda: app_api.run_analysis(experiment_dir=experiment, **run_options),
+                         self._analysis_finished)
 
     def run_fixture_demo(self) -> None:
+        if self._busy:
+            self._error("Wait for the current task before switching experiments.")
+            return
         self.experiment_path.setText(self.demo_experiment_path.text())
         self.experiment_dir = Path(self.demo_experiment_path.text())
         protocol = self.demo_protocol.currentData() or "anomaly"
@@ -1553,9 +1648,20 @@ class LabDashboardWindow(QMainWindow):
         self.status.showMessage(label)
         self.run_log.append(label + "...")
         self.worker = ApiWorker(task)
-        self.worker.finished_ok.connect(lambda result: self._worker_success(result, on_success))
-        self.worker.failed.connect(self._worker_failed)
+        worker = self.worker
+        # Complete only after QThread has stopped, so preflight can safely start a run.
+        worker.finished.connect(lambda: self._worker_completed(worker, on_success))
         self.worker.start()
+
+    def _worker_completed(self, worker: ApiWorker, on_success: Callable[[Any], None]) -> None:
+        if self.worker is not worker:
+            return
+        self.worker = None
+        if worker.error is not None:
+            self._worker_failed(worker.error)
+        else:
+            self._worker_success(worker.result, on_success)
+        worker.deleteLater()
 
     def _worker_success(self, result: Any, on_success: Callable[[Any], None]) -> None:
         self.progress.setRange(0, 1)
@@ -1637,8 +1743,12 @@ class LabDashboardWindow(QMainWindow):
         self.tabs.setTabVisible(1, unblinded)
         self.include_media.setEnabled(unblinded)
         if not unblinded:
+            self.pair_quality_details.setPlainText("Pair Quality source details are sealed during review.")
+            self.quality_checklist.setPlainText("Source details remain sealed until explicit unblinding.")
             self.include_media.setChecked(False)
             self.tabs.setCurrentIndex(2)
+        else:
+            self.pair_quality_details.setHtml(pair_quality_html(report.get("pre_run_quality")))
         for key, label in self.metric_labels.items():
             value = summary.get(key, stats.get(key))
             label.setText("n/a" if value is None else str(value))
@@ -1802,12 +1912,21 @@ class LabDashboardWindow(QMainWindow):
         captures = []
         if self.experiment_dir:
             try:
-                captures = app_api.create_experiment(self.experiment_dir).get("captures", [])
+                manifest = app_api.create_experiment(self.experiment_dir)
+                if manifest.get("outputs", {}).get("review_state") == "blinded":
+                    self.quality_checklist.setPlainText("Source details remain sealed until explicit unblinding.")
+                    return
+                captures = manifest.get("captures", [])
             except Exception:
                 captures = []
-        labels = {capture.get("label") for capture in captures}
+        def capture_class(capture: dict[str, Any]) -> str:
+            return sample_class({"capture_id": capture.get("capture_id"), "unblinded_label": capture.get("label"),
+                                 "capture_metadata": capture.get("metadata", {}), "synthetic": capture.get("synthetic"),
+                                 "control_type": capture.get("control_type"), "parent_capture_id": capture.get("parent_capture_id")})
+
+        classes = {capture_class(capture) for capture in captures}
         warning_count = sum(len(capture.get("provenance_warnings", [])) for capture in captures)
-        laser_captures = [capture for capture in captures if capture.get("label") == "laser"]
+        laser_captures = [capture for capture in captures if capture_class(capture) == "empirical_laser"]
         wall_projection = any(
             capture.get("metadata", {}).get("footage_class") == "primary_wall_projection"
             for capture in laser_captures
@@ -1821,8 +1940,8 @@ class LabDashboardWindow(QMainWindow):
             for capture in laser_captures
         )
         lines = [
-            ("laser capture", "laser" in labels),
-            ("control capture", bool(labels & {"control", "matched_control", "sensor_noise", "synthetic_negative"})),
+            ("empirical laser capture (declared)", "empirical_laser" in classes),
+            ("empirical matched control (declared)", "declared_matched_control" in classes),
             ("wall or flat projection target", wall_projection),
             ("fixed camera and geometry", camera_fixed),
             ("non-reflective, non-saturated target", safe_target),
@@ -1864,10 +1983,14 @@ class LabDashboardWindow(QMainWindow):
             "laser_pattern_type": self.laser_pattern_combo.currentText(),
             "wavelength_nm": self.wavelength_nm.value() or None,
             "projection_surface_type": self.surface_combo.currentText(),
-            "camera_fixed": self.camera_fixed_check.isChecked(),
-            "beam_path_fixed": self.beam_fixed_check.isChecked(),
-            "non_reflective_surface": self.non_reflective_check.isChecked(),
-            "projected_region_not_saturated": self.not_saturated_check.isChecked(),
+            "camera_fixed": self._optional_check(self.camera_fixed_check),
+            "beam_path_fixed": self._optional_check(self.beam_fixed_check),
+            "non_reflective_surface": self._optional_check(self.non_reflective_check),
+            "projected_region_not_saturated": self._optional_check(self.not_saturated_check),
+            "camera": self.camera_description.text().strip() or None,
+            "exposure": self.exposure_description.text().strip() or None,
+            "focus_mode": self.focus_description.text().strip() or None,
+            "compression_history": self.compression_description.text().strip() or None,
             "safety_acknowledged": self.safety_ack_check.isChecked(),
             "projection_distance_meters": self.projection_distance.value() or None,
             "rated_power_mw": self.rated_power.value() or None,
@@ -1884,6 +2007,11 @@ class LabDashboardWindow(QMainWindow):
             "external_dataset_reference": self.external_dataset_reference.text().strip() or None,
             "symbol_corpus_compared": self.symbol_corpus_compared.isChecked(),
         }
+
+    @staticmethod
+    def _optional_check(check: QCheckBox) -> bool | None:
+        state = check.checkState()
+        return None if state == Qt.PartiallyChecked else state == Qt.Checked
 
     def _sampling_profile_changed(self, profile: str) -> None:
         defaults = {
@@ -1936,9 +2064,17 @@ class LabDashboardWindow(QMainWindow):
         return self.experiment_dir
 
     def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
         enabled = not busy
+        self.setup_steps.setEnabled(enabled)
+        self.recent_menu.setEnabled(enabled)
+        self.profile_combo.setEnabled(enabled)
+        self.blind_seed.setEnabled(enabled)
         for button in (
             self.run_button,
+            self.pair_quality_button,
+            self.home_analyze_button,
+            self.home_open_button,
             self.add_capture_button,
             self.run_demo_button,
             self.home_demo_button,
@@ -1949,8 +2085,15 @@ class LabDashboardWindow(QMainWindow):
             self.export_csv_button,
             self.export_bundle_button,
             self.unblind_button,
+            self.complete_review_button,
         ):
             button.setEnabled(enabled)
+        if enabled:
+            report = self.latest_report or {}
+            unblinded = bool(report.get("review_state", {}).get("unblinded", True))
+            complete = bool(report.get("review_session", {}).get("complete"))
+            self.unblind_button.setEnabled(not unblinded and complete)
+            self.complete_review_button.setEnabled(not unblinded and not complete)
 
     def _error(self, message: str) -> None:
         LOGGER.warning("User-visible error: %s", message)

@@ -46,7 +46,8 @@ def sample_class(record: dict[str, Any]) -> str:
             "control": "other_empirical_control", "sensor_noise": "sensor_noise"}.get(label, "unverified_origin")
 
 
-def paired_capture_inference(frames: list[dict[str, Any]], seed: int, resamples: int) -> dict[str, Any]:
+def paired_capture_inference(frames: list[dict[str, Any]], seed: int, resamples: int,
+                             quality_gate: dict[str, Any] | None = None) -> dict[str, Any]:
     """Flip whole declared pairs, using one equally weighted median per capture."""
     inference: dict[str, Any] = {
         "method": "paired_capture_sign_flip", "version": STATISTICS_VERSION,
@@ -113,6 +114,9 @@ def paired_capture_inference(frames: list[dict[str, Any]], seed: int, resamples:
     inference["pair_count"] = len(pairs)
     if len(pairs) < MINIMUM_PAIRS:
         return stop("insufficient_independent_samples", "Insufficient independent samples: collect at least five independently acquired, exchangeable matched capture pairs. Extra frames or preprocessing variants do not increase this number.")
+    if quality_gate and quality_gate.get("requires_exploratory"):
+        inference["pair_quality"] = {key: quality_gate.get(key) for key in ("version", "status", "summary")}
+        return stop("pair_quality_withheld", "Not tested: the pre-run Pair Quality check found missing or mismatched comparison details. This run is exploratory. Review the recorded quality checks and resolve limitations before inferential testing.")
     ordered = [pairs[key] for key in sorted(pairs)]
     differences = [pair["laser"] - pair["matched_control"] for pair in ordered]
     observed = mean(differences)
