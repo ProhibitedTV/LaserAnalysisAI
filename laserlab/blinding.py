@@ -35,6 +35,7 @@ def build_unblind_payload(
             "capture_metadata": manifest.get("capture_metadata", {}),
             "study_context": manifest.get("study_context", {}),
             "subjective_reports": manifest.get("subjective_reports", []),
+            "replication_plan": manifest.get("replication_plan"),
             "psychophysics_trials": manifest.get("psychophysics_trials"),
             "psychophysics_analysis": manifest.get("psychophysics_analysis"),
             "external_dataset_references": manifest.get("external_dataset_references", []),
@@ -87,6 +88,7 @@ def restore_run_record(run_record: dict[str, Any], payload: dict[str, Any]) -> d
     restored["external_dataset_references"] = sensitive.get("external_dataset_references", [])
     restored["symbol_transcriptions"] = sensitive.get("symbol_transcriptions")
     restored["pre_run_quality"] = payload.get("pre_run_quality")
+    restored["replication_plan"] = sensitive.get("replication_plan")
     return restored
 
 
@@ -114,6 +116,7 @@ def seal_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     sealed["capture_metadata"] = {"sealed": True}
     sealed["study_context"] = {"sealed": True}
     sealed["subjective_reports"] = []
+    sealed["replication_plan"] = {"sealed": True}
     sealed["psychophysics_trials"] = None
     sealed["psychophysics_analysis"] = {"sealed": True}
     sealed["external_dataset_references"] = []

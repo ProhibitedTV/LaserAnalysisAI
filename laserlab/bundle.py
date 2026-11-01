@@ -36,7 +36,7 @@ def export_review_bundle(
         raise ValueError("Source media cannot be exported until the review is explicitly unblinded.")
     if unblinded and _contains_sensitive_context(manifest) and not privacy_acknowledged:
         raise ValueError(
-            "Review participant IDs, subjective context, community metadata, and sharing risk before export."
+            "Review participant IDs, research plans, subjective context, community metadata, and sharing risk before export."
         )
     environment = {
         "laserlab_version": __version__,
@@ -121,6 +121,7 @@ def _contains_sensitive_context(manifest: dict[str, Any]) -> bool:
         or (manifest.get("psychophysics_trials") or {}).get("records")
         or manifest.get("external_dataset_references")
         or (manifest.get("symbol_transcriptions") or {}).get("records")
+        or manifest.get("replication_plan")
     )
 
 
