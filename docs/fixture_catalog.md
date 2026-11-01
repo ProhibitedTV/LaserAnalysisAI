@@ -2,6 +2,8 @@
 
 LaserLab separates redistributable bundled fixtures from external scientific references. Bundled fixtures are small workflow and detector sanity checks; none is a matched control for a user's camera setup.
 
+The bundled public clips are explicitly typed **demonstration**. The offline [optical benchmark](optical_benchmark.md) adds ten **synthetic** cases with known task-specific ground truth, a public hash manifest and finite false-positive/false-negative baselines. It generates locally instead of adding video downloads. No real matched research fixture is supplied or inferred from these sources.
+
 ## Bundled Fixtures
 
 | Fixture | Phenomena | License | Intended Use | Expected Behavior | Limitations |

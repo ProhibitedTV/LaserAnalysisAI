@@ -17,6 +17,11 @@ from laserlab.runtime import default_experiments_dir, resource_path
 
 
 if __name__ == "__main__":
+    if "--smoke-demo" in sys.argv:
+        from laserlab.demo_smoke import smoke_bundled_demo
+        smoke_bundled_demo()
+        print("LaserLab offline bundled demo smoke OK")
+        raise SystemExit(0)
     if "--smoke" in sys.argv:
         print("LaserLab GUI smoke OK")
         raise SystemExit(0)

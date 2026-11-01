@@ -39,6 +39,9 @@ def main(argv: list[str] | None = None) -> int:
                 experiment_dir=Path(args.experiment),
                 frame_interval=1 if args.all_frames else args.frame_interval,
                 max_frames=args.max_frames,
+                capture_metadata={"independent_pair_id": args.independent_pair_id,
+                                  "pair_exchangeability_acknowledged": args.acknowledge_pair_exchangeability,
+                                  **({"acquisition_source_sha256": args.acquisition_source_sha256} if args.acquisition_source_sha256 else {})},
                 sampling_profile=args.sampling_profile,
                 sampling_mode="all_frames" if args.all_frames and args.max_frames is None else "capped_all_frames" if args.all_frames else args.sampling_mode,
                 deduplicate=not args.keep_duplicates,
@@ -72,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
             unblinded_at = run_record.get("review_state", {}).get("unblinded_at") or "legacy run"
             print(f"Review state: unblinded at {unblinded_at}")
             print(f"Evidence ladder: {run_record['aggregate_statistics']['evidence_ladder']}")
+            print(run_record["aggregate_statistics"].get("null_result_language", ""))
             return 0
         if args.command == "report":
             manifest = load_manifest(Path(args.experiment))
@@ -101,6 +105,35 @@ def main(argv: list[str] | None = None) -> int:
                 for item in fetched:
                     print(f"{item['status']}: {item['id']} -> {item.get('path', item.get('reason', ''))}")
                 return 0
+        if args.command == "sessions":
+            from .replication import record_replication_plan, compare_sessions, export_comparison, public_comparison
+            if args.session_action == "plan":
+                record_replication_plan(Path(args.experiment), args.hypothesis_token, args.declare_independent_acquisition,
+                                        args.protocol, args.primary_metric)
+                print("Local pre-run replication commitment recorded; independence and external preregistration are not verified.")
+                return 0
+            directories = [Path(value) for value in args.experiments]
+            if args.output:
+                print(export_comparison(directories, Path(args.output), privacy_acknowledged=args.acknowledge_privacy))
+            else:
+                print(json.dumps(public_comparison(compare_sessions(directories)), indent=2, sort_keys=True))
+            return 0
+        if args.command == "benchmark":
+            from .optical_benchmark import generate_benchmark_pack, evaluate_benchmark_pack
+            if args.benchmark_action == "generate":
+                manifest = generate_benchmark_pack(Path(args.output))
+                print(f"Generated {len(manifest['cases'])} synthetic cases: {Path(args.output) / 'benchmark_manifest.json'}")
+                return 0
+            from .ocr_adapters import TesseractAdapter
+            adapter = TesseractAdapter() if args.ocr == "tesseract" else None
+            record = evaluate_benchmark_pack(Path(args.pack), ocr_adapter=adapter)
+            destination = Path(args.output)
+            if destination.exists():
+                raise FileExistsError("Choose a new benchmark report path; existing reports are preserved.")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            print(f"Evaluated {record['probe_count']} synthetic probes; OCR {record['ocr_mode']}: {destination}")
+            return 0
         if args.command == "protocols":
             if args.protocol_action == "list":
                 for item in list_protocol_presets():
@@ -152,7 +185,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    sessions = subparsers.add_parser("sessions", help="Local unblinded session comparison; no pooled significance or upload.")
+    session_actions = sessions.add_subparsers(dest="session_action", required=True)
+    session_plan = session_actions.add_parser("plan", help="Record a hypothesis commitment before the first run.")
+    session_plan.add_argument("--experiment", required=True)
+    session_plan.add_argument("--hypothesis-token", required=True, help="Non-identifying token shared by planned sessions.")
+    session_plan.add_argument("--declare-independent-acquisition", action="store_true", help="Declare independently acquired original sessions; copies/derived clips are not repeats.")
+    session_plan.add_argument("--protocol", choices=["anomaly", "diffraction", "speckle", "ocr"])
+    session_plan.add_argument("--primary-metric", choices=["structure_score", "fft_peak_prominence", "speckle_contrast", "ocr_symbol_score"])
+    session_compare = session_actions.add_parser("compare", help="Compare two to eight explicitly unblinded local experiments.")
+    session_compare.add_argument("--experiments", nargs="+", required=True)
+    session_compare.add_argument("--output", help="Optional new local summary file; requires privacy acknowledgement.")
+    session_compare.add_argument("--acknowledge-privacy", action="store_true")
+
+    benchmark = subparsers.add_parser("benchmark", help="Offline synthetic optical probes; never empirical research evidence.")
+    benchmark_actions = benchmark.add_subparsers(dest="benchmark_action", required=True)
+    generate = benchmark_actions.add_parser("generate", help="Generate a deterministic pack into a new directory.")
+    generate.add_argument("--output", required=True)
+    evaluate = benchmark_actions.add_parser("run", help="Verify hashes/recipe and report descriptive feature errors.")
+    evaluate.add_argument("--pack", required=True)
+    evaluate.add_argument("--output", required=True)
+    evaluate.add_argument("--ocr", choices=["off", "tesseract"], default="off", help="Optional real OCR. Missing/failed OCR remains unscored.")
+
     init_parser = subparsers.add_parser("init", help="Create or append to an experiment manifest.")
+    init_parser.add_argument("--independent-pair-id", help="Non-identifying predeclared ID shared by one independently acquired laser/control pair.")
+    init_parser.add_argument("--acquisition-source-sha256", help="Known original acquisition SHA-256; leave unknown lineage unset. Shared/derived originals cannot establish independent sessions.")
+    init_parser.add_argument("--acknowledge-pair-exchangeability", action="store_true", help="Declare a justified design in which conditions are exchangeable within each independent pair under the null.")
     init_parser.add_argument("--source", required=True, help="Video file or directory/file of images.")
     init_parser.add_argument("--kind", required=True, choices=["video", "image-set"])
     init_parser.add_argument("--label", required=True, choices=sorted(CAPTURE_ROLES))

@@ -26,6 +26,9 @@ WAVELENGTH_PRESETS = {
 
 
 CAPTURE_PROTOCOL_DEFAULTS: dict[str, Any] = {
+    "independent_pair_id": None,
+    "acquisition_source_sha256": None,
+    "pair_exchangeability_acknowledged": False,
     "footage_class": "primary_wall_projection",
     "projection_surface_type": "unknown",
     "projection_distance_meters": None,
@@ -63,6 +66,18 @@ def default_capture_metadata() -> dict[str, Any]:
 def normalize_capture_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     normalized = default_capture_metadata()
     normalized.update(dict(metadata or {}))
+    acquisition_hash = normalized.get("acquisition_source_sha256")
+    if isinstance(acquisition_hash, str):
+        acquisition_hash = acquisition_hash.strip().lower() or None
+        normalized["acquisition_source_sha256"] = acquisition_hash
+    if acquisition_hash is not None and (not isinstance(acquisition_hash, str) or len(acquisition_hash) != 64
+                                        or any(char not in "0123456789abcdef" for char in acquisition_hash)):
+        raise ValueError("Original acquisition SHA-256 must be 64 hexadecimal characters, or unset.")
+    pair_id = normalized.get("independent_pair_id")
+    if pair_id is not None and (not isinstance(pair_id, str) or len(pair_id) > 128):
+        raise ValueError("Independent pair ID must be a short, non-identifying string.")
+    normalized["independent_pair_id"] = (pair_id.strip() or None) if pair_id is not None else None
+    normalized["pair_exchangeability_acknowledged"] = normalized.get("pair_exchangeability_acknowledged") is True
     footage_class = str(normalized.get("footage_class") or "other")
     normalized["footage_class"] = footage_class if footage_class in FOOTAGE_CLASSES else "other"
     pattern = str(normalized.get("laser_pattern_type") or "unknown")

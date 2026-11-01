@@ -6,7 +6,7 @@ LaserLab exists to make difficult questions easier to test. Curiosity, skepticis
 
 - Welcome people regardless of background or experience. Explain terms and help beginners find the right resources.
 - Debate methods and evidence rather than attacking people. Different interpretations are welcome when honestly distinguished from measurements.
-- Avoid harassment, threats, hate speech, doxxing, unwanted sexual attention, and disruptive personal attacks.
+- Avoid harassment, threats, doxxing, unwanted sexual attention, and disruptive personal attacks.
 - Respect privacy, licensing, consent, and laser safety. Do not post confidential or identifying research materials without permission.
 - Do not use this community to promote unsafe experimentation, substance procurement, or unsupported scientific certainty.
 - Describe null results and failed replications accurately; they help improve the methodology.

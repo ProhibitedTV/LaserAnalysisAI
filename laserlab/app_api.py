@@ -8,13 +8,15 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from .artifacts import load_json
+from .artifacts import load_json, relative_to, write_json
 from .bundle import export_review_bundle as _export_review_bundle
 from .ingest import init_experiment
 from .manifest import latest_run_dir, load_manifest, load_or_create_manifest, write_manifest
 from .pipeline import run_experiment, unblind_latest_run as _unblind_latest_run
 from .protocols import describe_protocol, list_protocol_presets as _list_protocol_presets
-from .report import build_report
+from .report import build_report, PAIR_QUALITY_REPORT_VERSION
+from .report import write_html_report
+from .capture_inference import STATISTICS_VERSION
 from .capture_protocol import normalize_study_context
 from .community_data import (
     export_symbol_transcriptions_csv as _export_symbol_transcriptions_csv,
@@ -62,8 +64,29 @@ def run_bundled_demo(experiment_base: Path, max_frames: int = 8, protocol: str =
         )
         return {"experiment_dir": str(experiment_dir), "run": run}
     except Exception:
-        shutil.rmtree(experiment_dir)
+        cleanup_target = experiment_dir.resolve()
+        if cleanup_target.parent != base.parent or not cleanup_target.name.startswith(base.name + "-"):
+            raise RuntimeError("Practice folder location changed; it was left untouched for review.")
+        shutil.rmtree(cleanup_target)
         raise
+
+
+def record_replication_plan(experiment_dir: Path, hypothesis_token: str, independent_acquisition: bool,
+                            protocol: str | None = None, primary_metric: str | None = None) -> dict[str, Any]:
+    from .replication import record_replication_plan as record_plan
+    return record_plan(Path(experiment_dir), hypothesis_token, independent_acquisition, protocol, primary_metric)
+
+
+def compare_sessions(experiment_dirs: list[Path]) -> dict[str, Any]:
+    from .replication import compare_sessions as compare
+    return compare([Path(directory) for directory in experiment_dirs])
+
+
+def export_session_comparison(experiment_dirs: list[Path], output_path: Path, *, privacy_acknowledged: bool = False,
+                              expected_snapshot: str | None = None) -> Path:
+    from .replication import export_comparison
+    return export_comparison(experiment_dirs, Path(output_path), privacy_acknowledged=privacy_acknowledged,
+                             expected_snapshot=expected_snapshot)
 
 
 def add_capture(
@@ -94,6 +117,16 @@ def add_capture(
         deduplicate=deduplicate,
         scene_change_threshold=scene_change_threshold,
     )
+
+
+def assess_pair_quality(experiment_dir: Path) -> dict[str, Any]:
+    """Read-only, bounded setup check; never open sealed source mappings."""
+    from .pair_quality import assess_experiment
+
+    experiment_dir = Path(experiment_dir)
+    manifest = load_manifest(experiment_dir)
+    _require_editable_manifest(manifest, "checking source-specific pair quality")
+    return assess_experiment(experiment_dir, manifest)
 
 
 def run_analysis(
@@ -378,11 +411,23 @@ def load_latest_report(experiment_dir: Path) -> dict[str, Any]:
         report = build_report(experiment_dir, run_dir, run_record)
     else:
         report = load_json(report_path)
+    html_path = run_dir / "report.html"
+    old_statistics = report.get("aggregate_statistics", {}).get("statistics_version") != STATISTICS_VERSION
+    if old_statistics or report.get("pair_quality_report_version") != PAIR_QUALITY_REPORT_VERSION:
+        report = build_report(experiment_dir, run_dir, load_json(results_path), write_html=False)
+        # Preserve old artifacts byte-for-byte; point the UI at a versioned view.
+        suffix = "statistics-v2" if old_statistics else "pair-quality-v1"
+        report_path = run_dir / f"report.{suffix}.json"
+        html_path = run_dir / f"report.{suffix}.html"
+        report["artifacts"].update(report_json=relative_to(report_path, experiment_dir),
+                                   report_html=relative_to(html_path, experiment_dir))
+        write_json(report_path, report)
+        write_html_report(html_path, report)
     report["local_paths"] = {
         "run_dir": str(run_dir),
         "results_json": str(results_path),
         "report_json": str(report_path),
-        "report_html": str(run_dir / "report.html"),
+        "report_html": str(html_path),
     }
     return report
 
@@ -440,7 +485,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
         "roi_overlay_path",
     ]
     if unblinded:
-        fields[3:3] = ["unblinded_label", "source_path", "frame_index", "control_type"]
+        fields[3:3] = ["unblinded_label", "source_class", "source_path", "frame_index", "control_type"]
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -470,6 +515,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
                 record.update(
                     {
                         "unblinded_label": item.get("unblinded_label", ""),
+                        "source_class": item.get("source_class", "unverified_origin"),
                         "source_path": item.get("source_path", ""),
                         "frame_index": item.get("frame_index", ""),
                         "control_type": item.get("control_type", ""),

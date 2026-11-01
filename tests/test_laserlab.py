@@ -379,7 +379,8 @@ class LaserLabPipelineTests(unittest.TestCase):
             self.assertTrue(revealed["review_state"]["unblinded"])
             self.assertIn("source_path", revealed["top_candidates"][0])
             self.assertIn("unblinded_label", revealed["top_candidates"][0])
-            self.assertIn("multiple comparisons corrected", revealed["badges"])
+            self.assertIn("candidate FDR not estimated", revealed["badges"])
+            self.assertNotIn("multiple comparisons corrected", revealed["badges"])
             self.assertEqual(
                 revealed["review_annotations"][blind_id]["note"],
                 "Repeated edge structure; inspect independently.",
@@ -422,6 +423,7 @@ class LaserLabPipelineTests(unittest.TestCase):
 
         ladder = run["aggregate_statistics"]["evidence_ladder"]
         self.assertIn(ladder, golden["allowed_evidence_levels"])
+        self.assertEqual(ladder, "not tested")
         self.assertNotIn(ladder, golden["forbidden_evidence_levels"])
 
     def test_wide_profile_has_parameter_sweep_variants(self) -> None:

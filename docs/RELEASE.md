@@ -2,6 +2,8 @@
 
 ## Local Smoke
 
+For the next scientific-method build, validate [paired-capture-v2](statistical_inference.md): generated-only inputs must remain not tested; one recorded pair must remain insufficient; five declared independent exchangeable pairs use whole-pair permutations. Verify sealed pair IDs/hashes, null candidate q-values, diagnostic source classes, and versioned legacy views/exports. The older statistical checklist items below are historical and are superseded by this boundary; do not carry forward their frame-level FDR or control-pooling expectations.
+
 Use the workstation-preferred Python environment:
 
 ```powershell

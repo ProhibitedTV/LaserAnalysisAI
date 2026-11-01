@@ -18,16 +18,20 @@ from .blinding import (
     seal_results,
     seal_samples,
 )
-from .controls import generate_matched_controls
+from .controls import generate_synthetic_nulls
 from .detectors import DetectorContext, run_detectors
 from .manifest import latest_run_dir, load_manifest, upgrade_manifest, write_manifest
 from .preprocessing import apply_profile_variants
 from .protocols import get_protocol_preset
 from .report import build_report
 from .scientific import metric_score, phase_registration_metrics
-from .stats import summarize_blinded_results, summarize_results
+from .stats import current_statistics, summarize_blinded_results, summarize_results
 from .synthetic import create_synthetic_positive
 from .capture_protocol import capture_protocol_summary
+from .capture_inference import sample_class
+from .artifacts import sha256_json
+from .manifest import DEFAULT_DETECTORS
+from .pair_quality import assess_experiment
 
 
 def run_experiment(
@@ -48,6 +52,8 @@ def run_experiment(
     manifest = upgrade_manifest(load_manifest(experiment_dir))
     if manifest.get("outputs", {}).get("review_state") == "blinded":
         raise ValueError("The latest review is still blinded. Explicitly unblind it before starting another run.")
+    # Recheck the actual inputs for this run, independently of any cached GUI preview.
+    pre_run_quality = assess_experiment(experiment_dir, manifest)
     plan = manifest.setdefault("analysis_plan", {})
     preset = get_protocol_preset(protocol or plan.get("protocol") or manifest.get("protocol"))
     protocol_id = preset["id"]
@@ -130,6 +136,8 @@ def run_experiment(
                 "source_path": sample["path"],
                 "source_sha256": sample["source_sha256"],
                 "input_source_sha256": sample.get("input_source_sha256", ""),
+                "capture_source_sha256": sample.get("capture_source_sha256", ""),
+                "synthetic": sample.get("synthetic", False),
                 "processed_path": relative_to(processed_path, experiment_dir),
                 "review_image_path": relative_to(review_image_path, experiment_dir),
                 "processed_sha256": sha256_file(processed_path),
@@ -167,11 +175,15 @@ def run_experiment(
                 (int(sample.get("frame_index") or 0), result_record["sample_id"], processed.image)
             )
 
+    # Within-recording persistence is descriptive, not independent replication.
+    for result in results:
+        result["inference_metric_score"] = float(metric_score(result, primary_metric))
     _apply_persistence_scores(results, masks_for_persistence)
     for result in results:
         result["primary_metric_score"] = round(float(metric_score(result, result["primary_metric"])), 6)
     aggregate = summarize_blinded_results(results, primary_metric=primary_metric)
     unblind_payload = build_unblind_payload(blinded_samples, results, manifest)
+    unblind_payload["pre_run_quality"] = pre_run_quality
     protocol_summary = capture_protocol_summary(manifest.get("captures", []))
     run_record = {
         "schema_version": 1,
@@ -186,6 +198,15 @@ def run_experiment(
         "samples": seal_samples(blinded_samples),
         "results": seal_results(results, blinded_samples),
         "aggregate_statistics": aggregate,
+        "pre_run_quality": {"sealed": True},
+        "replication_plan": {"sealed": True},
+        "analysis_configuration": {"version": "analysis-config-v1", "detectors": sorted(DEFAULT_DETECTORS),
+                                   "preprocessing_profile_sha256": sha256_json(profile),
+                                   "preprocessing_intensity": preprocessing_intensity, "control_generation": control_generation,
+                                   "roi": roi, "frame_sampling_mode": plan.get("frame_sampling_mode"),
+                                   "ocr_engines": sorted({(str(attempt.get("engine_id")), str(attempt.get("engine_version")),
+                                                           bool(attempt.get("available")))
+                                                          for result in results for attempt in result.get("ocr_attempts", [])})},
         "provenance_summary": {
             "capture_count": len(manifest.get("captures", [])),
             "warning_count": sum(
@@ -251,7 +272,7 @@ def unblind_latest_run(experiment_dir: Path) -> dict[str, Any]:
             restored_manifest["outputs"].pop("unblind_seal_sha256", None)
             write_manifest(experiment_dir, restored_manifest)
             unblind_path.unlink()
-        return run_record
+        return current_statistics(run_record)
 
     unblind_path = run_dir / UNBLIND_FILENAME
     if not unblind_path.exists():
@@ -266,9 +287,13 @@ def unblind_latest_run(experiment_dir: Path) -> dict[str, Any]:
         restored["results"],
         seed=int(restored.get("blind_seed", 1)),
         primary_metric=primary_metric,
+        quality_gate=restored.get("pre_run_quality"),
     )
     for result in restored["results"]:
         result["q_value"] = aggregate.get("candidate_q_values", {}).get(result["sample_id"])
+        result["source_class"] = sample_class(result)
+    for sample in restored["samples"]:
+        sample["source_class"] = sample_class(sample)
     restored["aggregate_statistics"] = aggregate
     restored["review_state"] = {
         "unblinded": True,
@@ -297,6 +322,7 @@ def _build_samples(
 
     samples = []
     generated_controls = []
+    source_hashes = {source["source_id"]: source.get("sha256", "") for source in manifest.get("sources", [])}
     for capture in manifest.get("captures", []):
         for frame in capture.get("frames", []):
             samples.append(
@@ -307,10 +333,11 @@ def _build_samples(
                     "path": frame["path"],
                     "source_sha256": frame["source_sha256"],
                     "input_source_sha256": frame.get("input_source_sha256", ""),
+                    "capture_source_sha256": source_hashes.get(capture.get("source_id"), ""),
                     "frame_index": frame.get("frame_index"),
                     "timestamp_ms": frame.get("timestamp_ms"),
                     "unblinded_label": capture["label"],
-                    "synthetic": False,
+                    "synthetic": capture["label"] in {"synthetic_positive", "synthetic_negative"},
                     "capture_metadata": capture.get("metadata", {}),
                     "media_metadata": capture.get("media_metadata", {}),
                     "provenance_warnings": capture.get("provenance_warnings", []),
@@ -324,7 +351,7 @@ def _build_samples(
                 if image is None:
                     raise FileNotFoundError(f"Could not read frame for control generation: {image_path}")
                 generated_controls.extend(
-                    generate_matched_controls(experiment_dir, run_dir, capture, frame, image, level=control_generation)
+                    generate_synthetic_nulls(experiment_dir, run_dir, capture, frame, image, level=control_generation)
                 )
 
     samples.extend(generated_controls)

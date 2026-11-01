@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +11,15 @@ from .artifacts import relative_to, write_json
 from .blinding import is_unblinded
 from .psychophysics import build_falsification_matrix
 from .theme import badge_class, evidence_tone, report_stylesheet
+from .stats import current_statistics
+from .capture_inference import sample_class, source_class_label
 
 
-def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]) -> dict[str, Any]:
+PAIR_QUALITY_REPORT_VERSION = 1
+
+
+def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any], *, write_html: bool = True) -> dict[str, Any]:
+    run_record = current_statistics(run_record)
     aggregate = run_record["aggregate_statistics"]
     unblinded = is_unblinded(run_record)
     primary_metric = aggregate.get("primary_metric", "structure_score")
@@ -26,7 +33,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         build_falsification_matrix(
             psychophysics_analysis=psychophysics,
             detector_evidence={
-                "tested": bool(aggregate.get("control_count", 0)),
+                "tested": aggregate.get("inference", {}).get("status") == "tested",
                 "outcome": aggregate.get("evidence_ladder", "no signal"),
             },
         )
@@ -36,6 +43,8 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
     symbol_transcriptions = run_record.get("symbol_transcriptions") if unblinded else None
     report = {
         "schema_version": 1,
+        "pair_quality_report_version": PAIR_QUALITY_REPORT_VERSION,
+        "statistics_migration": run_record.get("statistics_migration"),
         "experiment_id": run_record["experiment_id"],
         "experiment_purpose": "demo" if run_record.get("experiment_purpose") == "demo" else "research",
         "run_id": run_record["run_id"],
@@ -43,12 +52,15 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "profile": run_record["profile"],
         "protocol": run_record.get("protocol", "anomaly"),
         "analysis_plan": run_record.get("analysis_plan", {}),
+        "analysis_configuration": run_record.get("analysis_configuration", {}),
+        "replication_context": "Frame persistence and repeats within a capture are descriptive. Across-capture and independent-session replication require provenance and compatible predeclared designs; this single-run report does not establish them.",
         "blind_seed": run_record["blind_seed"],
         "review_state": run_record.get("review_state", {"unblinded": True, "unblinded_at": None}),
         "review_session": run_record.get("review_session", {"complete": False, "completed_at": None}),
         "review_annotations": annotations,
         "provenance_summary": run_record.get("provenance_summary", {}),
         "capture_protocol_summary": run_record.get("capture_protocol_summary", {}),
+        "pre_run_quality": run_record.get("pre_run_quality") if unblinded else {"sealed": True},
         "study_context": run_record.get("study_context", {"sealed": not unblinded}),
         "subjective_reports": run_record.get("subjective_reports", []) if unblinded else [],
         "psychophysics_analysis": psychophysics,
@@ -78,7 +90,8 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
             "report_html": relative_to(run_dir / "report.html", experiment_dir),
         },
     }
-    write_html_report(run_dir / "report.html", report)
+    if write_html:
+        write_html_report(run_dir / "report.html", report)
     return report
 
 
@@ -124,6 +137,7 @@ def top_candidates(
             record.update(
                 {
                     "unblinded_label": item.get("unblinded_label", ""),
+                    "source_class": sample_class(item),
                     "source_path": item.get("source_path", ""),
                     "frame_index": item.get("frame_index"),
                     "timestamp_ms": item.get("timestamp_ms"),
@@ -140,8 +154,13 @@ def write_report_json(path: Path, report: dict[str, Any]) -> None:
 
 
 def write_html_report(path: Path, report: dict[str, Any]) -> None:
+    path.write_text(render_html_report(report), encoding="utf-8")
+
+
+def render_html_report(report: dict[str, Any]) -> str:
     summary = report["summary"]
     unblinded = bool(report.get("review_state", {}).get("unblinded", True))
+    quality_html = pair_quality_html(report.get("pre_run_quality")) if unblinded else ""
     candidates = report["top_candidates"]
     rows = "\n".join(_candidate_row(candidate, unblinded=unblinded) for candidate in candidates)
     provenance_rows = "\n".join(_provenance_row(record) for record in report.get("source_provenance", []))
@@ -157,13 +176,31 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
         "Use your own footage and matched controls for research.</p>"
         if report.get("experiment_purpose") == "demo" else ""
     )
+    inference = report.get("aggregate_statistics", {}).get("inference", {})
+    inference_html = "<p>Independent-unit counts and source classes remain sealed.</p>"
+    if unblinded:
+        diagnostics = report.get("aggregate_statistics", {}).get("control_diagnostics", {})
+        inference_html = (
+            "<h2>Independent capture inference</h2><p>" + html.escape(inference.get("message", "Not tested")) + "</p>"
+            + "<p>Unit: independent matched capture pair. Candidate FDR and confidence intervals are not estimated. "
+              "Frame persistence does not establish replication.</p>"
+            + "<p>Declared complete pairs: " + str(inference.get("pair_count", 0))
+            + "; empirical capture records: " + html.escape(str(inference.get("empirical_capture_counts", {})))
+            + "; generated null frames: " + str(diagnostics.get("generated_null", {}).get("frame_count", 0))
+            + "; positive calibration images: " + str(report.get("aggregate_statistics", {}).get("synthetic_positive_count", 0))
+            + ".</p><details><summary>Method, limitations and source classes</summary>"
+              '<pre style="white-space:pre-wrap;overflow-wrap:anywhere">'
+            + html.escape(json.dumps({"inference": inference, "source_class_diagnostics": diagnostics}, indent=2, sort_keys=True))
+            + "</pre></details>"
+        )
+    migration_html = "<p>" + html.escape(report["statistics_migration"]) + "</p>" if report.get("statistics_migration") else ""
     ladder_tone = evidence_tone(summary.get("evidence_ladder"))
     if unblinded:
         metrics_html = f"""
     <div class="metric"><strong>Laser mean</strong>{_fmt(summary['laser_mean_score'])}</div>
     <div class="metric"><strong>Control mean</strong>{_fmt(summary['control_mean_score'])}</div>
     <div class="metric"><strong>Difference</strong>{_fmt(summary['mean_difference'])}</div>
-    <div class="metric"><strong>Cohen d</strong>{_fmt(summary['cohen_d'])}</div>
+    <div class="metric"><strong>Paired Cohen dz</strong>{_fmt(summary['cohen_d'])}</div>
     <div class="metric"><strong>Permutation p</strong>{_fmt(summary['permutation_p_value'])}</div>
     <div class="metric"><strong>Minimum q</strong>{_fmt(summary.get('minimum_q_value'))}</div>"""
         provenance_html = f"""
@@ -233,6 +270,10 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 <body>
   <h1>LaserAnalysisAI Blinded Signal Report</h1>
   {demo_notice}
+  {migration_html}
+  {inference_html}
+  <p>{html.escape(report.get('replication_context', 'Frame persistence is descriptive, not independent-session replication.'))}</p>
+  {quality_html}
   <div class="summary">
     <p>{badges}</p>
     <div class="metric"><strong>Evidence ladder</strong><span class="evidence-value evidence-value--{ladder_tone}">{html.escape(str(summary['evidence_ladder']))}</span></div>
@@ -259,7 +300,72 @@ def write_html_report(path: Path, report: dict[str, Any]) -> None:
 </body>
 </html>
 """
-    path.write_text(html_text, encoding="utf-8")
+    return html_text
+
+
+def pair_quality_html(assessment: dict[str, Any] | None) -> str:
+    """Render setup/unblinded checks without original filenames or private notes."""
+    if not assessment:
+        return ("<h2>Pair Quality</h2><p>Not assessed in this saved run. Its original artifacts are preserved. "
+                "Open the unblinded experiment and check Pair Quality before a new analysis; "
+                "a saved result is not retroactively certified.</p>")
+    if assessment.get("sealed"):
+        return "<p>Pair Quality source details remain sealed until explicit unblinding.</p>"
+    esc = lambda value: html.escape(str(value if value is not None else "Unknown"))
+    colors = {"matched": "#74dbb4", "consistent": "#74dbb4", "mismatch": "#ff9d9d", "unknown": "#f3cd7c"}
+
+    def rows(checks: list[dict[str, Any]]) -> str:
+        result = []
+        ordered = sorted(checks, key=lambda check: (3 if check.get("descriptive") or check.get("key") == "brightness"
+                                                  else {"mismatch": 0, "unknown": 1, "matched": 2}.get(check.get("status"), 1)))
+        for check in ordered:
+            status = check.get("status", "unknown")
+            label = {"matched": "Matched", "mismatch": "Mismatch", "unknown": "Unknown"}.get(status, "Unknown")
+            if check.get("descriptive") or check.get("key") == "brightness":
+                label += " (descriptive)"
+                status = "descriptive"
+            approximate = " (approximate)" if check.get("approximate") else ""
+            values = [check.get("laser"), check.get("control")]
+            if check.get("key") == "source_type":
+                labels = {"empirical_laser": "Recorded laser (declared)", "declared_matched_control": "Recorded matched control (declared)",
+                          "demonstration_fixture": "Demo / calibration fixture", "generated_null": "Generated probe",
+                          "synthetic_fixture": "Synthetic benchmark fixture",
+                          "other_empirical_control": "Other recorded control", "sensor_noise": "Sensor noise",
+                          "synthetic_positive": "Synthetic positive", "synthetic_negative": "Synthetic negative", "unverified_origin": "Unverified origin"}
+                values = [labels.get(value, value) for value in values]
+            elif check.get("key") == "resolution":
+                values = [" x ".join(str(int(dimension)) for dimension in value) if isinstance(value, (tuple, list)) else value for value in values]
+            elif check.get("key") == "clipping":
+                values = [f"{value:.1%}" if isinstance(value, (int, float)) else value for value in values]
+            elif check.get("key") == "duration_ms":
+                values = [f"{value / 1000:g} s" if isinstance(value, (int, float)) else value for value in values]
+            result.append("<tr><td>" + esc(check.get("label", check.get("key", "Check"))) + approximate
+                          + "</td><td>" + esc(values[0]) + "</td><td>" + esc(values[1])
+                          + "</td><td style='color:" + ("#8ecdec" if status == "descriptive" else colors.get(status, colors["unknown"])) + "'>" + label
+                          + "</td><td>" + esc(check.get("message", "")) + "</td></tr>")
+        return "".join(result)
+
+    def table(checks: list[dict[str, Any]]) -> str:
+        if not checks:
+            return ""
+        return ("<table border='1' cellspacing='0' cellpadding='5' width='100%'><thead><tr>"
+                "<th>Check</th><th>Laser recording</th><th>Proposed control</th><th>Status</th><th>Meaning / next step</th>"
+                "</tr></thead><tbody>" + rows(checks) + "</tbody></table>")
+
+    status = assessment.get("status", "unknown")
+    text = ("<h2>Pair Quality: is this comparison fair?</h2><p style='color:" + colors.get(status, colors["unknown"])
+            + "'><strong>" + esc(assessment.get("summary", "Comparison details are incomplete.")) + "</strong></p>"
+            + "<p>Matched means these checks agree; it does not validate the experiment or prove independence. "
+            "Unknown means information is missing. Mismatch means a reported or measured difference needs review.</p>"
+            + table(assessment.get("checks", [])))
+    for index, pair in enumerate(assessment.get("pairs", []), 1):
+        text += "<h3>Comparison " + str(index) + "</h3><p>" + esc(pair.get("summary", "")) + "</p>"
+        text += "<p>Laser: <code>" + esc(pair.get("laser_capture_id")) + "</code> / Control: <code>" + esc(pair.get("control_capture_id")) + "</code></p>"
+        text += table(pair.get("checks", []))
+    if assessment.get("requires_exploratory"):
+        text += "<p><strong>Proceed as exploratory: inferential significance and effect-size claims will be withheld.</strong></p>"
+    text += "<ul>" + "".join("<li>" + esc(item) + "</li>" for item in assessment.get("limitations", [])) + "</ul>"
+    return text
 
 
 def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
@@ -273,7 +379,7 @@ def _candidate_row(candidate: dict[str, Any], unblinded: bool) -> str:
         return f"""
       <tr>
         <td><code>{html.escape(candidate['blind_id'])}</code></td>
-        <td>{html.escape(candidate.get('unblinded_label', ''))}</td>
+        <td>{html.escape(source_class_label(candidate))}</td>
         <td>{_fmt(candidate.get('primary_metric_score', candidate['structure_score']))}</td>
         <td>{_fmt(candidate.get('persistence_score'))}</td>
         <td>{_fmt(candidate.get('q_value'))}</td>
@@ -492,15 +598,18 @@ def report_badges(run_record: dict[str, Any]) -> list[str]:
     if not is_unblinded(run_record):
         badges = ["review blinded", "source roles sealed"]
     else:
-        badges = ["multiple comparisons corrected", "review unblinded"]
+        badges = ["review unblinded"]
     if run_record.get("experiment_purpose") == "demo":
         badges.append("practice demo only")
+    badges.append("candidate FDR not estimated")
     if aggregate.get("calibration_passed"):
         badges.append("calibration passed")
     elif aggregate.get("synthetic_positive_count", 0) > 0:
         badges.append("calibration failed")
     if is_unblinded(run_record) and aggregate.get("control_count", 0) > 0:
-        badges.append("controls matched")
+        badges.append("empirical matched controls declared")
+    if is_unblinded(run_record) and aggregate.get("inference", {}).get("status") != "tested":
+        badges.append("capture inference withheld")
     if results and not any(item.get("ocr", {}).get("available") for item in results):
         badges.append("OCR unavailable")
     warning_count = int(run_record.get("provenance_summary", {}).get("warning_count", 0) or 0)
@@ -526,15 +635,17 @@ def interpretation_text(aggregate: dict[str, Any]) -> dict[str, str]:
     ladder = aggregate.get("evidence_ladder")
     if ladder == "blinded review":
         means = "Candidates are ranked without source roles or control comparisons visible."
+    elif ladder in {"not tested", "insufficient independent samples"}:
+        means = aggregate.get("null_result_language", "No suitable independent empirical comparison was tested.")
     elif ladder in {"above-control candidate", "repeatable candidate"}:
-        means = "The selected protocol found laser-frame scores above matched controls under this run's thresholds."
+        means = "The selected protocol found capture-pair scores above declared empirical matched controls under the stated exchangeability assumptions."
     elif ladder == "anomaly":
         means = "The run found elevated structure, but not enough to clear the controlled evidence threshold."
     else:
         means = "The selected capture and detector set did not beat matched controls."
     return {
         "what_this_means": means,
-        "what_this_does_not_mean": "A pattern is not proof of language, origin, intent, or metaphysical meaning; unblinding only tests whether it exceeds controls.",
+        "what_this_does_not_mean": "A pattern is not proof of language, origin, intent, or metaphysical meaning. Unblinding alone does not establish a suitable control or independent replication.",
     }
 
 
