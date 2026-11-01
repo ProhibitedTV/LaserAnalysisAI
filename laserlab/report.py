@@ -46,6 +46,7 @@ def build_report(experiment_dir: Path, run_dir: Path, run_record: dict[str, Any]
         "pair_quality_report_version": PAIR_QUALITY_REPORT_VERSION,
         "statistics_migration": run_record.get("statistics_migration"),
         "experiment_id": run_record["experiment_id"],
+        "experiment_purpose": "demo" if run_record.get("experiment_purpose") == "demo" else "research",
         "run_id": run_record["run_id"],
         "created_at": run_record["created_at"],
         "profile": run_record["profile"],
@@ -170,6 +171,11 @@ def render_html_report(report: dict[str, Any]) -> str:
         for badge in report.get("badges", [])
     )
     interpretation = report.get("interpretation", {})
+    demo_notice = (
+        "<p><strong>PRACTICE DEMO:</strong> Public sample clips are not a matched scientific experiment. "
+        "Use your own footage and matched controls for research.</p>"
+        if report.get("experiment_purpose") == "demo" else ""
+    )
     inference = report.get("aggregate_statistics", {}).get("inference", {})
     inference_html = "<p>Independent-unit counts and source classes remain sealed.</p>"
     if unblinded:
@@ -263,6 +269,7 @@ def render_html_report(report: dict[str, Any]) -> str:
 </head>
 <body>
   <h1>LaserAnalysisAI Blinded Signal Report</h1>
+  {demo_notice}
   {migration_html}
   {inference_html}
   <p>{html.escape(report.get('replication_context', 'Frame persistence is descriptive, not independent-session replication.'))}</p>
@@ -592,6 +599,8 @@ def report_badges(run_record: dict[str, Any]) -> list[str]:
         badges = ["review blinded", "source roles sealed"]
     else:
         badges = ["review unblinded"]
+    if run_record.get("experiment_purpose") == "demo":
+        badges.append("practice demo only")
     badges.append("candidate FDR not estimated")
     if aggregate.get("calibration_passed"):
         badges.append("calibration passed")

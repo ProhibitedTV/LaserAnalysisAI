@@ -110,11 +110,31 @@ class ReplicationGuiTests(unittest.TestCase):
         self.window.experiment_path.setText(str(other))
         with patch("laserlab.preferences.preferences_path", return_value=self.root / "preferences.json"):
             self.window.open_experiment()
-        self.assertEqual(self.window.experiment_dir, other)
+        self.assertTrue(self.window.experiment_dir.samefile(other))
         self.assertIsNone(self.window.session_comparison)
         self.assertFalse(self.window.session_privacy.isChecked())
         self.assertFalse(self.window.session_export_button.isEnabled())
         self.assertNotIn("S01", self.window.session_comparison_details.toPlainText())
+
+    def test_unblinded_bundle_with_replication_plan_uses_privacy_confirmation(self):
+        from PyQt5.QtWidgets import QMessageBox
+        from laserlab import app_api
+        experiment = self.root / "planned"
+        app_api.create_experiment(experiment)
+        app_api.record_replication_plan(experiment, "non-identifying-plan", True)
+        self.window.experiment_dir = experiment
+        self.window.latest_report = {"review_state": {"unblinded": True}}
+        output = self.root / "reviewed.zip"
+        with patch("gui.lab_dashboard.QMessageBox.question", return_value=QMessageBox.No), \
+             patch("gui.lab_dashboard.QFileDialog.getSaveFileName") as picker:
+            self.window.export_bundle()
+            picker.assert_not_called()
+        with patch("gui.lab_dashboard.QMessageBox.question", return_value=QMessageBox.Yes) as question, \
+             patch("gui.lab_dashboard.QFileDialog.getSaveFileName", return_value=(str(output), "ZIP")), \
+             patch("gui.lab_dashboard.app_api.export_review_bundle", return_value=output) as export:
+            self.window.export_bundle()
+            self.assertIn("research plans", question.call_args.args[2])
+            self.assertIs(export.call_args.kwargs["privacy_acknowledged"], True)
 
 
 if __name__ == "__main__":
