@@ -859,7 +859,10 @@ class LabDashboardWindow(QMainWindow):
         self.filmstrip_table.verticalHeader().setVisible(False)
         self.filmstrip_table.setMaximumHeight(130)
         layout.addWidget(self.filmstrip_table)
-        return page
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(page)
+        return scroll
 
     def _compare_tab(self) -> QWidget:
         page = QWidget()
