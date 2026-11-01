@@ -2,12 +2,13 @@
 
 LaserLab is **not** a replacement for [Project Veilbreak](https://veilbreak.ai/). Veilbreak organizes the community's published protocols, experiments, and questionnaire data. LaserLab is a local desktop instrument for testing features in recorded optical footage against matched controls.
 
-## What works in this proposed integration
+## What works in development source
 
 - In LaserLab's **Setup**, select **Explore Veilbreak protocols**; or under **Export > Show community data tools**, choose the public protocol or experiment catalog.
-- On request, LaserLab accesses Veilbreak's published, read-only MCP endpoint at \`https://veilbreak.ai/api/mcp\`. This catalog endpoint is documented as free and without an API key.
-- Choose a record from the returned list, create/open a local experiment, and confirm **Link**. LaserLab stores the numeric Veilbreak record ID, selected reported optical metadata, and a reference to the public endpoint.
-- The link is labeled \`context_only\` and **excluded from image-detector scoring**. It cannot change pre-specified experimental settings or override local capture metadata.
+- On request, LaserLab accesses Veilbreak's published, read-only MCP endpoint at `https://veilbreak.ai/api/mcp`. This catalog endpoint is documented as free and without an API key.
+- Search titles, equipment and tags locally, optionally filter by reported wavelength, and use **Previous / Next** to reach the complete downloaded catalog. These filters send no search terms to the provider. The MCP list tools currently take no search or pagination parameters; the separate REST API has different capabilities.
+- Choose **Use selected protocol as reference** (or experiment), create/open a local experiment, and confirm the local link. LaserLab stores the numeric Veilbreak record ID, selected reported optical metadata, and a reference to the public endpoint.
+- The link is labeled `context_only` and **excluded from image-detector scoring**. It cannot change pre-specified experimental settings or override local capture metadata.
 - Linking the same Veilbreak record twice updates its reference rather than duplicating it.
 - No private footage, participant notes, review results, experiment paths, account credentials, or personally identifying data are sent to Veilbreak. There is no automatic background polling or data upload.
 
@@ -28,9 +29,21 @@ For community members who also want to use **Veilbreak's separate read-only REST
 
 Veilbreak's REST API is read-only: it does not authorize publishing or updating research results. The published URL is `https://veilbreak.ai/api-access`; sample snippets on the page may contain a different placeholder hostname, so check the provider's current documentation before using an endpoint.
 
-## Why the live catalog may not open
+## Live compatibility and limits
 
-Veilbreak documents an MCP server, but its public website also describes a **separate authenticated REST API**, and its main page and MCP page advertise different historical MCP URLs. This client uses the current main-domain MCP documentation's \`https://veilbreak.ai/api/mcp\` endpoint. The website's transport behavior was not integration-tested in a live app session as part of this change. If the server changes or is unavailable, LaserLab shows an error and **does not silently switch** to an unknown host or ask for an API key.
+On November 1, 2026, a live public probe verified initialization using MCP `2025-03-26`, tool discovery, the protocol catalog, exact protocol-ID lookup and missing-ID behavior. Separate live reads verified the experiment catalog and exact experiment-ID lookup. The advertised read-only tools are `get_protocols`, `get_protocol_by_id`, `get_experiments`, `get_experiment_by_id` and `get_schema`. These are point-in-time service checks, not native UI, volunteer or authorized contribution acceptance. No collaboration or compatibility guarantee from Veilbreak maintainers is implied.
+
+The live protocol schema nests optical values in `meta`. LaserLab reads only allow-listed fields from that object; authors, descriptions, questionnaire answers, substance/dose values and arbitrary links are excluded. The provider's `get_schema` describes wavelength in nanometers, power in milliwatts and **projection distance in feet**. The Veilbreak adapter converts that distance to meters and records the original source field in confidence metadata. An explicit `projection_distance_meters` takes precedence. Reported values remain community context, not measurements of the local setup. Existing saved references are not rewritten.
+
+Catalogs are bounded by a 4 MiB response limit and a per-request timeout. The former 200-record truncation has been removed: every downloaded record is available through local paging. If a future MCP response signals additional server pages, LaserLab reports an unsupported partial catalog instead of silently omitting records or inventing unadvertised request parameters. Rate limits, authorization errors, unsupported negotiated versions and malformed responses produce local errors without echoing server content. Requests cannot redirect to a different endpoint.
+
+Maintainers can repeat the sanitized live check explicitly:
+
+```powershell
+& .\.venv\Scripts\python.exe scripts/check_veilbreak.py --live
+```
+
+It sends only fixed public read requests and numeric protocol IDs. Its JSON output contains counts, tool names, unit/schema facts and a timestamp; no record titles, authors, raw content or local experiment data. Without `--live` it refuses network access. Normal CI remains offline. The provider may change or become unavailable; LaserLab never silently switches hosts or requests a key.
 
 In the meantime, you can use **Import reference metadata** with a user-downloaded JSON or CSV file and still obtain normal local LaserLab analyses.
 
@@ -47,7 +60,7 @@ In the meantime, you can use **Import reference metadata** with a user-downloade
 These are follow-on projects, **not** features implemented by this bridge:
 
 1. Agree with Veilbreak maintainers on a stable API/MCP version, schemas, rate limits, and license/attribution conventions.
-2. Provide protocol-ID deep links and optional saved local catalog cache for offline use.
+2. Confirm canonical protocol-ID deep links and optional saved local catalog cache for offline use; no persistent catalog cache is implemented.
 3. Add a **user-reviewed, export-only** results mapping so researchers can submit appropriate analysis metadata to Veilbreak through Veilbreak's own authorized contribution workflow.
 4. Agree on a published common dataset format for control pairs, hashes, detector settings, blinded review status, and replication outcomes.
 5. Keep network reads opt-in and any possible future write/upload actions separately consented, reviewed, and clearly labeled.

@@ -56,6 +56,7 @@ from laserlab.manifest import load_manifest
 from laserlab.preferences import load_preferences, remember_experiment, set_last_source_directory
 from laserlab.runtime import default_experiments_dir
 from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
+from .veilbreak_catalog import VeilbreakCatalogDialog
 
 
 VEILBREAK_API_KEY_PAGE = "https://veilbreak.ai/api-access"
@@ -1719,19 +1720,12 @@ class LabDashboardWindow(QMainWindow):
                 self, "Veilbreak catalog", "No published records were returned."
             )
             return
-        options = []
-        for record in records:
-            wavelength = (record.get("optical_metadata") or {}).get("wavelength_nm")
-            suffix = f" / {wavelength:g} nm" if isinstance(wavelength, (int, float)) else ""
-            options.append(f"#{record['record_id']} - {record['title']}{suffix}")
-        selected, accepted = QInputDialog.getItem(
-            self, "Veilbreak community catalog",
-            f"Choose a published {kind[:-1]} to reference in your LaserLab experiment:",
-            options, 0, False,
-        )
-        if not accepted:
+        dialog = VeilbreakCatalogDialog(kind, records, self)
+        if not dialog.exec_():
             return
-        record = records[options.index(selected)]
+        record = dialog.selected_record()
+        if record is None:
+            return
         if self.experiment_dir is None:
             self.tabs.setCurrentIndex(0)
             self.setup_steps.setCurrentIndex(0)
@@ -1747,7 +1741,8 @@ class LabDashboardWindow(QMainWindow):
             f"Link Veilbreak {record['record_type']} #{record['record_id']} "
             f"to this local experiment as context-only metadata?\n\n"
             "This does not change detector scores, import participant reports, "
-            "upload footage, or publish results.",
+            "upload footage, or publish results. Reported equipment values are "
+            "not measurements of your own setup.",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
         )
         if answer != QMessageBox.Yes:
