@@ -13,7 +13,7 @@ from .ingest import init_experiment
 from .manifest import latest_run_dir, load_manifest, load_or_create_manifest, write_manifest
 from .pipeline import run_experiment, unblind_latest_run as _unblind_latest_run
 from .protocols import describe_protocol, list_protocol_presets as _list_protocol_presets
-from .report import build_report
+from .report import build_report, PAIR_QUALITY_REPORT_VERSION
 from .report import write_html_report
 from .capture_inference import STATISTICS_VERSION
 from .capture_protocol import normalize_study_context
@@ -60,6 +60,16 @@ def add_capture(
         deduplicate=deduplicate,
         scene_change_threshold=scene_change_threshold,
     )
+
+
+def assess_pair_quality(experiment_dir: Path) -> dict[str, Any]:
+    """Read-only, bounded setup check; never open sealed source mappings."""
+    from .pair_quality import assess_experiment
+
+    experiment_dir = Path(experiment_dir)
+    manifest = load_manifest(experiment_dir)
+    _require_editable_manifest(manifest, "checking source-specific pair quality")
+    return assess_experiment(experiment_dir, manifest)
 
 
 def run_analysis(
@@ -345,11 +355,13 @@ def load_latest_report(experiment_dir: Path) -> dict[str, Any]:
     else:
         report = load_json(report_path)
     html_path = run_dir / "report.html"
-    if report.get("aggregate_statistics", {}).get("statistics_version") != STATISTICS_VERSION:
+    old_statistics = report.get("aggregate_statistics", {}).get("statistics_version") != STATISTICS_VERSION
+    if old_statistics or report.get("pair_quality_report_version") != PAIR_QUALITY_REPORT_VERSION:
         report = build_report(experiment_dir, run_dir, load_json(results_path), write_html=False)
         # Preserve old artifacts byte-for-byte; point the UI at a versioned view.
-        report_path = run_dir / "report.statistics-v2.json"
-        html_path = run_dir / "report.statistics-v2.html"
+        suffix = "statistics-v2" if old_statistics else "pair-quality-v1"
+        report_path = run_dir / f"report.{suffix}.json"
+        html_path = run_dir / f"report.{suffix}.html"
         report["artifacts"].update(report_json=relative_to(report_path, experiment_dir),
                                    report_html=relative_to(html_path, experiment_dir))
         write_json(report_path, report)

@@ -86,6 +86,7 @@ def restore_run_record(run_record: dict[str, Any], payload: dict[str, Any]) -> d
     restored["psychophysics_analysis"] = sensitive.get("psychophysics_analysis")
     restored["external_dataset_references"] = sensitive.get("external_dataset_references", [])
     restored["symbol_transcriptions"] = sensitive.get("symbol_transcriptions")
+    restored["pre_run_quality"] = payload.get("pre_run_quality")
     return restored
 
 

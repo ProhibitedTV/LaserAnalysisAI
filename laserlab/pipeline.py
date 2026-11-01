@@ -29,6 +29,7 @@ from .stats import current_statistics, summarize_blinded_results, summarize_resu
 from .synthetic import create_synthetic_positive
 from .capture_protocol import capture_protocol_summary
 from .capture_inference import sample_class
+from .pair_quality import assess_experiment
 
 
 def run_experiment(
@@ -49,6 +50,8 @@ def run_experiment(
     manifest = upgrade_manifest(load_manifest(experiment_dir))
     if manifest.get("outputs", {}).get("review_state") == "blinded":
         raise ValueError("The latest review is still blinded. Explicitly unblind it before starting another run.")
+    # Recheck the actual inputs for this run, independently of any cached GUI preview.
+    pre_run_quality = assess_experiment(experiment_dir, manifest)
     plan = manifest.setdefault("analysis_plan", {})
     preset = get_protocol_preset(protocol or plan.get("protocol") or manifest.get("protocol"))
     protocol_id = preset["id"]
@@ -178,6 +181,7 @@ def run_experiment(
         result["primary_metric_score"] = round(float(metric_score(result, result["primary_metric"])), 6)
     aggregate = summarize_blinded_results(results, primary_metric=primary_metric)
     unblind_payload = build_unblind_payload(blinded_samples, results, manifest)
+    unblind_payload["pre_run_quality"] = pre_run_quality
     protocol_summary = capture_protocol_summary(manifest.get("captures", []))
     run_record = {
         "schema_version": 1,
@@ -191,6 +195,7 @@ def run_experiment(
         "samples": seal_samples(blinded_samples),
         "results": seal_results(results, blinded_samples),
         "aggregate_statistics": aggregate,
+        "pre_run_quality": {"sealed": True},
         "provenance_summary": {
             "capture_count": len(manifest.get("captures", [])),
             "warning_count": sum(
@@ -271,6 +276,7 @@ def unblind_latest_run(experiment_dir: Path) -> dict[str, Any]:
         restored["results"],
         seed=int(restored.get("blind_seed", 1)),
         primary_metric=primary_metric,
+        quality_gate=restored.get("pre_run_quality"),
     )
     for result in restored["results"]:
         result["q_value"] = aggregate.get("candidate_q_values", {}).get(result["sample_id"])

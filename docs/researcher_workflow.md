@@ -2,6 +2,8 @@
 
 LaserLab is a local analysis bench for asking a narrow question: do selected image features in laser footage exceed features found in matched controls under the same pipeline? It does not establish the origin or meaning of a detection.
 
+Development source provides **Run → Check pair quality** before analysis. Review missing settings and differences between declared laser/control pairs, then resolve them or explicitly proceed as exploratory. The bounded check does not validate the experiment; [Pair Quality method notes](pair_quality.md) describe the measurements, limitations and saved-run behavior. Native v0.8.2 downloads do not include this feature.
+
 ## Install Or Download
 
 The easiest path is the native archive for your operating system and CPU:
