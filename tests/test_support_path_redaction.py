@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -84,6 +86,17 @@ class SupportPathRedactionTests(unittest.TestCase):
         self.assertEqual(result, "[Errno 13] read denied: '<PATH>'")
         encoded = json.dumps({"path": path})
         self.assertEqual(json.loads(diagnostics._redact_text(encoded)), {"path": "<PATH>"})
+
+    def test_unterminated_quoted_windows_path_cannot_stall_logging_or_export(self):
+        # Use a subprocess deadline so a backtracking regression fails instead
+        # of hanging the entire test process and GUI-equivalent logging call.
+        message = 'error "C:\\' + 'a\\' * 1000 + 'PRIVATE.txt'
+        expected = 'error "<PATH>'
+        code = ("from laserlab.diagnostics import _redact_text\n"
+                f"assert _redact_text({message!r}) == {expected!r}\n")
+        result = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
+                                capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_bare_roots_are_preserved_and_masking_is_idempotent(self):
         root = str(Path.home())

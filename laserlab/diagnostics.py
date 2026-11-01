@@ -349,7 +349,7 @@ def _redact_text(value: str) -> str:
     # Also sanitize older masked roots without retaining their descendants.
     start = r"(?:[A-Za-z]:[\\/]|\\\\|/|<(?:HOME|TEMP|INSTALL|PATH)>)"
     redacted = re.sub(
-        rf"(?P<quote>[\"'])(?P<path>{start}(?:\\[^\r\n]|(?!(?P=quote))[^\r\n])*)(?P=quote)",
+        rf"(?P<quote>[\"'])(?P<path>{start}(?:\\[^\r\n]|(?!(?P=quote))[^\\\r\n])*)(?P=quote)",
         lambda match: match["quote"] + path_label(match["path"]) + match["quote"],
         str(value),
     )
