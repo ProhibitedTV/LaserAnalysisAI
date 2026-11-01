@@ -160,6 +160,7 @@ def _seal_result(result: dict[str, Any]) -> dict[str, Any]:
         "roi_overlay_path",
         "structure_score",
         "primary_metric_score",
+        "primary_metric_measurement",
         "inference_metric_score",
         "persistence_score",
     }

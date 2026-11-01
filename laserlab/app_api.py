@@ -17,6 +17,7 @@ from .protocols import describe_protocol, list_protocol_presets as _list_protoco
 from .report import build_report, PAIR_QUALITY_REPORT_VERSION
 from .report import write_html_report
 from .capture_inference import STATISTICS_VERSION
+from .metric_validity import METRIC_VALIDITY_VERSION
 from .capture_protocol import normalize_study_context
 from .community_data import (
     export_symbol_transcriptions_csv as _export_symbol_transcriptions_csv,
@@ -428,10 +429,13 @@ def load_latest_report(experiment_dir: Path) -> dict[str, Any]:
         report = load_json(report_path)
     html_path = run_dir / "report.html"
     old_statistics = report.get("aggregate_statistics", {}).get("statistics_version") != STATISTICS_VERSION
-    if old_statistics or report.get("pair_quality_report_version") != PAIR_QUALITY_REPORT_VERSION:
+    aggregate = report.get("aggregate_statistics", {})
+    old_metric = (aggregate.get("primary_metric") == "ocr_symbol_score"
+                  and aggregate.get("primary_metric_validity", {}).get("version") != METRIC_VALIDITY_VERSION)
+    if old_statistics or old_metric or report.get("pair_quality_report_version") != PAIR_QUALITY_REPORT_VERSION:
         report = build_report(experiment_dir, run_dir, load_json(results_path), write_html=False)
         # Preserve old artifacts byte-for-byte; point the UI at a versioned view.
-        suffix = "statistics-v2" if old_statistics else "pair-quality-v1"
+        suffix = "metric-validity-v1" if old_metric else "statistics-v2" if old_statistics else "pair-quality-v1"
         report_path = run_dir / f"report.{suffix}.json"
         html_path = run_dir / f"report.{suffix}.html"
         report["artifacts"].update(report_json=relative_to(report_path, experiment_dir),
@@ -484,6 +488,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
         "sample_id",
         "primary_metric",
         "primary_metric_score",
+        "primary_metric_status",
         "structure_score",
         "persistence_score",
         "preprocessing_variant",
@@ -511,6 +516,7 @@ def export_candidates_csv(experiment_dir: Path, output_path: Path) -> Path:
                     "sample_id": item.get("sample_id", ""),
                     "primary_metric": item.get("primary_metric", ""),
                     "primary_metric_score": item.get("primary_metric_score", ""),
+                    "primary_metric_status": item.get("primary_metric_measurement", {}).get("status", "unknown"),
                     "structure_score": item.get("structure_score", ""),
                     "persistence_score": item.get("persistence_score", ""),
                     "preprocessing_variant": item.get("preprocessing_variant", ""),

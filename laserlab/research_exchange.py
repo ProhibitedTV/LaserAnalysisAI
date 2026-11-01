@@ -14,6 +14,7 @@ from .capture_inference import STATISTICS_VERSION, sample_class
 from .capture_protocol import LASER_PATTERN_TYPES, SURFACE_TYPES
 from .manifest import DEFAULT_DETECTORS, latest_run_dir
 from .stats import EVIDENCE_THRESHOLDS, current_statistics, evidence_ladder
+from .metric_validity import METRIC_VALIDITY_VERSION
 
 EXCHANGE_VERSION = "laserlab-research-exchange-v1"
 METRICS = {"structure_score", "fft_peak_prominence", "speckle_contrast", "ocr_symbol_score"}
@@ -118,6 +119,7 @@ def prepare_exchange(experiment_dir: Path, *, include_source_hashes: bool = Fals
     tested = status == "tested"
     outcome = evidence_ladder(aggregate) if supported and not demo else "not tested"
     quality = _obj(run.get("pre_run_quality"))
+    metric_validity = _obj(aggregate.get("primary_metric_validity"))
     quality_status = _enum(quality.get("status"), {"consistent", "mismatch", "unknown"}) or "not_assessed"
     captures, seen = [], set()
     for index, result in enumerate(run.get("results", [])):
@@ -140,6 +142,8 @@ def prepare_exchange(experiment_dir: Path, *, include_source_hashes: bool = Fals
         warnings.append("Demonstration/calibration fixtures are not empirical matched controls.")
     if quality_status != "consistent":
         warnings.append("Pair Quality is missing or unresolved; no new quality pass is invented for this export.")
+    if metric_validity.get("status") == "incomplete":
+        warnings.append("Primary OCR measurements are incomplete. Missing, unavailable, failed or null attempts are not measured zeros or null findings.")
     if include_source_hashes:
         warnings.append("Recorded source hashes can link recordings across exports. They are not freshly verified against media files.")
     if reference is not None:
@@ -164,11 +168,16 @@ def prepare_exchange(experiment_dir: Path, *, include_source_hashes: bool = Fals
                      "declared_independent_pair_count": _number(inference.get("pair_count"), 0),
                      "laser_mean_score": _number(aggregate.get("laser_mean_score")),
                      "control_mean_score": _number(aggregate.get("control_mean_score")),
-                     "score_summary_unit": "equal_weight_capture_medians" if tested else "descriptive_frames_only",
+                     "score_summary_unit": ("equal_weight_capture_medians" if tested else "primary_measurements_incomplete"
+                                            if metric_validity.get("status") == "incomplete" else "descriptive_frames_only"),
                      "mean_difference": _number(aggregate.get("mean_difference")),
                      "permutation_p_value": _number(aggregate.get("permutation_p_value"), 0) if tested else None,
                      "candidate_fdr": None},
         "quality": {"status": quality_status, "exploratory": quality.get("requires_exploratory") is True},
+        "primary_metric_validity": {"version": METRIC_VALIDITY_VERSION if metric_validity.get("version") == METRIC_VALIDITY_VERSION else None,
+                                    "status": _enum(metric_validity.get("status"), {"complete", "incomplete", "not_assessed", "not_required"}) or "not_assessed",
+                                    "sample_observations": _number(metric_validity.get("sample_observations"), 0),
+                                    "unscored_sample_observations": _number(metric_validity.get("unscored_sample_observations"), 0)},
         "captures": captures,
         "privacy": {"source_hashes_included": include_source_hashes, "media_included": False,
                     "personal_identifiers_included": False, "free_text_included": False},

@@ -8,14 +8,16 @@ from statistics import mean, pstdev
 from typing import Any
 
 from .capture_inference import STATISTICS_VERSION, paired_capture_inference, sample_class
+from .metric_validity import METRIC_VALIDITY_VERSION, assess_metric_result, assess_metric_frames
 
 EVIDENCE_THRESHOLDS = {"maximum_p_value": .05, "minimum_mean_difference": .02, "anomaly_mean_difference": .05}
 
 def summarize_blinded_results(sample_results: list[dict[str, Any]], primary_metric: str = "structure_score") -> dict[str, Any]:
-    scores = _sample_scores(sample_results)
+    scores = _sample_scores(sample_results, primary_metric)
     positives = [r["score"] for r in scores if r.get("unblinded_label") == "synthetic_positive"]
     return {
         "statistics_version": STATISTICS_VERSION,
+        "primary_metric_validity": {"version": METRIC_VALIDITY_VERSION, "status": "sealed"} if primary_metric == "ocr_symbol_score" else {"version": METRIC_VALIDITY_VERSION, "status": "not_required"},
         "sample_count": len(scores) - len(positives), "laser_count": None, "control_count": None,
         "synthetic_positive_count": len(positives), "calibration_passed": bool(positives and max(positives) > .05),
         "primary_metric": primary_metric, "laser_mean_score": None, "control_mean_score": None,
@@ -32,25 +34,29 @@ def summarize_blinded_results(sample_results: list[dict[str, Any]], primary_metr
 
 def summarize_results(sample_results: list[dict[str, Any]], seed: int, permutations: int = 10000,
                       primary_metric: str = "structure_score", quality_gate: dict[str, Any] | None = None) -> dict[str, Any]:
-    frames = _sample_scores(sample_results)
+    frames = _sample_scores(sample_results, primary_metric)
+    measurement = assess_metric_frames(frames, primary_metric)
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for frame in frames:
         groups[sample_class(frame)].append(frame)
     laser, controls = groups["empirical_laser"], groups["declared_matched_control"]
     positives = [r["score"] for r in groups["synthetic_positive"]]
-    inference = paired_capture_inference(frames, seed, permutations, quality_gate=quality_gate)
+    inference = paired_capture_inference(frames, seed, permutations, quality_gate=quality_gate, measurement_gate=measurement)
     tested = inference["status"] == "tested"
-    laser_mean = inference.get("laser_mean") if tested else _mean([r["score"] for r in laser])
-    control_mean = inference.get("control_mean") if tested else _mean([r["score"] for r in controls])
+    scored = lambda records: [r["score"] for r in records] if all(r["primary_metric_available"] for r in records) else []
+    laser_mean = inference.get("laser_mean") if tested else _mean(scored(laser))
+    control_mean = inference.get("control_mean") if tested else _mean(scored(controls))
     stats = {
         "statistics_version": STATISTICS_VERSION, "sample_count": len(frames),
+        "primary_metric_validity": measurement,
         "laser_count": len(laser), "control_count": len(controls),
-        "synthetic_positive_count": len(positives), "calibration_passed": bool(positives and max(positives) > .05),
+        "synthetic_positive_count": len(positives), "calibration_passed": (bool(positives and max(positives) > .05) if all(r["primary_metric_available"] for r in groups["synthetic_positive"]) else None),
         "primary_metric": primary_metric, "laser_mean_score": laser_mean, "control_mean_score": control_mean,
-        "score_summary_unit": "equal-weight capture medians" if tested else "descriptive frames only; not independent n",
-        "synthetic_positive_mean_score": _mean(positives),
-        "laser_confidence_interval": _descriptive([r["score"] for r in laser]),
-        "control_confidence_interval": _descriptive([r["score"] for r in controls]),
+        "score_summary_unit": ("equal-weight capture medians" if tested else "primary measurements incomplete; unscored values omitted"
+                               if measurement.get("status") == "incomplete" else "descriptive frames only; not independent n"),
+        "synthetic_positive_mean_score": _mean(scored(groups["synthetic_positive"])),
+        "laser_confidence_interval": _descriptive(scored(laser)),
+        "control_confidence_interval": _descriptive(scored(controls)),
         "mean_difference": inference.get("mean_difference") if tested else (None if laser_mean is None or control_mean is None else laser_mean - control_mean),
         "cohen_d": inference.get("cohen_dz"), "effect_size_method": "paired Cohen dz; not a frame-level effect",
         "permutation_p_value": inference.get("p_value"), "inference": inference,
@@ -59,7 +65,8 @@ def summarize_results(sample_results: list[dict[str, Any]], seed: int, permutati
         "detector_family_statistics": _family_statistics(sample_results),
         "control_diagnostics": {
             kind: {"frame_count": len(records), "capture_count": len({r.get("capture_id") for r in records if r.get("capture_id")}),
-                   "mean_score": _mean([r["score"] for r in records]), "used_for_inference": tested and kind == "declared_matched_control"}
+                   "mean_score": _mean(scored(records)), "primary_metric_available": all(r["primary_metric_available"] for r in records),
+                   "used_for_inference": tested and kind == "declared_matched_control"}
             for kind, records in groups.items()
         },
     }
@@ -78,7 +85,11 @@ def current_statistics(run_record: dict[str, Any]) -> dict[str, Any]:
     gate = run_record.get("pre_run_quality") if unblinded else None
     needs_quality_gate = bool(gate and gate.get("requires_exploratory") and
                               run_record.get("aggregate_statistics", {}).get("inference", {}).get("status") == "tested")
-    if run_record.get("aggregate_statistics", {}).get("statistics_version") == STATISTICS_VERSION and not needs_quality_gate:
+    aggregate = run_record.get("aggregate_statistics", {})
+    primary_metric = aggregate.get("primary_metric", "structure_score")
+    needs_metric_gate = primary_metric == "ocr_symbol_score" and aggregate.get("primary_metric_validity", {}).get("version") != METRIC_VALIDITY_VERSION
+    old_statistics = aggregate.get("statistics_version") != STATISTICS_VERSION
+    if not old_statistics and not needs_quality_gate and not needs_metric_gate:
         return run_record
     updated = dict(run_record)
     if not run_record.get("review_state", {"unblinded": True}).get("unblinded"):
@@ -94,14 +105,17 @@ def current_statistics(run_record: dict[str, Any]) -> dict[str, Any]:
         primary_metric=run_record.get("aggregate_statistics", {}).get("primary_metric", "structure_score"),
         quality_gate=gate,
     )
-    updated["results"] = [{**result, "q_value": None, "source_class": sample_class(result)} for result in run_record.get("results", [])]
+    updated["results"] = [{**result, "q_value": None, "source_class": sample_class(result),
+                           "primary_metric_measurement": assess_metric_result(result, primary_metric)} for result in run_record.get("results", [])]
     updated["samples"] = [{**sample, "source_class": sample_class(sample)} for sample in run_record.get("samples", [])]
-    if not needs_quality_gate:
+    if old_statistics:
         updated["statistics_migration"] = "Legacy frame-level significance and candidate FDR are superseded. Original results and source media remain unchanged; re-run to record independent-unit provenance."
+    if needs_metric_gate:
+        updated["metric_validity_migration"] = "OCR measurement eligibility was reassessed from saved attempt states. Unavailable, failed, null or unaudited attempts are not measured zeros. Original artifacts are preserved."
     return updated
 
 
-def _sample_scores(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _sample_scores(results: list[dict[str, Any]], primary_metric: str = "structure_score") -> list[dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
     for result in results:
         record = grouped.setdefault(result["sample_id"], {**result, "variants": {}})
@@ -111,10 +125,13 @@ def _sample_scores(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
             raise ValueError("Conflicting provenance for one sample ID")
         value = float(result.get("primary_metric_score", result.get("structure_score", 0)))
         inference_value = result.get("inference_metric_score")
+        measurement = assess_metric_result(result, primary_metric)
+        available = measurement["status"] != "unscored"
         if not math.isfinite(value) or (inference_value is not None and not math.isfinite(float(inference_value))):
             raise ValueError("Statistical scores must be finite")
         variant = result.get("preprocessing_variant", "legacy")
-        entry = (value, None if inference_value is None else float(inference_value), float(result.get("persistence_score", 0)))
+        entry = (value, None if inference_value is None or not available else float(inference_value), float(result.get("persistence_score", 0)),
+                 available, tuple(measurement["reason_codes"]))
         if not math.isfinite(entry[2]):
             raise ValueError("Persistence scores must be finite")
         if variant in record["variants"] and record["variants"][variant] != entry:
@@ -124,6 +141,8 @@ def _sample_scores(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for record in grouped.values():
         variants = list(record.pop("variants").values())
         frames.append({**record, "score": mean(v[0] for v in variants),
+                       "primary_metric_available": all(v[3] for v in variants),
+                       "primary_metric_unscored_reasons": sorted({reason for variant in variants for reason in variant[4]}),
                        "inference_score": None if any(v[1] is None for v in variants) else mean(v[1] for v in variants),
                        "persistence_score": mean(v[2] for v in variants)})
     return frames

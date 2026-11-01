@@ -41,6 +41,7 @@ def export_review_bundle(
     environment = {
         "laserlab_version": __version__,
         "statistics_version": results.get("aggregate_statistics", {}).get("statistics_version"),
+        "metric_validity_version": results.get("aggregate_statistics", {}).get("primary_metric_validity", {}).get("version"),
         "python": sys.version,
         "platform": platform.platform(),
         "include_media": include_media,
