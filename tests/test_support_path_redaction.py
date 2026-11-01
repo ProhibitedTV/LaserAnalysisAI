@@ -78,6 +78,13 @@ class SupportPathRedactionTests(unittest.TestCase):
         self.assertIn("line 4", result)
         self.assertIn("OSError: decode failed", result)
 
+    def test_exception_repr_with_both_quote_types_does_not_leave_a_private_suffix(self):
+        path = '/mnt/private study/observer\'s "PRIVATE_ALIAS".mov'
+        result = diagnostics._redact_text(str(OSError(13, "read denied", path)))
+        self.assertEqual(result, "[Errno 13] read denied: '<PATH>'")
+        encoded = json.dumps({"path": path})
+        self.assertEqual(json.loads(diagnostics._redact_text(encoded)), {"path": "<PATH>"})
+
     def test_bare_roots_are_preserved_and_masking_is_idempotent(self):
         root = str(Path.home())
         for original in (root, f'"{root}"', r"path=D:\private study\capture.mov code=FAIL",
