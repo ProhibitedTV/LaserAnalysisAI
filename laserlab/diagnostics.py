@@ -347,7 +347,8 @@ def _redact_text(value: str) -> str:
 
     # Respect escaped quotes in Python exception repr and JSON log strings.
     # Also sanitize older masked roots without retaining their descendants.
-    start = r"(?:[A-Za-z]:[\\/]|\\\\|/|<(?:HOME|TEMP|INSTALL|PATH)>)"
+    file_uri = r"(?i:file:)(?:[\\/]|[A-Za-z]:[\\/])"
+    start = rf"(?:{file_uri}|[A-Za-z]:[\\/]|\\\\|/|<(?:HOME|TEMP|INSTALL|PATH)>)"
     redacted = re.sub(
         rf"(?P<quote>[\"'])(?P<path>{start}(?:\\[^\r\n]|(?!(?P=quote))[^\\\r\n])*)(?P=quote)",
         lambda match: match["quote"] + path_label(match["path"]) + match["quote"],
@@ -358,7 +359,7 @@ def _redact_text(value: str) -> str:
     # error classes and context on surrounding lines remain available.
     tail = r"[^\r\n]*"
     redacted = re.sub(
-        rf"(?i)(?<![A-Za-z0-9:/])(?:[A-Z]:[\\/]|\\\\|/|<(?:HOME|TEMP|INSTALL)>[\\/]|<PATH>[ \\/]){tail}",
+        rf"(?i)(?<![A-Za-z0-9:/])(?:{file_uri}|[A-Z]:[\\/]|\\\\|/|<(?:HOME|TEMP|INSTALL)>[\\/]|<PATH>[ \\/]){tail}",
         lambda match: path_label(match.group()), redacted,
     )
     return redacted

@@ -98,6 +98,20 @@ class SupportPathRedactionTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_local_file_uris_redact_both_known_roots_and_external_paths(self):
+        uris = ("file:///home/private-user/private%20study/capture.mov",
+                "file:///C:/Users/private-user/private study/capture.mov",
+                "FILE://lab-server/private%20study/capture.mov",
+                "file:/mnt/private study/capture.mov",
+                "file:C:/private study/capture.mov")
+        with patch("laserlab.diagnostics._redaction_roots", return_value=[("/home/private-user", "<HOME>")]):
+            for uri in uris:
+                with self.subTest(uri=uri):
+                    self.assertEqual(diagnostics._redact_text(f"Cannot open {uri}"), "Cannot open <PATH>")
+                    self.assertEqual(diagnostics._redact_text(f'Cannot open "{uri}"; retry'), 'Cannot open "<PATH>"; retry')
+        public = "https://veilbreak.ai/api/mcp"
+        self.assertEqual(diagnostics._redact_text(public), public)
+
     def test_bare_roots_are_preserved_and_masking_is_idempotent(self):
         root = str(Path.home())
         for original in (root, f'"{root}"', r"path=D:\private study\capture.mov code=FAIL",
