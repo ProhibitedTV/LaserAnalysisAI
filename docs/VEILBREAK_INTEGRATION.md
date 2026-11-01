@@ -11,6 +11,7 @@ LaserLab is **not** a replacement for [Project Veilbreak](https://veilbreak.ai/)
 - The link is labeled `context_only` and **excluded from image-detector scoring**. It cannot change pre-specified experimental settings or override local capture metadata.
 - Linking the same Veilbreak record twice updates its reference rather than duplicating it.
 - No private footage, participant notes, review results, experiment paths, account credentials, or personally identifying data are sent to Veilbreak. There is no automatic background polling or data upload.
+- Optional [24-hour saved public catalogs](public_catalog_cache.md) default off. Open saved is disk-only; Browse / refresh explicitly reads the service. Saved copies retain source/retrieval/expiry and an unverified per-record license status.
 
 This is a **read-only, user-initiated bridge**. The standalone LaserLab app and current local JSON/CSV import tools work without the network.
 
@@ -60,7 +61,7 @@ In the meantime, you can use **Import reference metadata** with a user-downloade
 The reviewed local exchange is implemented in development source. These coordination and acceptance steps remain:
 
 1. Agree with Veilbreak maintainers on a stable API/MCP version, schemas, rate limits, and license/attribution conventions.
-2. Confirm canonical protocol-ID deep links and optional saved local catalog cache for offline use; no persistent catalog cache is implemented.
+2. Confirm canonical protocol-ID deep links and maintainer caching/attribution guarantees. A [local opt-in cache](public_catalog_cache.md) now implements bounded offline snapshots without claiming those guarantees.
 3. Development source provides a [reviewed local results exchange](research_exchange.md) with optional linked reference IDs and recorded hashes, fixed evidence/settings fields and privacy gates. This draft format does not imply Veilbreak accepts it. Agree on an authorized contribution workflow and provider mapping before any submission.
 4. Agree on a published common dataset format for control pairs, hashes, detector settings, blinded review status, and replication outcomes.
 5. Keep network reads opt-in and any possible future write/upload actions separately consented, reviewed, and clearly labeled.

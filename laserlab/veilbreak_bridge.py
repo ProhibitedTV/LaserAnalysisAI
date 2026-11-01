@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -20,6 +20,8 @@ MCP_ENDPOINT = "https://veilbreak.ai/api/mcp"
 MCP_VERSION = "2025-03-26"
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 TIMEOUT_SECONDS = 12
+CATALOG_TTL = timedelta(hours=24)
+LICENSE_POLICY_URL = "https://veilbreak.ai/data-usage"
 
 _TOOLS = {
     "protocols": ("get_protocols", "get_protocol_by_id"),
@@ -348,6 +350,24 @@ def read_public_record(kind: str, record_id: int, *,
     return record
 
 
+def validated_catalog_provenance(value: Mapping[str, Any], *, now: datetime | None = None) -> dict[str, Any]:
+    """Validate bounded snapshot age; this is not authentication of provider data."""
+    try:
+        retrieved = datetime.fromisoformat(value["retrieved_at"].replace("Z", "+00:00"))
+        expires = datetime.fromisoformat(value["expires_at"].replace("Z", "+00:00"))
+        current = now or datetime.now(timezone.utc)
+        if (retrieved.tzinfo is None or expires.tzinfo is None or current.tzinfo is None
+                or value.get("source_endpoint") != MCP_ENDPOINT or value.get("origin") not in {"live", "saved"}
+                or expires - retrieved != CATALOG_TTL or not retrieved <= current < expires):
+            raise ValueError
+    except (KeyError, TypeError, AttributeError, ValueError) as exc:
+        raise VeilbreakError("The public catalog snapshot is expired or invalid. Explicitly refresh it before use.") from exc
+    return {"source_endpoint": MCP_ENDPOINT, "origin": value["origin"],
+            "retrieved_at": retrieved.astimezone(timezone.utc).isoformat(),
+            "expires_at": expires.astimezone(timezone.utc).isoformat(),
+            "license_policy_url": LICENSE_POLICY_URL, "license_status": "per_record_unverified"}
+
+
 def linked_record(public_record: Mapping[str, Any]) -> dict[str, Any]:
     """Small persisted context reference; not a recording or detector input."""
     if public_record.get("source") != "veilbreak":
@@ -372,9 +392,14 @@ def linked_record(public_record: Mapping[str, Any]) -> dict[str, Any]:
     fingerprint = hashlib.sha256(
         json.dumps(provenance, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+    catalog = public_record.get("catalog_provenance")
+    if catalog is not None and not isinstance(catalog, Mapping):
+        raise ValueError("Invalid public catalog provenance. Explicitly refresh the catalog.")
+    catalog = validated_catalog_provenance(catalog) if isinstance(catalog, Mapping) else None
     return {
         **provenance,
-        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "retrieved_at": catalog["retrieved_at"] if catalog else datetime.now(timezone.utc).isoformat(),
+        **({"catalog_provenance": catalog, "linked_at": datetime.now(timezone.utc).isoformat()} if catalog else {}),
         "source_sha256": fingerprint,
         "field_confidence": public_record.get("field_confidence", {}),
         "evidence_role": "context_only",

@@ -1,6 +1,6 @@
 """Small, privacy-limited local preferences for LaserLab.
 
-This module intentionally stores only navigation conveniences. Experiment
+This module stores navigation conveniences and an explicit public-cache choice. Experiment
 contents and analysis metadata belong in experiment records, not in per-user
 application preferences.
 """
@@ -123,6 +123,15 @@ def set_last_source_directory(
     return save_preferences(data, path)
 
 
+def set_veilbreak_cache_enabled(enabled: bool, path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
+    """Persist only an explicit boolean choice; never enable on a truthy string."""
+    if type(enabled) is not bool:
+        raise ValueError("The public catalog cache choice must be an explicit boolean.")
+    data = load_preferences(path)
+    data["veilbreak_cache_enabled"] = enabled
+    return save_preferences(data, path)
+
+
 def _target_path(path: str | os.PathLike[str] | None) -> Path:
     return Path(path).expanduser() if path is not None else preferences_path()
 
@@ -132,6 +141,7 @@ def _default_preferences() -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "recent_experiments": [],
         "last_source_directory": None,
+        "veilbreak_cache_enabled": False,
     }
 
 
@@ -153,6 +163,7 @@ def _normalize_preferences(data: Mapping[str, Any]) -> dict[str, Any]:
                 break
 
     normalized["last_source_directory"] = _directory_string(data.get("last_source_directory"))
+    normalized["veilbreak_cache_enabled"] = data.get("veilbreak_cache_enabled") is True
     return normalized
 
 
