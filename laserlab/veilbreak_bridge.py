@@ -267,11 +267,11 @@ def browse_public(kind: str, *, client: VeilbreakClient | None = None) -> list[d
 
 
 def check_public_compatibility(*, client: VeilbreakClient | None = None) -> dict[str, Any]:
-    """Explicit live protocol check returning counts/schema facts, never raw records.
+    """Explicit live catalog check returning counts/schema facts, never raw records.
 
     Does not run at startup, during ordinary analysis, or in offline test/CI.
-    Maintainer coordination, experiment-record acceptance and contribution
-    authorization are separate from this point-in-time public protocol probe.
+    Maintainer coordination and contribution authorization are separate from
+    this point-in-time public catalog probe.
     """
     client = client or VeilbreakClient()
     session = client._initialize()
@@ -307,30 +307,35 @@ def check_public_compatibility(*, client: VeilbreakClient | None = None) -> dict
     if any(unit not in str(obj(fields.get(field)).get("description", "")).lower()
            for field, unit in units.items()):
         raise VeilbreakError("Veilbreak's reported optical units changed or are missing. Do not assume local measurement units.")
-    records = [safe_public_record(row, "protocols") for row in _records(invoke("get_protocols", {}, 4), "protocols")]
-    by_id_checked = False
-    if records:
-        identifier = records[0]["record_id"]
-        returned = _records(invoke("get_protocol_by_id", {"id": identifier}, 5), "protocols")
-        if len(returned) != 1 or safe_public_record(returned[0], "protocols")["record_id"] != identifier:
-            raise VeilbreakError("Veilbreak's protocol-ID lookup did not match the catalog.")
-        by_id_checked = True
-    error_result, _ = client._rpc("tools/call", {"name": "get_protocol_by_id", "arguments": {"id": 9007199254740991}}, 6, session)
-    if error_result.get("isError") is not True:
-        raise VeilbreakError("Veilbreak did not return the expected missing-protocol error; check compatibility manually.")
-    return {
+    summary = {
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "endpoint": MCP_ENDPOINT,
         "protocol_version": MCP_VERSION,
         "read_only_tools": sorted(expected),
-        "protocol_records": len(records),
-        "protocol_by_id_checked": by_id_checked,
-        "missing_protocol_reported_as_error": error_result.get("isError") is True,
+        "catalogs_checked": list(_TOOLS),
         "reported_units": units,
-        "optical_field_counts": {field: sum(record["optical_metadata"].get(field) is not None for record in records)
-                                 for field in ("wavelength_nm", "rated_power_mw", "projection_distance_meters")},
-        "scope": "Point-in-time public protocol transport/schema check; not native, volunteer, experiment-record or authorized contribution acceptance.",
+        "scope": "Point-in-time public catalog transport/schema check; not native, volunteer or authorized contribution acceptance.",
     }
+    for index, (kind, (list_tool, id_tool)) in enumerate(_TOOLS.items()):
+        label = kind[:-1]
+        request_id = 4 + index * 3
+        records = [safe_public_record(row, kind) for row in _records(invoke(list_tool, {}, request_id), kind)]
+        by_id_checked = False
+        if records:
+            identifier = records[0]["record_id"]
+            returned = _records(invoke(id_tool, {"id": identifier}, request_id + 1), kind)
+            if len(returned) != 1 or safe_public_record(returned[0], kind)["record_id"] != identifier:
+                raise VeilbreakError(f"Veilbreak's {label}-ID lookup did not match the catalog.")
+            by_id_checked = True
+        error_result, _ = client._rpc("tools/call", {"name": id_tool, "arguments": {"id": 9007199254740991}}, request_id + 2, session)
+        if error_result.get("isError") is not True:
+            raise VeilbreakError(f"Veilbreak did not return the expected missing-{label} error; check compatibility manually.")
+        summary.update({f"{label}_records": len(records), f"{label}_by_id_checked": by_id_checked,
+                        f"missing_{label}_reported_as_error": True})
+        key = "optical_field_counts" if kind == "protocols" else "experiment_optical_field_counts"
+        summary[key] = {field: sum(record["optical_metadata"].get(field) is not None for record in records)
+                        for field in ("wavelength_nm", "rated_power_mw", "projection_distance_meters")}
+    return summary
 
 
 def read_public_record(kind: str, record_id: int, *,
