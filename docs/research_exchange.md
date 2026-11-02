@@ -8,7 +8,7 @@ In development source, open **Export > Show community data tools > Review local 
 
 | Field | Meaning and boundary |
 | --- | --- |
-| `schema_version`, `exporter`, `analysis_software_version` | Exchange schema and current exporter version; saved analysis version is null for older runs. Package versions in development source do not identify an exact commit or establish a shipped release. |
+| `schema_version`, `exporter`, `analysis_software_version` | Exchange schema and current exporter version. Saved numeric final/development/prerelease versions are retained; missing, unsupported or private/local suffixes remain null. Package versions do not identify an exact commit or establish a shipped release. |
 | `review`, `experiment_purpose` | Explicit unblinding and whether review was marked complete. Practice markers persist; an absent legacy purpose stays unspecified. |
 | `community_references` | Empty by default. Optionally one already-linked Veilbreak protocol/experiment numeric ID; no title, author, content, imported optical metadata or guessed canonical URL. This is context, not detector evidence. Check attribution and provider terms separately. |
 | `method` | Supported protocol/metric/profile, detector IDs, bounded ROI, preprocessing/control settings, sampling mode and the same threshold constants used by the evidence ladder. Unknown/custom free text is omitted. |

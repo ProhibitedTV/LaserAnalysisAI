@@ -227,6 +227,23 @@ class ExchangeTests(unittest.TestCase):
         self.assertEqual(document["findings"]["evidence_level"], "not tested")
         self.assertIn("Practice demo", " ".join(document["limitations"]))
 
+    def test_standard_nonfinal_analysis_versions_are_retained(self):
+        for version in ("0.8.2", "0.9.0.dev0", "0.9.0a1", "0.9.0b2", "0.9.0rc1", "0.9.0rc1.dev2", "0.9.0.post1"):
+            with self.subTest(version=version):
+                self.run["laserlab_version"] = version
+                self.save()
+                self.assertEqual(prepare_exchange(self.experiment)["document"]["analysis_software_version"], version)
+
+    def test_private_local_and_malformed_analysis_versions_are_omitted(self):
+        for version in (None, {"PRIVATE": "content"}, "0.9.0+PRIVATE", "0.9.0 /PRIVATE/path", "0.9.0PRIVATE",
+                        "0.9.0\nPRIVATE", "9" * 65 + ".1.2"):
+            with self.subTest(version=version):
+                self.run["laserlab_version"] = version
+                self.save()
+                document = prepare_exchange(self.experiment)["document"]
+                self.assertIsNone(document["analysis_software_version"])
+                self.assertNotIn("PRIVATE", json.dumps(document))
+
 
 if __name__ == "__main__":
     unittest.main()
