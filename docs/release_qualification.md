@@ -14,7 +14,7 @@ python scripts/build_release.py --output-dir dist
 
 The builder requires a clean Git source tree, uses the current host's target, and rechecks commit/tree identity during packaging. Default archives include `candidate-<source revision>` in the name. Existing work/output folders and archives are retained; repeat into a fresh ignored directory such as `dist/qualification-02`, or a directory outside the checkout.
 
-Embedded and external sample resources use the same allow-list: declared redistributable fixtures and fixed attribution/manifest/benchmark metadata. Unexpected local media are omitted. Fixture validation and packaged startup/resources/demo/diagnostics/benchmark checks must pass.
+Embedded and external sample resources use the same allow-list: declared redistributable fixtures and fixed attribution/manifest/benchmark metadata. Unexpected local media are omitted. The workflow records OpenCV's codec configuration and runs the complete source demo on every native host before freezing; packaged startup/resources/demo/diagnostics/benchmark checks must also pass. OpenCV is constrained below 4.14 because its Linux and Intel macOS wheels fail the bundled Theora demo even before freezing. Raising that bound requires requalifying source and frozen decoding on all four targets.
 
 Each bundle records source commit/tree, version, channel, target and build environment in `BUILD-INFO.json`. `SHA256SUMS` covers the bundle files; the separate `.zip.sha256` identifies the complete archive. These identify the produced artifacts, not bit-for-bit reproducibility across machines or native usability.
 
