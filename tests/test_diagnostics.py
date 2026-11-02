@@ -102,7 +102,7 @@ class DiagnosticsTests(unittest.TestCase):
             logger = diagnostics.configure_logging(log_path, install_hook=False)
             try:
                 logger.warning(
-                "home=%s temp=%s install=%s external=%s mounted=%s",
+                "home=%s\ntemp=%s\ninstall=%s\nexternal=%s\nmounted=%s",
                     Path.home(),
                     Path(tempfile.gettempdir()),
                     Path(diagnostics.__file__).resolve().parents[1],
@@ -169,7 +169,8 @@ class DiagnosticsTests(unittest.TestCase):
                 log = bundle.read("laserlab.log").decode("utf-8")
                 self.assertTrue(record["experiment"]["manifest_present"])
                 self.assertNotIn(str(Path.home()), log)
-                self.assertIn("<HOME>", log)
+                # Ambiguous unquoted paths consume the rest of their line.
+                self.assertIn("<PATH>", log)
                 self.assertNotIn("source-video.mp4", "\n".join(bundle.namelist()))
                 self.assertTrue(all(member.date_time == (1980, 1, 1, 0, 0, 0) for member in bundle.infolist()))
 
