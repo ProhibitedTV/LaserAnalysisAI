@@ -1,6 +1,11 @@
 name: Fixture Codec Compatibility
 
 on:
+  workflow_call:
+    inputs:
+      opencv-version:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       opencv-version:
