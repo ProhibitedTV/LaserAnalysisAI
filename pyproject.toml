@@ -5,7 +5,8 @@ description = "Blinded signal validation pipeline for laser capture analysis."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "opencv-python>=4.11,<5",
+  # 4.13/4.14 fail bundled Theora decoding on native hosts.
+  "opencv-python>=4.11,<4.13",
   "numpy>=1.26,<3",
   "matplotlib>=3.8,<4",
   "pytesseract>=0.3.10,<0.4",

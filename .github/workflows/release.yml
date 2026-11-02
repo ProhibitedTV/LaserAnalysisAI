@@ -2,6 +2,12 @@ name: Cross-platform Release
 
 on:
   workflow_dispatch:
+    inputs:
+      probe-opencv:
+        description: Optional exact OpenCV wheel version for a decode-only diagnosis instead of a build
+        required: false
+        default: ""
+        type: string
   push:
     tags:
       - "v*"
@@ -10,8 +16,15 @@ permissions:
   contents: read
 
 jobs:
+  codec-probe:
+    if: inputs.probe-opencv != ''
+    uses: ./.github/workflows/codec-compatibility.yml
+    with:
+      opencv-version: ${{ inputs.probe-opencv }}
+
   verify:
     name: Verify source
+    if: inputs.probe-opencv == ''
     uses: ./.github/workflows/ci.yml
 
   build:
@@ -47,6 +60,11 @@ jobs:
 
       - name: Install build dependencies
         run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Verify source demo decoding
+        run: |
+          python -c "import cv2; print(cv2.getBuildInformation(), flush=True)"
+          python laserlab_launcher.py --smoke-demo
 
       - name: Build and verify native bundle
         id: bundle

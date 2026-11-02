@@ -1,0 +1,43 @@
+name: Fixture Codec Compatibility
+
+on:
+  workflow_call:
+    inputs:
+      opencv-version:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      opencv-version:
+        description: Exact OpenCV wheel version to probe before changing the supported range
+        required: true
+        default: "4.12.0.88"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  decode:
+    name: Decode fixtures on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, macos-15-intel, macos-15, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install selected codec wheel
+        shell: pwsh
+        env:
+          OPENCV_VERSION: ${{ inputs.opencv-version }}
+        run: |
+          if ($env:OPENCV_VERSION -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Use an exact four-part wheel version." }
+          python -m pip install "opencv-python==$env:OPENCV_VERSION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Decode every redistributable fixture
+        run: python scripts/probe_fixture_codecs.py
