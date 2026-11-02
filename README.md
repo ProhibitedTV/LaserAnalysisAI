@@ -9,14 +9,17 @@ The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
 also remains available as a CLI/API path for reproducible experiments, reports,
 and statistical comparison.
 
-## LaserLab v0.8.2 Dashboard
+## LaserLab Dashboard
+
+Development source is **0.9.0.dev0**, preparing the next release. Existing public **v0.8.2** downloads retain their original behavior; candidate builds and source tests do not establish native or first-user acceptance.
 
 Native release bundles contain:
 
 - `LaserLab` (`LaserLab.exe` on Windows, `LaserLab.app` on macOS): desktop dashboard for experiment setup, runs, review, and export.
 - `LaserLabCLI` (`LaserLabCLI.exe` on Windows): command-line interface for scripted workflows.
 - `sample_media/`: redistributable public optical/interference fixture clips.
-- `BUILD-INFO.json`: exact version, target, Python, operating system, and CPU architecture used for the build.
+- `BUILD-INFO.json`: version, source commit/tree, candidate/release channel, target and build environment.
+- New candidate bundles also include `SHA256SUMS`, with a separate `.zip.sha256` for the archive.
 
 The desktop workflow is deliberately narrow:
 
@@ -235,7 +238,7 @@ LaserLab cannot prove metaphysical origin, intent, consciousness interaction, or
 
 ## Build Native Release
 
-The shared builder runs on Windows, macOS, or Linux and produces a native archive for the host platform:
+The shared builder requires a clean Git checkout and produces a native archive for the current host platform:
 
 ```text
 python scripts/build_release.py --output-dir dist
@@ -247,16 +250,17 @@ Windows users can use the compatibility wrapper:
 .\scripts\build_windows_exe.ps1 -OutputDir dist
 ```
 
-Release archives are named by version, operating system, and architecture:
+Untagged builds are unpublished candidates, identified by source revision:
 
 ```text
-dist/LaserLab-v<version>-windows-x86_64.zip
-dist/LaserLab-v<version>-linux-x86_64.zip
-dist/LaserLab-v<version>-macos-x86_64.zip
-dist/LaserLab-v<version>-macos-arm64.zip
+dist/LaserLab-v<version>-candidate-<source>-<platform>-<architecture>.zip
 ```
 
-GitHub Actions builds and smoke-tests all four native bundles. Tesseract remains optional at runtime; OCR is reported as unavailable when the external Tesseract executable is not installed.
+Existing outputs and build folders are preserved; choose a fresh output directory when repeating the same candidate. Build resources are limited to declared redistributable fixtures and their metadata. `BUILD-INFO.json` records the exact clean source; file and archive checksums identify the produced bytes.
+
+GitHub Actions runs the supported Python suites before building/smoke-testing all four platforms. Manual workflow runs stage candidate artifacts without publishing a release. Tag builds require `v<version>` to match the application version and exact checked-out commit; they stage a **draft**, with nonfinal versions marked as prereleases. Native UI qualification of the actual artifacts is required before publishing that draft. See [release qualification](docs/release_qualification.md).
+
+Tesseract remains optional at runtime; OCR is reported as unavailable when the external Tesseract executable is not installed.
 
 ## Legacy Viewer Status
 
