@@ -33,6 +33,11 @@ def _hash(value: Any) -> str | None:
     return value.lower() if isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value) else None
 
 
+def _analysis_version(value: Any) -> str | None:
+    pattern = r"[0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+)?(?:\.post[0-9]+)?(?:\.dev[0-9]+)?"
+    return value if isinstance(value, str) and len(value) <= 64 and re.fullmatch(pattern, value) else None
+
+
 def _obj(value: Any) -> dict:
     return value if isinstance(value, dict) else {}
 
@@ -150,7 +155,7 @@ def prepare_exchange(experiment_dir: Path, *, include_source_hashes: bool = Fals
         warnings.append("The selected provider ID is context only. Verify its canonical URL, author credit and license before redistribution.")
     document = {
         "schema_version": EXCHANGE_VERSION, "exporter": {"name": "LaserLab", "version": __version__},
-        "analysis_software_version": version if isinstance(version, str) and re.fullmatch(r"\d+\.\d+\.\d+", version) else None,
+        "analysis_software_version": _analysis_version(version),
         "experiment_purpose": "practice_demo" if demo else "research" if run.get("experiment_purpose") == "research" else "unspecified",
         "review": {"explicitly_unblinded": True, "review_marked_complete": _obj(run.get("review_session")).get("complete") is True},
         "community_references": [dict(reference)] if reference is not None else [],

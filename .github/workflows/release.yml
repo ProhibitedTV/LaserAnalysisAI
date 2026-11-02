@@ -7,11 +7,18 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  verify:
+    name: Verify source
+    uses: ./.github/workflows/ci.yml
+
   build:
     name: Build ${{ matrix.target }}
+    needs: verify
+    outputs:
+      prerelease: ${{ steps.bundle.outputs.prerelease }}
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +36,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -40,20 +49,25 @@ jobs:
         run: python -m pip install -r requirements.txt pyinstaller
 
       - name: Build and verify native bundle
+        id: bundle
         run: python scripts/build_release.py --output-dir dist --target ${{ matrix.target }}
 
       - name: Upload native bundle
         uses: actions/upload-artifact@v4
         with:
           name: LaserLab-${{ matrix.target }}
-          path: dist/LaserLab-v*-${{ matrix.target }}.zip
+          path: |
+            dist/LaserLab-v*-${{ matrix.target }}.zip
+            dist/LaserLab-v*-${{ matrix.target }}.zip.sha256
           if-no-files-found: error
 
   publish:
-    name: Publish GitHub release
+    name: Stage draft GitHub release
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Download native bundles
         uses: actions/download-artifact@v4
@@ -62,8 +76,16 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Publish GitHub release
+      - name: Verify archive checksums
+        working-directory: dist
+        run: sha256sum --check --strict *.sha256
+
+      - name: Stage draft GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/LaserLab-v*.zip
+          files: |
+            dist/LaserLab-v*.zip
+            dist/LaserLab-v*.zip.sha256
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+          draft: true
           generate_release_notes: true
