@@ -125,7 +125,7 @@ class BridgeTests(unittest.TestCase):
             if name == "get_schema":
                 data = {"fields": {"protocol": {key: {"description": unit} for key, unit in
                         (("laser_wavelength", "nanometers"), ("laser_power", "milliwatts"), ("projection_distance", "feet"))}}}
-            elif name == "get_protocols":
+            elif name in ("get_protocols", "get_experiments"):
                 data = [{"id": 1, "title": "PRIVATE PUBLIC TITLE", "meta": {"laser_wavelength": 650}}]
             elif params["arguments"]["id"] == 1:
                 data = {"id": 1, "title": "PRIVATE PUBLIC TITLE"}
@@ -137,9 +137,13 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(result["protocol_records"], 1)
         self.assertTrue(result["protocol_by_id_checked"])
         self.assertTrue(result["missing_protocol_reported_as_error"])
+        self.assertEqual(result["experiment_records"], 1)
+        self.assertTrue(result["experiment_by_id_checked"])
+        self.assertTrue(result["missing_experiment_reported_as_error"])
         self.assertNotIn("PRIVATE", json.dumps(result))
         self.assertEqual([call.args[1].get("name") for call in fake._rpc.call_args_list],
-                         [None, "get_schema", "get_protocols", "get_protocol_by_id", "get_protocol_by_id"])
+                         [None, "get_schema", "get_protocols", "get_protocol_by_id", "get_protocol_by_id",
+                          "get_experiments", "get_experiment_by_id", "get_experiment_by_id"])
 
     def test_compatibility_probe_rejects_missing_tools_or_changed_units(self):
         from unittest.mock import Mock

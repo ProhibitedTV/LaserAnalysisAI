@@ -1,4 +1,4 @@
-"""Opt-in live compatibility probe; saves only sanitized transport/schema facts."""
+"""Opt-in protocol/experiment compatibility probe; emits only sanitized facts."""
 from __future__ import annotations
 
 import argparse

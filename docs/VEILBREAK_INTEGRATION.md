@@ -32,7 +32,7 @@ Veilbreak's REST API is read-only: it does not authorize publishing or updating 
 
 ## Live compatibility and limits
 
-On November 1, 2026, a live public probe verified initialization using MCP `2025-03-26`, tool discovery, the protocol catalog, exact protocol-ID lookup and missing-ID behavior. Separate live reads verified the experiment catalog and exact experiment-ID lookup. The advertised read-only tools are `get_protocols`, `get_protocol_by_id`, `get_experiments`, `get_experiment_by_id` and `get_schema`. These are point-in-time service checks, not native UI, volunteer or authorized contribution acceptance. No collaboration or compatibility guarantee from Veilbreak maintainers is implied.
+On November 2, 2026, the opt-in live probe verified initialization using MCP `2025-03-26`, tool discovery, nine public protocols and 94 public experiments, an exact-ID lookup from each catalog, and missing-ID errors for both. All listed records mapped wavelength, power and distance fields. The advertised read-only tools are `get_protocols`, `get_protocol_by_id`, `get_experiments`, `get_experiment_by_id` and `get_schema`. These are point-in-time service checks, not native UI, volunteer or authorized contribution acceptance. No collaboration or compatibility guarantee from Veilbreak maintainers is implied.
 
 The live protocol schema nests optical values in `meta`. LaserLab reads only allow-listed fields from that object; authors, descriptions, questionnaire answers, substance/dose values and arbitrary links are excluded. The provider's `get_schema` describes wavelength in nanometers, power in milliwatts and **projection distance in feet**. The Veilbreak adapter converts that distance to meters and records the original source field in confidence metadata. An explicit `projection_distance_meters` takes precedence. Reported values remain community context, not measurements of the local setup. Existing saved references are not rewritten.
 
@@ -44,9 +44,13 @@ Maintainers can repeat the sanitized live check explicitly:
 & .\.venv\Scripts\python.exe scripts/check_veilbreak.py --live
 ```
 
-It sends only fixed public read requests and numeric protocol IDs. Its JSON output contains counts, tool names, unit/schema facts and a timestamp; no record titles, authors, raw content or local experiment data. Without `--live` it refuses network access. Normal CI remains offline. The provider may change or become unavailable; LaserLab never silently switches hosts or requests a key.
+It checks both protocol and experiment catalogs, an exact-ID lookup for the first record of each nonempty catalog, and missing-ID error behavior for both. Empty catalogs report zero records and an unchecked exact-ID lookup rather than inventing a pass. An experiment-catalog failure prevents a successful full-check result even when protocol reads work.
+
+It sends only fixed public read requests and numeric public record IDs. Its JSON output contains counts, tool names, unit/schema facts and a timestamp; no record titles, authors, raw content or local experiment data. Without `--live` it refuses network access. Normal CI remains offline. The provider may change or become unavailable; LaserLab never silently switches hosts or requests a key.
 
 In the meantime, you can use **Import reference metadata** with a user-downloaded JSON or CSV file and still obtain normal local LaserLab analyses.
+
+The published MCP, API-access, data-use and terms pages were also reviewed on November 2. They describe read-only access and content-specific licensing/attribution requirements; they do not establish an external results-submission agreement. Per-record licensing stays unverified in LaserLab, and the coordination steps below remain open.
 
 ## Scientific boundaries
 
