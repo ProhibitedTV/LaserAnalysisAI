@@ -38,6 +38,8 @@ jobs:
       - name: GUI smoke
         shell: pwsh
         run: |
+          python laserlab_launcher.py --smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:QT_QPA_PLATFORM = "offscreen"
           python -c "from PyQt5.QtWidgets import QApplication; from gui.lab_dashboard import LabDashboardWindow; app = QApplication([]); window = LabDashboardWindow(); assert [window.tabs.tabText(i) for i in range(window.tabs.count())] == ['Setup', 'Run', 'Review', 'Compare', 'Export']"
 

@@ -23,8 +23,7 @@ if __name__ == "__main__":
         print("LaserLab offline bundled demo smoke OK")
         raise SystemExit(0)
     if "--smoke" in sys.argv:
-        print("LaserLab GUI smoke OK")
-        raise SystemExit(0)
+        raise SystemExit(main(smoke=True))
     if "--smoke-resources" in sys.argv:
         fixture_names = (
             "commons-double-slit-experiment.webm",
