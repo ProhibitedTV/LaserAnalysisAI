@@ -2495,9 +2495,20 @@ class LabDashboardWindow(QMainWindow):
         )
 
 
-def main() -> int:
+def main(*, smoke: bool = False) -> int:
+    if smoke:
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
     configure_logging()
     app = QApplication([])
-    window = LabDashboardWindow()
+    window = LabDashboardWindow(preferences={} if smoke else None)
     window.show()
+    if smoke:
+        try:
+            app.processEvents()
+            if not window.isVisible() or window.grab().isNull():
+                raise RuntimeError("LaserLab dashboard did not render during the GUI smoke check")
+            print("LaserLab GUI smoke OK")
+            return 0
+        finally:
+            window.close()
     return app.exec_()
