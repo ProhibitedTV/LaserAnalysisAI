@@ -64,7 +64,7 @@ The zip includes:
 - `Cross-platform Release` runs manually or when a `v*` tag is pushed.
 - The build matrix covers Windows x64, Linux x64, macOS Intel, and macOS Apple Silicon.
 - Each native executable is smoke-tested before its archive is uploaded.
-- Tagged builds publish all four archives to one GitHub release only after every platform succeeds.
+- Tagged builds stage a draft with all four archives and their checksums after every platform succeeds. Follow the [native qualification procedure](release_qualification.md) before publication.
 
 ## Exhaustive Fixture Runs
 

@@ -1,6 +1,6 @@
 # Native release qualification
 
-Development source and qualification artifacts are distinct from published native releases. The current source version is `0.9.0.dev0`; existing public v0.8.2 archives retain their original behavior.
+The source tree builds LaserLab `0.9.0`. Track the current public version, qualification artifacts and remaining checks on the [Wiki release-status page](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Release-Status).
 
 ## Producing candidates
 
