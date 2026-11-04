@@ -11,7 +11,7 @@ and statistical comparison.
 
 ## LaserLab Dashboard
 
-Development source is **0.9.0.dev0**, preparing the next release. Existing public **v0.8.2** downloads retain their original behavior; candidate builds and source tests do not establish native or first-user acceptance.
+This source tree builds **LaserLab 0.9.0**. See [Release status](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Release-Status) for the published version and qualification progress.
 
 Native release bundles contain:
 
@@ -202,7 +202,7 @@ Reports classify each run into one of these levels:
 
 Generated negatives, sensor noise, unrelated controls, public demo clips, and synthetic positives are separate diagnostics. They cannot substitute for empirical matched recordings. Frame persistence never promotes a run to `repeatable candidate`; independent replication remains a separate research question.
 
-See [Statistical inference and saved-run compatibility](docs/statistical_inference.md) for independent-pair declarations, exchangeability assumptions, the minimum-replicate rule, and legacy-report handling. These are development-source changes; existing native v0.8.2 downloads retain the older method and should not be used to infer independent evidence from frame counts or candidate q-values.
+See [Statistical inference and saved-run compatibility](docs/statistical_inference.md) for independent-pair declarations, exchangeability assumptions, the minimum-replicate rule, and legacy-report handling. Use the version recorded in a report to identify its analysis method. The independent-pair method starts in 0.9.0.
 
 The system is intentionally conservative. A null result means this detector set
 and capture set did not beat the control baseline, not that the broader idea is
@@ -218,7 +218,7 @@ terms are confirmed.
 
 See the [Fixture Catalog](docs/fixture_catalog.md) for expected detector behavior, limitations, licenses, and provenance rules.
 
-Development source also includes a small offline [optical benchmark](docs/optical_benchmark.md): ten synthetic cases, blur/JPEG probes, explicit ground truth, raw/processed hashes and recorded false-positive baselines. It keeps optical artifacts and optional OCR responses separate from empirical evidence. Existing native v0.8.2 downloads do not include the benchmark command.
+LaserLab 0.9.0 includes a small offline [optical benchmark](docs/optical_benchmark.md) with ten synthetic cases, blur and JPEG probes, explicit ground truth, raw and processed hashes, and recorded false-positive baselines. It keeps optical artifacts and optional OCR responses separate from empirical evidence.
 
 ## Capture Better Footage
 
