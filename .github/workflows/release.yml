@@ -70,6 +70,38 @@ jobs:
         id: bundle
         run: python scripts/build_release.py --output-dir dist --target ${{ matrix.target }}
 
+      - name: Verify extracted Linux dashboard on X11
+        if: matrix.target == 'linux-x86_64'
+        shell: bash
+        working-directory: dist
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb xauth x11-utils libgl1 \
+            libxcb-image0 libxcb-shape0 libxcb-render-util0 libxcb-icccm4 libxcb-keysyms1 \
+            libxcb-xinerama0 libxkbcommon-x11-0 libxcb-xkb1
+          archives=(LaserLab-v*-linux-x86_64.zip)
+          test "${#archives[@]}" -eq 1
+          extracted=$(mktemp -d)
+          unzip -q "${archives[0]}" -d "$extracted"
+          xvfb-run -a bash -e -c '
+            ulimit -c 0
+            cd "$RUNNER_TEMP"
+            HOME=$(mktemp -d)
+            export HOME QT_QPA_PLATFORM=xcb
+            "$1" > "$HOME/laserlab-startup.log" 2>&1 &
+            app_pid=$!
+            trap '\''kill "$app_pid" 2>/dev/null || true; wait "$app_pid" 2>/dev/null || true'\'' EXIT
+            for attempt in {1..30}; do
+              if xwininfo -root -tree 2>/dev/null | grep -F "LaserLab Community Science"; then
+                exit 0
+              fi
+              if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+              sleep 1
+            done
+            cat "$HOME/laserlab-startup.log"
+            exit 1
+          ' _ "$extracted/${archives[0]%.zip}/LaserLab"
+
       - name: Upload native bundle
         uses: actions/upload-artifact@v4
         with:

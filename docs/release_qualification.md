@@ -18,6 +18,8 @@ Embedded and external sample resources use the same allow-list: declared redistr
 
 For a quick dependency diagnosis, run **Fixture Codec Compatibility** with an exact four-part wheel version. It decodes a frame from every redistributable fixture on the four native hosts and reports the selected video backend. The release workflow also accepts an optional `probe-opencv` input for this decode-only check; leaving it blank retains the full source/build gates. Codec probes produce no native archive or release and do not replace full demo, package or native UI qualification.
 
+Linux uses the headless OpenCV wheel for image and video processing and PyQt for the desktop. Use a fresh Python environment when migrating from the standard OpenCV wheel, since both wheels provide the same `cv2` module. The release workflow extracts the Linux ZIP and checks for a dashboard window on a virtual X11 display with the Ubuntu runtime libraries installed. Interactive walkthroughs still use the native field checklist.
+
 Each bundle records source commit/tree, version, channel, target and build environment in `BUILD-INFO.json`. `SHA256SUMS` covers the bundle files; the separate `.zip.sha256` identifies the complete archive. These identify the produced artifacts, not bit-for-bit reproducibility across machines or native usability.
 
 ## Qualification and publication

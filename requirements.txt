@@ -1,5 +1,6 @@
 # 4.13/4.14 fail bundled Theora decoding on native hosts; requalify before raising.
-opencv-python>=4.11,<4.13
+opencv-python>=4.11,<4.13; sys_platform != "linux"
+opencv-python-headless>=4.11,<4.13; sys_platform == "linux"
 numpy>=1.26,<3
 matplotlib>=3.8,<4
 pytesseract>=0.3.10,<0.4

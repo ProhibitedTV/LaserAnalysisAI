@@ -37,7 +37,8 @@ jobs:
           OPENCV_VERSION: ${{ inputs.opencv-version }}
         run: |
           if ($env:OPENCV_VERSION -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Use an exact four-part wheel version." }
-          python -m pip install "opencv-python==$env:OPENCV_VERSION"
+          $opencvPackage = if ($IsLinux) { 'opencv-python-headless' } else { 'opencv-python' }
+          python -m pip install "${opencvPackage}==$env:OPENCV_VERSION"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Decode every redistributable fixture
         run: python scripts/probe_fixture_codecs.py
