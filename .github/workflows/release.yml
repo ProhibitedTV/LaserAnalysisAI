@@ -2,108 +2,61 @@ name: Cross-platform Release
 
 on:
   workflow_dispatch:
-    inputs:
-      probe-opencv:
-        description: Optional exact OpenCV wheel version for a decode-only diagnosis instead of a build
-        required: false
-        default: ""
-        type: string
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  codec-probe:
-    if: inputs.probe-opencv != ''
-    uses: ./.github/workflows/codec-compatibility.yml
-    with:
-      opencv-version: ${{ inputs.probe-opencv }}
-
-  verify:
-    name: Verify source
-    if: inputs.probe-opencv == ''
-    uses: ./.github/workflows/ci.yml
-
-  build:
-    name: Build ${{ matrix.target }}
-    needs: verify
-    outputs:
-      prerelease: ${{ steps.bundle.outputs.prerelease }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-latest
-            target: windows-x86_64
-          - runner: ubuntu-24.04
-            target: linux-x86_64
-          - runner: macos-15-intel
-            target: macos-x86_64
-          - runner: macos-15
-            target: macos-arm64
-    runs-on: ${{ matrix.runner }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install build dependencies
-        run: python -m pip install -r requirements.txt pyinstaller
-
-      - name: Verify source demo decoding
-        run: |
-          python -c "import cv2; print(cv2.getBuildInformation(), flush=True)"
-          python laserlab_launcher.py --smoke-demo
-
-      - name: Build and verify native bundle
-        id: bundle
-        run: python scripts/build_release.py --output-dir dist --target ${{ matrix.target }}
-
-      - name: Upload native bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: LaserLab-${{ matrix.target }}
-          path: |
-            dist/LaserLab-v*-${{ matrix.target }}.zip
-            dist/LaserLab-v*-${{ matrix.target }}.zip.sha256
-          if-no-files-found: error
-
-  publish:
-    name: Stage draft GitHub release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+  linux-draft-x11:
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
+    timeout-minutes: 10
     steps:
-      - name: Download native bundles
+      - name: Get the tagged v0.9.0 Linux archive
         uses: actions/download-artifact@v4
         with:
-          pattern: LaserLab-*
-          path: dist
-          merge-multiple: true
-
-      - name: Verify archive checksums
-        working-directory: dist
-        run: sha256sum --check --strict *.sha256
-
-      - name: Stage draft GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/LaserLab-v*.zip
-            dist/LaserLab-v*.zip.sha256
-          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
-          draft: true
-          generate_release_notes: true
+          github-token: ${{ github.token }}
+          run-id: 41762824894
+          name: LaserLab-linux-x86_64
+          path: draft
+      - name: Verify and extract the exact draft bytes
+        working-directory: draft
+        run: |
+          printf '%s  %s\n' '9dbf05a37ae15cb4e0a31fde87a6dd47310b44a847c9e73865696ca275923b4a' 'LaserLab-v0.9.0-linux-x86_64.zip' | sha256sum --check --strict
+          unzip -q LaserLab-v0.9.0-linux-x86_64.zip
+      - name: Compare X11 startup before and after installing the Qt runtime dependencies
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb xauth x11-utils libgl1
+          packages=(libxcb-image0 libxcb-shape0 libxcb-render-util0 libxcb-icccm4 libxcb-keysyms1 libxcb-xinerama0 libxkbcommon-x11-0 libxcb-xkb1)
+          printf 'Packages before test:\n'
+          for package in "${packages[@]}"; do dpkg-query -W "$package" 2>/dev/null || printf '%s absent\n' "$package"; done
+          app="$GITHUB_WORKSPACE/draft/LaserLab-v0.9.0-linux-x86_64/LaserLab"
+          cat > "$RUNNER_TEMP/check-laserlab-window" <<'SCRIPT'
+          set -eu
+          ulimit -c 0
+          cd "$RUNNER_TEMP"
+          HOME=$(mktemp -d)
+          export HOME QT_QPA_PLATFORM=xcb QT_DEBUG_PLUGINS=1
+          "$1" > "$2" 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true; wait "$app_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if xwininfo -root -tree 2>/dev/null | grep -F 'LaserLab Community Science'; then
+              exit 0
+            fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          grep -Ei 'cannot load library|not found|could not load the qt platform plugin|cannot open' "$2" | tail -12 || true
+          exit 1
+          SCRIPT
+          if xvfb-run -a bash "$RUNNER_TEMP/check-laserlab-window" "$app" "$RUNNER_TEMP/before.log"; then
+            echo 'BASELINE: window found'
+          else
+            echo 'BASELINE: no window'
+          fi
+          sudo apt-get install -y --no-install-recommends "${packages[@]}"
+          xvfb-run -a bash "$RUNNER_TEMP/check-laserlab-window" "$app" "$RUNNER_TEMP/after.log"
+          echo 'WITH QT X11 LIBRARIES: window found'
