@@ -11,7 +11,7 @@ and statistical comparison.
 
 ## LaserLab Dashboard
 
-This source tree builds **LaserLab 0.9.0**. See [Release status](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Release-Status) for the published version and qualification progress.
+This source tree builds **LaserLab 0.9.1**. See [Release status](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Release-Status) for the published version and qualification progress.
 
 Native release bundles contain:
 
