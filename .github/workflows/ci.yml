@@ -44,31 +44,45 @@ jobs:
           python -c "from PyQt5.QtWidgets import QApplication; from gui.lab_dashboard import LabDashboardWindow; app = QApplication([]); window = LabDashboardWindow(); assert [window.tabs.tabText(i) for i in range(window.tabs.count())] == ['Setup', 'Run', 'Review', 'Compare', 'Export']"
 
       - name: CLI smoke
+        shell: pwsh
         run: |
           python -m laserlab.cli --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli fixtures list --include-restricted
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli protocols list
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli protocols describe diffraction
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli unblind --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Fixture smoke
         shell: pwsh
         run: |
           python scripts\run_fixture_demo.py --experiment experiments\ci-smoke --max-frames 2 --profile wide --protocol anomaly --blind-seed 12345 --dump-dir release_dumps
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli bundle --experiment experiments\ci-smoke --output release_dumps\ci-smoke-blinded-bundle.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli unblind --experiment experiments\ci-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli bundle --experiment experiments\ci-smoke --output release_dumps\ci-smoke-unblinded-bundle.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Offline synthetic benchmark
+        shell: pwsh
         run: |
           python -m laserlab.cli benchmark generate --output release_dumps/optical-probes
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m laserlab.cli benchmark run --pack release_dumps/optical-probes --output release_dumps/optical-probes.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Protocol smoke
         shell: pwsh
         run: |
           foreach ($protocol in @("diffraction", "speckle", "ocr", "anomaly")) {
             python scripts\run_fixture_demo.py --experiment "experiments\ci-$protocol" --max-frames 2 --profile wide --protocol $protocol --blind-seed 12345 --dump-dir "release_dumps\$protocol"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
       - name: Upload failed-run evidence
