@@ -1,5 +1,5 @@
 param(
-    [string]$Python = "C:\Users\RhythmicCarnage\AppData\Local\Programs\Python\Python310\python.exe",
+    [string]$Python = "python",
     [string]$Experiment = "experiments\release-demo",
     [int]$MaxFrames = 12,
     [string]$Profile = "wide",
@@ -17,3 +17,4 @@ if (-not (Test-Path -LiteralPath $Python)) {
 }
 
 & $Python scripts\run_fixture_demo.py --experiment $Experiment --max-frames $MaxFrames --profile $Profile --protocol $Protocol --dump-dir release_dumps
+exit $LASTEXITCODE
