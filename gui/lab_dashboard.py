@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PyQt5.QtCore import QThread, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QPixmap
+from PyQt5.QtGui import QCloseEvent, QDesktopServices, QPixmap
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -1991,6 +1991,15 @@ class LabDashboardWindow(QMainWindow):
         if path.exists():
             pixmap = QPixmap(str(path))
             label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio))
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        # A stopped thread may still have a completion callback queued for the
+        # GUI. Keep the event loop alive until that result has been handled too.
+        if self._busy or self.worker is not None:
+            event.ignore()
+            self.status.showMessage("Wait for the current task to finish, then close LaserLab.")
+            return
+        super().closeEvent(event)
 
     def _run_worker(self, label: str, task: Callable[[], Any], on_success: Callable[[Any], None]) -> None:
         if self.worker and self.worker.isRunning():
