@@ -31,6 +31,22 @@ def run_block(workflow: str, name: str) -> str:
 
 @unittest.skipUnless(PWSH, "PowerShell is required for Windows workflow fault injection")
 class WorkflowSmokeTests(unittest.TestCase):
+    def check_demo_wrapper_failure(self, *, explicit_python):
+        command = [PWSH, "-NoProfile", "-NonInteractive", "-File",
+                   str(ROOT / "scripts" / "run_fixture_demo.ps1"), "-Protocol", "invalid-protocol"]
+        if explicit_python:
+            command.extend(["-Python", sys.executable])
+        env = {**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")}
+        result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
+        self.assertIn("invalid choice", result.stderr)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+
+    def test_demo_wrapper_propagates_python_failure(self):
+        self.check_demo_wrapper_failure(explicit_python=True)
+
+    def test_demo_wrapper_uses_python_on_path(self):
+        self.check_demo_wrapper_failure(explicit_python=False)
+
     def test_each_native_failure_stops_its_step(self):
         groups = (
             ("ci.yml", "GUI smoke", 2),

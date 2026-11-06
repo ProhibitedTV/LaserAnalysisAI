@@ -4,12 +4,12 @@
 
 For the next scientific-method build, validate [paired-capture-v2](statistical_inference.md): generated-only inputs must remain not tested; one recorded pair must remain insufficient; five declared independent exchangeable pairs use whole-pair permutations. Verify sealed pair IDs/hashes, null candidate q-values, diagnostic source classes, and versioned legacy views/exports. The older statistical checklist items below are historical and are superseded by this boundary; do not carry forward their frame-level FDR or control-pooling expectations.
 
-Use the workstation-preferred Python environment:
+Use a Python 3.10 or 3.11 environment with the project dependencies installed:
 
 ```powershell
-$PY = "C:\Users\RhythmicCarnage\AppData\Local\Programs\Python\Python310\python.exe"
+$PY = ".\.venv\Scripts\python.exe"
 & $PY -m unittest discover -s tests
-.\scripts\run_fixture_demo.ps1 -Experiment experiments\release-demo -MaxFrames 12 -Profile wide -Protocol anomaly
+.\scripts\run_fixture_demo.ps1 -Python $PY -Experiment experiments\release-demo -MaxFrames 12 -Profile wide -Protocol anomaly
 & $PY -m laserlab.cli protocols list
 & $PY -m laserlab.cli bundle --experiment experiments\release-demo --output release_dumps\release-demo-bundle.zip
 & $PY scripts\capture_screenshots.py
