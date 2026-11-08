@@ -112,6 +112,7 @@ def _validate_open_manifest(manifest: dict[str, Any]) -> None:
     sequence(manifest.get("external_dataset_references", []), "external_dataset_references")
     symbols = mapping(manifest.get("symbol_transcriptions") or {}, "symbol_transcriptions")
     sequence(symbols.get("records", []), "symbol records")
+    mapping(manifest.get("outputs", {}), "outputs")
 
 
 class ApiWorker(QThread):
@@ -1242,10 +1243,24 @@ class LabDashboardWindow(QMainWindow):
                     raise ValueError("This folder contains a practice demo. Choose a different folder for your footage.")
             manifest = app_api.create_experiment(experiment_dir)
             _validate_open_manifest(manifest)
+            sealed_report = None
+            if manifest.get("outputs", {}).get("review_state") == "blinded":
+                try:
+                    sealed_report = app_api.load_latest_report(experiment_dir)
+                except Exception as exc:
+                    raise ValueError(
+                        "This experiment has a sealed review, but its saved report could not be read. "
+                        "Restore the run files from a backup or choose another experiment."
+                    ) from exc
+                if (sealed_report.get("review_state") or {}).get("unblinded") is not False:
+                    raise ValueError(
+                        "This experiment's saved review state is inconsistent. "
+                        "Restore the saved run files before opening it."
+                    )
             self.experiment_dir = experiment_dir
             self.is_demo_experiment = manifest.get("experiment_purpose") == "demo"
             self.demo_banner.setVisible(self.is_demo_experiment)
-            self.latest_report = None
+            self.latest_report = sealed_report
             for preview in (self.original_preview, self.processed_preview, self.crop_preview):
                 preview.clear()
             self.candidate_details.clear()
@@ -1259,7 +1274,7 @@ class LabDashboardWindow(QMainWindow):
                 self.source_path.clear()
                 self.label_combo.setCurrentIndex(self.label_combo.findData("laser"))
             self.include_media.setChecked(False)
-            self._populate_report({"review_state": {"unblinded": True}})
+            self._populate_report({"review_state": {"unblinded": sealed_report is None}})
             self.complete_review_button.setEnabled(False)
             self.unblind_button.setEnabled(False)
             self.pair_quality_details.setPlainText("Check Pair Quality for this experiment before Run.")
@@ -1295,7 +1310,10 @@ class LabDashboardWindow(QMainWindow):
             self._study_mode_changed()
             self._remember_experiment(experiment_dir)
             self.status.showMessage(f"Experiment open: {self.experiment_dir}")
-            self.refresh_review(silent=True)
+            if sealed_report is not None:
+                self._populate_report(sealed_report)
+            else:
+                self.refresh_review(silent=True)
             self.update_estimate()
             return True
         except Exception as exc:

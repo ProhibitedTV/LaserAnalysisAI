@@ -361,6 +361,64 @@ class BeginnerOnboardingTests(unittest.TestCase):
                 self.assertIs(self.window.latest_report, report)
                 self.assertEqual((target / "manifest.json").read_bytes(), before)
 
+    def test_unreadable_sealed_review_keeps_the_previous_experiment_open(self) -> None:
+        demo = self._open_demo()
+        for corrupt_report in (False, True):
+            with self.subTest(corrupt_report=corrupt_report):
+                self.window.experiment_path.setText(str(demo))
+                self.assertTrue(self.window.open_experiment())
+                target = self.root / f"sealed-{corrupt_report}"
+                manifest = app_api.create_experiment(target)
+                manifest["outputs"] = {"review_state": "blinded", "latest_run": "runs/sealed"}
+                manifest["captures"] = [{"capture_id": "hidden-capture", "label": "laser", "frames": [], "metadata": {}}]
+                write_manifest(target, manifest)
+                if corrupt_report:
+                    run = target / "runs" / "sealed"
+                    run.mkdir(parents=True)
+                    (run / "report.json").write_text("incomplete JSON {")
+                self.window.tabs.setCurrentIndex(4)
+                self.window.source_path.setText("pending.mp4")
+                self.window.latest_report = {"run_id": "current-review"}
+                with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+                    self.window, "_error"
+                ) as error:
+                    self.window.open_existing_experiment()
+                error.assert_called_once()
+                self.assertIn("sealed review", error.call_args.args[0])
+                self.assertEqual(self.window.experiment_dir, demo)
+                self.assertEqual(self.window.experiment_path.text(), str(demo))
+                self.assertEqual(self.window.tabs.currentIndex(), 4)
+                self.assertEqual(self.window.latest_report["run_id"], "current-review")
+                self.assertEqual(self.window.source_path.text(), "pending.mp4")
+
+    def test_inconsistent_sealed_review_is_rejected_before_switching(self) -> None:
+        demo = self._open_demo()
+        target = self.root / "inconsistent-review"
+        manifest = app_api.create_experiment(target)
+        manifest["outputs"] = {"review_state": "blinded", "latest_run": "runs/sealed"}
+        write_manifest(target, manifest)
+        with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+            self.window, "_error"
+        ) as error, patch("gui.lab_dashboard.app_api.load_latest_report", return_value={"review_state": {"unblinded": True}}):
+            self.window.open_existing_experiment()
+        error.assert_called_once()
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+
+    def test_opening_a_valid_sealed_demo_uses_its_verified_report_once(self) -> None:
+        payload = app_api.run_bundled_demo(self.root / "sealed-demo", max_frames=1)
+        target = Path(payload["experiment_dir"])
+        with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+            self.window, "_error"
+        ) as error, patch("gui.lab_dashboard.app_api.load_latest_report", wraps=app_api.load_latest_report) as load:
+            self.window.open_existing_experiment()
+        error.assert_not_called()
+        load.assert_called_once_with(target)
+        self.assertEqual(self.window.experiment_dir, target)
+        self.assertFalse(self.window._review_is_unblinded())
+        self.assertFalse(self.window.tabs.isTabVisible(0))
+        self.assertFalse(self.window.tabs.isTabVisible(1))
+
     def test_capture_passes_canonical_role_to_api(self) -> None:
         self.window.experiment_path.setText(str(self.root / "personal"))
         self.assertTrue(self.window.open_experiment())
