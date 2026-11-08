@@ -115,6 +115,60 @@ def _validate_open_manifest(manifest: dict[str, Any]) -> None:
     mapping(manifest.get("outputs", {}), "outputs")
 
 
+def _validate_open_report(report: dict[str, Any]) -> None:
+    """Reject malformed sealed display data before touching the active view."""
+    def mapping(value: Any, field: str) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValueError(f"Cannot open sealed review: {field} must be an object.")
+        return value
+
+    def sequence(value: Any, field: str) -> list[Any]:
+        if not isinstance(value, list):
+            raise ValueError(f"Cannot open sealed review: {field} must be a list.")
+        return value
+
+    def text(value: Any, field: str) -> None:
+        if not isinstance(value, str):
+            raise ValueError(f"Cannot open sealed review: {field} must be text.")
+
+    def number(value: Any, field: str) -> None:
+        try:
+            if not math.isfinite(float(0.0 if value is None else value)):
+                raise ValueError
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(f"Cannot open sealed review: {field} must be a finite number or unset.") from None
+
+    for field in ("review_state", "review_session", "summary", "aggregate_statistics"):
+        mapping(report.get(field, {}), field)
+    interpretation = mapping(report.get("interpretation", {}), "interpretation")
+    for field in ("what_this_means", "what_this_does_not_mean"):
+        text(interpretation.get(field, ""), f"interpretation.{field}")
+    sequence(report.get("badges", []), "badges")
+    for candidate in sequence(report.get("top_candidates", []), "top_candidates"):
+        candidate = mapping(candidate, "candidate")
+        for field in ("primary_metric_measurement", "detector_family_scores", "ocr_ensemble"):
+            mapping(candidate.get(field, {}), field)
+        for field in ("primary_metric_score", "structure_score", "persistence_score"):
+            number(candidate.get(field), field)
+        for value in candidate.get("detector_family_scores", {}).values():
+            number(value, "detector family score")
+        for field in ("blind_id", "preprocessing_variant", "ocr_text"):
+            text(candidate.get(field, ""), field)
+        for field in ("review_image_path", "source_path", "processed_path", "roi_overlay_path"):
+            if candidate.get(field) is not None:
+                text(candidate[field], field)
+        annotation = mapping(candidate.get("review_annotation") or {}, "review_annotation")
+        for flag in sequence(annotation.get("flags", []), "review flags"):
+            text(flag, "review flag")
+        text(annotation.get("note", ""), "review note")
+        sequence(candidate.get("ocr_attempts", []), "ocr_attempts")
+        for roi in sequence(candidate.get("candidate_rois", []), "candidate_rois"):
+            roi = mapping(roi, "candidate ROI")
+            for field in ("processed_crop_path", "crop_path"):
+                if roi.get(field) is not None:
+                    text(roi[field], field)
+
+
 class ApiWorker(QThread):
     finished_ok = pyqtSignal(object)
     failed = pyqtSignal(str)
@@ -1252,6 +1306,7 @@ class LabDashboardWindow(QMainWindow):
                         "This experiment has a sealed review, but its saved report could not be read. "
                         "Restore the run files from a backup or choose another experiment."
                     ) from exc
+                _validate_open_report(sealed_report)
                 if (sealed_report.get("review_state") or {}).get("unblinded") is not False:
                     raise ValueError(
                         "This experiment's saved review state is inconsistent. "

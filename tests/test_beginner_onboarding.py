@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QLabel, QMessageBox
 
 from gui.lab_dashboard import LabDashboardWindow
 from laserlab import app_api
+from laserlab.artifacts import write_json
 from laserlab.manifest import load_manifest, write_manifest
 
 
@@ -418,6 +419,54 @@ class BeginnerOnboardingTests(unittest.TestCase):
         self.assertFalse(self.window._review_is_unblinded())
         self.assertFalse(self.window.tabs.isTabVisible(0))
         self.assertFalse(self.window.tabs.isTabVisible(1))
+
+    def test_malformed_sealed_report_fields_cannot_partially_switch_workspace(self) -> None:
+        demo = self._open_demo()
+        payload = app_api.run_bundled_demo(self.root / "report-validation", max_frames=1)
+        target = Path(payload["experiment_dir"])
+        original = app_api.load_latest_report(target)
+        report_path = Path(original["local_paths"]["report_json"])
+        original["top_candidates"] = [{"blind_id": "B001", "primary_metric_score": 0.0}]
+        mutations = (
+            lambda r: r.update(review_session=None),
+            lambda r: r.update(summary=None),
+            lambda r: r.update(interpretation=None),
+            lambda r: r["interpretation"].update(what_this_means=12),
+            lambda r: r.update(badges=None),
+            lambda r: r.update(top_candidates=None),
+            lambda r: r.update(top_candidates=[None]),
+            lambda r: r["top_candidates"][0].update(primary_metric_measurement=None),
+            lambda r: r["top_candidates"][0].update(ocr_text=None),
+            lambda r: r["top_candidates"][0].update(primary_metric_score="invalid"),
+            lambda r: r["top_candidates"][0].update(review_annotation={"flags": [{}]}),
+            lambda r: r["top_candidates"][0].update(candidate_rois=[None]),
+            lambda r: r["top_candidates"][0].update(ocr_ensemble=None),
+            lambda r: r["top_candidates"][0].update(processed_path=[]),
+            lambda r: r["top_candidates"][0].update(detector_family_scores={"fft": "invalid"}),
+        )
+        for index, mutate in enumerate(mutations):
+            with self.subTest(case=index):
+                malformed = deepcopy(original)
+                mutate(malformed)
+                write_json(report_path, malformed)
+                before = report_path.read_bytes()
+                self.window.tabs.setCurrentIndex(4)
+                self.window.source_path.setText("pending.mp4")
+                current = {"run_id": "current-review"}
+                self.window.latest_report = current
+                self.window.review_note.setPlainText("unsaved review note")
+                with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+                    self.window, "_error"
+                ) as error:
+                    self.window.open_existing_experiment()
+                error.assert_called_once()
+                self.assertEqual(self.window.experiment_dir, demo)
+                self.assertEqual(self.window.experiment_path.text(), str(demo))
+                self.assertEqual(self.window.tabs.currentIndex(), 4)
+                self.assertEqual(self.window.source_path.text(), "pending.mp4")
+                self.assertEqual(self.window.review_note.toPlainText(), "unsaved review note")
+                self.assertIs(self.window.latest_report, current)
+                self.assertEqual(report_path.read_bytes(), before)
 
     def test_capture_passes_canonical_role_to_api(self) -> None:
         self.window.experiment_path.setText(str(self.root / "personal"))
