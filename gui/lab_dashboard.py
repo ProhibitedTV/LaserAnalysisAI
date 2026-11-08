@@ -1135,14 +1135,19 @@ class LabDashboardWindow(QMainWindow):
         )
         if not path:
             return
+        self._open_existing_path(Path(path))
+
+    def _open_existing_path(self, path: Path) -> bool:
+        """Open an existing selection without changing navigation on failure."""
         previous_path = self.experiment_path.text()
-        self.experiment_path.setText(path)
-        if not self.open_experiment():
+        self.experiment_path.setText(str(path))
+        if not self.open_experiment(require_existing=True):
             self.experiment_path.setText(previous_path)
-            return
+            return False
         self.setup_steps.setCurrentIndex(0)
         if self.tabs.isTabVisible(0):
             self.tabs.setCurrentIndex(0)
+        return True
 
     def browse_experiment(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Experiment Directory", self.experiment_path.text())
@@ -1171,6 +1176,7 @@ class LabDashboardWindow(QMainWindow):
         *,
         allow_demo: bool = True,
         preserve_pending_capture: bool = False,
+        require_existing: bool = False,
     ) -> bool:
         if self._busy or (self.worker and self.worker.isRunning()):
             self._error("Wait for the current task before switching experiments.")
@@ -1179,6 +1185,11 @@ class LabDashboardWindow(QMainWindow):
             if not self.experiment_path.text().strip():
                 raise ValueError("Choose a local folder for this experiment first.")
             experiment_dir = Path(self.experiment_path.text()).expanduser().resolve()
+            if require_existing and not (experiment_dir / "manifest.json").is_file():
+                raise ValueError(
+                    "This folder does not contain a saved LaserLab experiment (manifest.json). "
+                    "Choose your experiment folder, or use Create / Open to start a new one."
+                )
             if not allow_demo and (experiment_dir / "manifest.json").exists():
                 existing = load_manifest(experiment_dir)
                 if existing.get("experiment_purpose") == "demo":
@@ -1274,10 +1285,7 @@ class LabDashboardWindow(QMainWindow):
             LOGGER.warning("Could not persist recent experiment", exc_info=True)
 
     def _open_recent_experiment(self, experiment_dir: Path) -> None:
-        self.tabs.setCurrentIndex(0)
-        self.setup_steps.setCurrentIndex(0)
-        self.experiment_path.setText(str(experiment_dir))
-        self.open_experiment()
+        self._open_existing_path(experiment_dir)
 
     def show_system_check(self) -> None:
         try:

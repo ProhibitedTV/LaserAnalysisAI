@@ -29,9 +29,9 @@ from .psychophysics import load_trial_file
 
 def create_experiment(experiment_dir: Path) -> dict[str, Any]:
     """Create or open an experiment manifest."""
-    manifest = load_or_create_manifest(Path(experiment_dir))
-    write_manifest(Path(experiment_dir), manifest)
-    return manifest
+    # The manifest loader persists new experiments and necessary upgrades.
+    # Opening an already current manifest should not require another write.
+    return load_or_create_manifest(Path(experiment_dir))
 
 
 def run_bundled_demo(experiment_base: Path, max_frames: int = 8, protocol: str = "anomaly") -> dict[str, Any]:

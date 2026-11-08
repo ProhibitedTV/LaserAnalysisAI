@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -157,7 +158,9 @@ def load_or_create_manifest(experiment_dir: Path) -> dict[str, Any]:
 
 def upgrade_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
     """Backfill optional v0.3 keys while keeping schema version stable."""
-    updated = dict(manifest)
+    # Keep nested backfills separate so load_or_create_manifest can detect and
+    # persist an upgrade even when no top-level field was missing.
+    updated = deepcopy(manifest)
     defaults = new_manifest()
     for key in (
         "protocol",

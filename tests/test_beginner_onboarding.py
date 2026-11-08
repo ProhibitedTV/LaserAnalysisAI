@@ -240,6 +240,88 @@ class BeginnerOnboardingTests(unittest.TestCase):
             self.window.browse_source()
         self.assertEqual(self.window.source_path.text(), "original.mp4")
 
+    def test_open_existing_wrong_folder_preserves_active_demo_and_folder(self) -> None:
+        demo = self._open_demo()
+        wrong = self.root / "unrelated-folder"
+        wrong.mkdir()
+        marker = wrong / "keep.txt"
+        marker.write_text("unrelated work")
+        self.window.tabs.setCurrentIndex(4)
+        self.window.source_path.setText("pending.mp4")
+        with patch.object(QFileDialog, "getExistingDirectory", return_value=str(wrong)), patch.object(
+            self.window, "_error"
+        ) as error:
+            self.window.open_existing_experiment()
+        error.assert_called_once()
+        self.assertIn("manifest.json", error.call_args.args[0])
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+        self.assertEqual(self.window.tabs.currentIndex(), 4)
+        self.assertEqual(self.window.source_path.text(), "pending.mp4")
+        self.assertEqual(list(wrong.iterdir()), [marker])
+        self.assertEqual(marker.read_text(), "unrelated work")
+
+    def test_missing_recent_experiment_is_not_recreated(self) -> None:
+        demo = self._open_demo()
+        missing = self.root / "removed-experiment"
+        self.window.tabs.setCurrentIndex(4)
+        with patch.object(self.window, "_error") as error:
+            self.window._open_recent_experiment(missing)
+        error.assert_called_once()
+        self.assertFalse(missing.exists())
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+        self.assertEqual(self.window.tabs.currentIndex(), 4)
+
+    def test_invalid_recent_manifest_preserves_display_and_pending_capture(self) -> None:
+        demo = self._open_demo()
+        invalid = self.root / "invalid-experiment"
+        invalid.mkdir()
+        manifest = invalid / "manifest.json"
+        manifest.write_text("incomplete JSON {")
+        self.window.tabs.setCurrentIndex(4)
+        self.window.source_path.setText("pending.mp4")
+        report = {"run_id": "current-review"}
+        self.window.latest_report = report
+        with patch.object(self.window, "_error") as error:
+            self.window._open_recent_experiment(invalid)
+        error.assert_called_once()
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+        self.assertEqual(self.window.tabs.currentIndex(), 4)
+        self.assertEqual(self.window.source_path.text(), "pending.mp4")
+        self.assertIs(self.window.latest_report, report)
+        self.assertEqual(manifest.read_text(), "incomplete JSON {")
+
+    def test_reopening_current_manifest_does_not_require_write_permission(self) -> None:
+        experiment = self.root / "read-only-experiment"
+        original = app_api.create_experiment(experiment)
+        before = (experiment / "manifest.json").read_bytes()
+        with patch("laserlab.app_api.write_manifest", side_effect=PermissionError("Read only")), patch(
+            "laserlab.manifest.write_manifest", side_effect=PermissionError("Read only")
+        ):
+            reopened = app_api.create_experiment(experiment)
+        self.assertEqual(reopened, original)
+        self.assertEqual((experiment / "manifest.json").read_bytes(), before)
+
+    def test_reopening_legacy_manifest_still_persists_needed_defaults(self) -> None:
+        for missing_top_level in (False, True):
+            with self.subTest(missing_top_level=missing_top_level):
+                experiment = self.root / f"legacy-{missing_top_level}"
+                legacy = app_api.create_experiment(experiment)
+                if missing_top_level:
+                    legacy.pop("analysis_plan")
+                legacy["study_context"].pop("privacy_acknowledged")
+                write_manifest(experiment, legacy)
+                with patch("laserlab.manifest.write_manifest", wraps=write_manifest) as persist:
+                    reopened = app_api.create_experiment(experiment)
+                persist.assert_called_once()
+                saved = load_manifest(experiment)
+                self.assertEqual(saved, reopened)
+                self.assertEqual(saved["experiment_id"], legacy["experiment_id"])
+                self.assertIn("analysis_plan", saved)
+                self.assertIn("privacy_acknowledged", saved["study_context"])
+
     def test_capture_passes_canonical_role_to_api(self) -> None:
         self.window.experiment_path.setText(str(self.root / "personal"))
         self.assertTrue(self.window.open_experiment())
