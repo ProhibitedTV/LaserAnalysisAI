@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from copy import deepcopy
 import tempfile
 import unittest
 from pathlib import Path
@@ -321,6 +322,44 @@ class BeginnerOnboardingTests(unittest.TestCase):
                 self.assertEqual(saved["experiment_id"], legacy["experiment_id"])
                 self.assertIn("analysis_plan", saved)
                 self.assertIn("privacy_acknowledged", saved["study_context"])
+
+    def test_malformed_metadata_cannot_partially_switch_the_active_experiment(self) -> None:
+        demo = self._open_demo()
+        mutations = (
+            lambda m: m["study_context"].update(confidence="invalid"),
+            lambda m: m["analysis_plan"].update(primary_metric=[]),
+            lambda m: m.update(captures=[{"metadata": None, "frames": []}]),
+            lambda m: m.update(psychophysics_trials={"source": None}),
+            lambda m: m["preprocessing_profiles"]["baseline"].update(variants=None),
+            lambda m: m.update(symbol_transcriptions={"records": None}),
+            lambda m: m.update(external_dataset_references=None),
+        )
+        report = {"run_id": "current-review"}
+        for index, mutate in enumerate(mutations):
+            with self.subTest(case=index):
+                self.window.experiment_path.setText(str(demo))
+                self.assertTrue(self.window.open_experiment())
+                self.window.profile_combo.setCurrentText("baseline")
+                target = self.root / f"malformed-{index}"
+                manifest = deepcopy(app_api.create_experiment(target))
+                mutate(manifest)
+                write_manifest(target, manifest)
+                before = (target / "manifest.json").read_bytes()
+                self.window.latest_report = report
+                self.window.tabs.setCurrentIndex(4)
+                self.window.source_path.setText("pending.mp4")
+                with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+                    self.window, "_error"
+                ) as error:
+                    self.window.open_existing_experiment()
+                error.assert_called_once()
+                self.assertEqual(self.window.experiment_dir, demo)
+                self.assertEqual(self.window.experiment_path.text(), str(demo))
+                self.assertTrue(self.window.is_demo_experiment)
+                self.assertEqual(self.window.tabs.currentIndex(), 4)
+                self.assertEqual(self.window.source_path.text(), "pending.mp4")
+                self.assertIs(self.window.latest_report, report)
+                self.assertEqual((target / "manifest.json").read_bytes(), before)
 
     def test_capture_passes_canonical_role_to_api(self) -> None:
         self.window.experiment_path.setText(str(self.root / "personal"))

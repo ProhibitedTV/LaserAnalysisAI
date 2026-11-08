@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from pathlib import Path
 from typing import Any, Callable
@@ -66,6 +67,51 @@ ISSUE_FORMS_PAGE = "https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/c
 
 
 LOGGER = logging.getLogger("laserlab.gui")
+
+
+def _validate_open_manifest(manifest: dict[str, Any]) -> None:
+    """Check data used by the dashboard before changing the active experiment."""
+    def mapping(value: Any, field: str) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValueError(f"Cannot open experiment: {field} must be an object.")
+        return value
+
+    def sequence(value: Any, field: str) -> list[Any]:
+        if not isinstance(value, list):
+            raise ValueError(f"Cannot open experiment: {field} must be a list.")
+        return value
+
+    plan = mapping(manifest.get("analysis_plan", {}), "analysis_plan")
+    for field in ("primary_metric", "control_generation", "preprocessing_intensity", "frame_sampling_mode"):
+        if field in plan and not isinstance(plan[field], str):
+            raise ValueError(f"Cannot open experiment: analysis_plan.{field} must be text.")
+    context = mapping(manifest.get("study_context", {}), "study_context")
+    try:
+        confidence = float(context.get("confidence") or 0.0)
+        if not math.isfinite(confidence):
+            raise ValueError
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("Cannot open experiment: study_context.confidence must be a finite number.") from None
+    for capture in sequence(manifest.get("captures", []), "captures"):
+        capture = mapping(capture, "captures entry")
+        metadata = mapping(capture.get("metadata", {}), "capture metadata")
+        for value, field in ((capture.get("label"), "capture label"),
+                             (metadata.get("footage_class"), "capture footage_class")):
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"Cannot open experiment: {field} must be text.")
+        sequence(capture.get("frames", []), "capture frames")
+        sequence(capture.get("provenance_warnings", []), "capture provenance_warnings")
+    profiles = mapping(manifest.get("preprocessing_profiles", {}), "preprocessing_profiles")
+    for profile in profiles.values():
+        profile = mapping(profile, "preprocessing profile")
+        sequence(profile.get("variants", []), "preprocessing variants")
+    analysis = mapping(manifest.get("psychophysics_analysis") or {}, "psychophysics_analysis")
+    mapping(analysis.get("metrics", {}), "psychophysics metrics")
+    trials = mapping(manifest.get("psychophysics_trials") or {}, "psychophysics_trials")
+    mapping(trials.get("source", {}), "psychophysics source")
+    sequence(manifest.get("external_dataset_references", []), "external_dataset_references")
+    symbols = mapping(manifest.get("symbol_transcriptions") or {}, "symbol_transcriptions")
+    sequence(symbols.get("records", []), "symbol records")
 
 
 class ApiWorker(QThread):
@@ -1195,6 +1241,7 @@ class LabDashboardWindow(QMainWindow):
                 if existing.get("experiment_purpose") == "demo":
                     raise ValueError("This folder contains a practice demo. Choose a different folder for your footage.")
             manifest = app_api.create_experiment(experiment_dir)
+            _validate_open_manifest(manifest)
             self.experiment_dir = experiment_dir
             self.is_demo_experiment = manifest.get("experiment_purpose") == "demo"
             self.demo_banner.setVisible(self.is_demo_experiment)
