@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from copy import deepcopy
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,6 +14,7 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QLabel, QMessageBox
 
 from gui.lab_dashboard import LabDashboardWindow
 from laserlab import app_api
+from laserlab.artifacts import write_json
 from laserlab.manifest import load_manifest, write_manifest
 
 
@@ -239,6 +241,232 @@ class BeginnerOnboardingTests(unittest.TestCase):
         with patch.object(QFileDialog, "getOpenFileName", return_value=("", "")):
             self.window.browse_source()
         self.assertEqual(self.window.source_path.text(), "original.mp4")
+
+    def test_open_existing_wrong_folder_preserves_active_demo_and_folder(self) -> None:
+        demo = self._open_demo()
+        wrong = self.root / "unrelated-folder"
+        wrong.mkdir()
+        marker = wrong / "keep.txt"
+        marker.write_text("unrelated work")
+        self.window.tabs.setCurrentIndex(4)
+        self.window.source_path.setText("pending.mp4")
+        with patch.object(QFileDialog, "getExistingDirectory", return_value=str(wrong)), patch.object(
+            self.window, "_error"
+        ) as error:
+            self.window.open_existing_experiment()
+        error.assert_called_once()
+        self.assertIn("manifest.json", error.call_args.args[0])
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+        self.assertEqual(self.window.tabs.currentIndex(), 4)
+        self.assertEqual(self.window.source_path.text(), "pending.mp4")
+        self.assertEqual(list(wrong.iterdir()), [marker])
+        self.assertEqual(marker.read_text(), "unrelated work")
+
+    def test_missing_recent_experiment_is_not_recreated(self) -> None:
+        demo = self._open_demo()
+        missing = self.root / "removed-experiment"
+        self.window.tabs.setCurrentIndex(4)
+        with patch.object(self.window, "_error") as error:
+            self.window._open_recent_experiment(missing)
+        error.assert_called_once()
+        self.assertFalse(missing.exists())
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+        self.assertEqual(self.window.tabs.currentIndex(), 4)
+
+    def test_invalid_recent_manifest_preserves_display_and_pending_capture(self) -> None:
+        demo = self._open_demo()
+        invalid = self.root / "invalid-experiment"
+        invalid.mkdir()
+        manifest = invalid / "manifest.json"
+        manifest.write_text("incomplete JSON {")
+        self.window.tabs.setCurrentIndex(4)
+        self.window.source_path.setText("pending.mp4")
+        report = {"run_id": "current-review"}
+        self.window.latest_report = report
+        with patch.object(self.window, "_error") as error:
+            self.window._open_recent_experiment(invalid)
+        error.assert_called_once()
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+        self.assertEqual(self.window.tabs.currentIndex(), 4)
+        self.assertEqual(self.window.source_path.text(), "pending.mp4")
+        self.assertIs(self.window.latest_report, report)
+        self.assertEqual(manifest.read_text(), "incomplete JSON {")
+
+    def test_reopening_current_manifest_does_not_require_write_permission(self) -> None:
+        experiment = self.root / "read-only-experiment"
+        original = app_api.create_experiment(experiment)
+        before = (experiment / "manifest.json").read_bytes()
+        with patch("laserlab.app_api.write_manifest", side_effect=PermissionError("Read only")), patch(
+            "laserlab.manifest.write_manifest", side_effect=PermissionError("Read only")
+        ):
+            reopened = app_api.create_experiment(experiment)
+        self.assertEqual(reopened, original)
+        self.assertEqual((experiment / "manifest.json").read_bytes(), before)
+
+    def test_reopening_legacy_manifest_still_persists_needed_defaults(self) -> None:
+        for missing_top_level in (False, True):
+            with self.subTest(missing_top_level=missing_top_level):
+                experiment = self.root / f"legacy-{missing_top_level}"
+                legacy = app_api.create_experiment(experiment)
+                if missing_top_level:
+                    legacy.pop("analysis_plan")
+                legacy["study_context"].pop("privacy_acknowledged")
+                write_manifest(experiment, legacy)
+                with patch("laserlab.manifest.write_manifest", wraps=write_manifest) as persist:
+                    reopened = app_api.create_experiment(experiment)
+                persist.assert_called_once()
+                saved = load_manifest(experiment)
+                self.assertEqual(saved, reopened)
+                self.assertEqual(saved["experiment_id"], legacy["experiment_id"])
+                self.assertIn("analysis_plan", saved)
+                self.assertIn("privacy_acknowledged", saved["study_context"])
+
+    def test_malformed_metadata_cannot_partially_switch_the_active_experiment(self) -> None:
+        demo = self._open_demo()
+        mutations = (
+            lambda m: m["study_context"].update(confidence="invalid"),
+            lambda m: m["analysis_plan"].update(primary_metric=[]),
+            lambda m: m.update(captures=[{"metadata": None, "frames": []}]),
+            lambda m: m.update(psychophysics_trials={"source": None}),
+            lambda m: m["preprocessing_profiles"]["baseline"].update(variants=None),
+            lambda m: m.update(symbol_transcriptions={"records": None}),
+            lambda m: m.update(external_dataset_references=None),
+        )
+        report = {"run_id": "current-review"}
+        for index, mutate in enumerate(mutations):
+            with self.subTest(case=index):
+                self.window.experiment_path.setText(str(demo))
+                self.assertTrue(self.window.open_experiment())
+                self.window.profile_combo.setCurrentText("baseline")
+                target = self.root / f"malformed-{index}"
+                manifest = deepcopy(app_api.create_experiment(target))
+                mutate(manifest)
+                write_manifest(target, manifest)
+                before = (target / "manifest.json").read_bytes()
+                self.window.latest_report = report
+                self.window.tabs.setCurrentIndex(4)
+                self.window.source_path.setText("pending.mp4")
+                with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+                    self.window, "_error"
+                ) as error:
+                    self.window.open_existing_experiment()
+                error.assert_called_once()
+                self.assertEqual(self.window.experiment_dir, demo)
+                self.assertEqual(self.window.experiment_path.text(), str(demo))
+                self.assertTrue(self.window.is_demo_experiment)
+                self.assertEqual(self.window.tabs.currentIndex(), 4)
+                self.assertEqual(self.window.source_path.text(), "pending.mp4")
+                self.assertIs(self.window.latest_report, report)
+                self.assertEqual((target / "manifest.json").read_bytes(), before)
+
+    def test_unreadable_sealed_review_keeps_the_previous_experiment_open(self) -> None:
+        demo = self._open_demo()
+        for corrupt_report in (False, True):
+            with self.subTest(corrupt_report=corrupt_report):
+                self.window.experiment_path.setText(str(demo))
+                self.assertTrue(self.window.open_experiment())
+                target = self.root / f"sealed-{corrupt_report}"
+                manifest = app_api.create_experiment(target)
+                manifest["outputs"] = {"review_state": "blinded", "latest_run": "runs/sealed"}
+                manifest["captures"] = [{"capture_id": "hidden-capture", "label": "laser", "frames": [], "metadata": {}}]
+                write_manifest(target, manifest)
+                if corrupt_report:
+                    run = target / "runs" / "sealed"
+                    run.mkdir(parents=True)
+                    (run / "report.json").write_text("incomplete JSON {")
+                self.window.tabs.setCurrentIndex(4)
+                self.window.source_path.setText("pending.mp4")
+                self.window.latest_report = {"run_id": "current-review"}
+                with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+                    self.window, "_error"
+                ) as error:
+                    self.window.open_existing_experiment()
+                error.assert_called_once()
+                self.assertIn("sealed review", error.call_args.args[0])
+                self.assertEqual(self.window.experiment_dir, demo)
+                self.assertEqual(self.window.experiment_path.text(), str(demo))
+                self.assertEqual(self.window.tabs.currentIndex(), 4)
+                self.assertEqual(self.window.latest_report["run_id"], "current-review")
+                self.assertEqual(self.window.source_path.text(), "pending.mp4")
+
+    def test_inconsistent_sealed_review_is_rejected_before_switching(self) -> None:
+        demo = self._open_demo()
+        target = self.root / "inconsistent-review"
+        manifest = app_api.create_experiment(target)
+        manifest["outputs"] = {"review_state": "blinded", "latest_run": "runs/sealed"}
+        write_manifest(target, manifest)
+        with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+            self.window, "_error"
+        ) as error, patch("gui.lab_dashboard.app_api.load_latest_report", return_value={"review_state": {"unblinded": True}}):
+            self.window.open_existing_experiment()
+        error.assert_called_once()
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertEqual(self.window.experiment_path.text(), str(demo))
+
+    def test_opening_a_valid_sealed_demo_uses_its_verified_report_once(self) -> None:
+        payload = app_api.run_bundled_demo(self.root / "sealed-demo", max_frames=1)
+        target = Path(payload["experiment_dir"])
+        with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+            self.window, "_error"
+        ) as error, patch("gui.lab_dashboard.app_api.load_latest_report", wraps=app_api.load_latest_report) as load:
+            self.window.open_existing_experiment()
+        error.assert_not_called()
+        load.assert_called_once_with(target)
+        self.assertEqual(self.window.experiment_dir, target)
+        self.assertFalse(self.window._review_is_unblinded())
+        self.assertFalse(self.window.tabs.isTabVisible(0))
+        self.assertFalse(self.window.tabs.isTabVisible(1))
+
+    def test_malformed_sealed_report_fields_cannot_partially_switch_workspace(self) -> None:
+        demo = self._open_demo()
+        payload = app_api.run_bundled_demo(self.root / "report-validation", max_frames=1)
+        target = Path(payload["experiment_dir"])
+        original = app_api.load_latest_report(target)
+        report_path = Path(original["local_paths"]["report_json"])
+        original["top_candidates"] = [{"blind_id": "B001", "primary_metric_score": 0.0}]
+        mutations = (
+            lambda r: r.update(review_session=None),
+            lambda r: r.update(summary=None),
+            lambda r: r.update(interpretation=None),
+            lambda r: r["interpretation"].update(what_this_means=12),
+            lambda r: r.update(badges=None),
+            lambda r: r.update(top_candidates=None),
+            lambda r: r.update(top_candidates=[None]),
+            lambda r: r["top_candidates"][0].update(primary_metric_measurement=None),
+            lambda r: r["top_candidates"][0].update(ocr_text=None),
+            lambda r: r["top_candidates"][0].update(primary_metric_score="invalid"),
+            lambda r: r["top_candidates"][0].update(review_annotation={"flags": [{}]}),
+            lambda r: r["top_candidates"][0].update(candidate_rois=[None]),
+            lambda r: r["top_candidates"][0].update(ocr_ensemble=None),
+            lambda r: r["top_candidates"][0].update(processed_path=[]),
+            lambda r: r["top_candidates"][0].update(detector_family_scores={"fft": "invalid"}),
+        )
+        for index, mutate in enumerate(mutations):
+            with self.subTest(case=index):
+                malformed = deepcopy(original)
+                mutate(malformed)
+                write_json(report_path, malformed)
+                before = report_path.read_bytes()
+                self.window.tabs.setCurrentIndex(4)
+                self.window.source_path.setText("pending.mp4")
+                current = {"run_id": "current-review"}
+                self.window.latest_report = current
+                self.window.review_note.setPlainText("unsaved review note")
+                with patch.object(QFileDialog, "getExistingDirectory", return_value=str(target)), patch.object(
+                    self.window, "_error"
+                ) as error:
+                    self.window.open_existing_experiment()
+                error.assert_called_once()
+                self.assertEqual(self.window.experiment_dir, demo)
+                self.assertEqual(self.window.experiment_path.text(), str(demo))
+                self.assertEqual(self.window.tabs.currentIndex(), 4)
+                self.assertEqual(self.window.source_path.text(), "pending.mp4")
+                self.assertEqual(self.window.review_note.toPlainText(), "unsaved review note")
+                self.assertIs(self.window.latest_report, current)
+                self.assertEqual(report_path.read_bytes(), before)
 
     def test_capture_passes_canonical_role_to_api(self) -> None:
         self.window.experiment_path.setText(str(self.root / "personal"))
