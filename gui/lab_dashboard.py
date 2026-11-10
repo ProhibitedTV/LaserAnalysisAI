@@ -1697,7 +1697,8 @@ class LabDashboardWindow(QMainWindow):
             self._error("Choose a base folder for the practice demo first.")
             return
         experiment_base = Path(self.demo_experiment_path.text())
-        self._clear_session_comparison("Session comparison is unavailable during the active sealed review.")
+        # Keep the active session comparison available if the demo fails.
+        # A successful demo switch clears it in _demo_finished.
         protocol = self.demo_protocol.currentData() or "anomaly"
         max_frames = self.demo_max_frames.value()
 
@@ -2204,7 +2205,13 @@ class LabDashboardWindow(QMainWindow):
         self.status.showMessage("Review unblinded")
 
     def _demo_finished(self, payload: dict[str, Any]) -> None:
-        self.experiment_dir = Path(payload["experiment_dir"])
+        # Switch only after the demo worker succeeds. Do not carry an old
+        # experiment's comparisons or pending private capture into the demo.
+        demo_dir = Path(payload["experiment_dir"])
+        self._clear_session_comparison("Session comparison is unavailable during the active sealed review.")
+        self.source_path.clear()
+        self.label_combo.setCurrentIndex(self.label_combo.findData("laser"))
+        self.experiment_dir = demo_dir
         self.experiment_path.setText(str(self.experiment_dir))
         self.is_demo_experiment = True
         self.demo_banner.setVisible(True)
