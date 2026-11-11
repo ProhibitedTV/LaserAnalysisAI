@@ -480,6 +480,61 @@ class BeginnerOnboardingTests(unittest.TestCase):
                 self.window.add_capture()
             self.assertEqual(add.call_args.kwargs["label"], role)
 
+    def test_failed_demo_keeps_session_comparison_and_pending_capture(self) -> None:
+        active = self.root / "active-experiment"
+        self.window.experiment_dir = active
+        self.window.experiment_path.setText(str(active))
+        comparison = {"_snapshot_sha256": "reviewed-comparison"}
+        directories = [self.root / "first", self.root / "second"]
+        self.window.session_comparison = comparison
+        self.window.comparison_directories = directories
+        self.window.session_comparison_details.setPlainText("Existing comparison")
+        self.window.session_privacy.setChecked(True)
+        self.window.source_path.setText("pending-private-video.mp4")
+        self.window.label_combo.setCurrentIndex(self.window.label_combo.findData("matched_control"))
+
+        with patch.object(self.window, "_run_worker") as worker:
+            self.window.run_fixture_demo()
+        worker.assert_called_once()
+        # Simulate a failed codec/fixture task without completing the worker.
+        with patch("gui.lab_dashboard.app_api.run_bundled_demo", side_effect=RuntimeError("decoder unavailable")):
+            with self.assertRaisesRegex(RuntimeError, "decoder unavailable"):
+                worker.call_args.args[1]()
+
+        self.assertEqual(self.window.experiment_dir, active)
+        self.assertEqual(self.window.experiment_path.text(), str(active))
+        self.assertIs(self.window.session_comparison, comparison)
+        self.assertEqual(self.window.comparison_directories, directories)
+        self.assertEqual(self.window.session_comparison_details.toPlainText(), "Existing comparison")
+        self.assertTrue(self.window.session_privacy.isChecked())
+        self.assertEqual(self.window.source_path.text(), "pending-private-video.mp4")
+        self.assertEqual(self.window.label_combo.currentData(), "matched_control")
+
+    def test_successful_demo_switch_resets_old_comparison_and_pending_capture(self) -> None:
+        self.window.experiment_dir = self.root / "active-experiment"
+        self.window.session_comparison = {"_snapshot_sha256": "reviewed-comparison"}
+        self.window.comparison_directories = [self.root / "first"]
+        self.window.session_comparison_details.setPlainText("Old comparison")
+        self.window.session_privacy.setChecked(True)
+        self.window.source_path.setText("pending-private-video.mp4")
+        self.window.label_combo.setCurrentIndex(self.window.label_combo.findData("matched_control"))
+
+        demo = self.root / "finished-demo"
+        with patch.object(self.window, "_analysis_finished"), patch.object(
+            self.window, "_remember_experiment"
+        ), patch("gui.lab_dashboard.app_api.create_experiment", return_value={"captures": []}):
+            self.window._demo_finished({"experiment_dir": str(demo), "run": {"run_id": "demo"}})
+
+        self.assertEqual(self.window.experiment_dir, demo)
+        self.assertTrue(self.window.is_demo_experiment)
+        self.assertIsNone(self.window.session_comparison)
+        self.assertEqual(self.window.comparison_directories, [])
+        self.assertIn("unavailable", self.window.session_comparison_details.toPlainText())
+        self.assertFalse(self.window.session_privacy.isChecked())
+        self.assertFalse(self.window.session_export_button.isEnabled())
+        self.assertEqual(self.window.source_path.text(), "")
+        self.assertEqual(self.window.label_combo.currentData(), "laser")
+
     def test_running_demo_does_not_switch_active_experiment_early(self) -> None:
         personal = self.root / "personal"
         self.window.experiment_dir = personal
