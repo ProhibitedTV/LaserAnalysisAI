@@ -86,8 +86,10 @@ class ArtifactConfinementTests(unittest.TestCase):
         outside.write_bytes(b"do not share")
         non_image = self.run / "notes.txt"
         non_image.write_text("private notes", encoding="utf-8")
+        # The mocked manifest loader does not create this disk file.
+        # Ensure the out-of-run filename actually exists when testing refusal.
+        (self.experiment / "manifest.json").write_text("private metadata", encoding="utf-8")
         archive = self.base / "review.zip"
-        archive.write_bytes(b"previous safe export")
         invalid = [
             str(outside),                            # absolute external path
             "../private.png",                       # parent traversal
@@ -99,6 +101,7 @@ class ArtifactConfinementTests(unittest.TestCase):
         ]
         for stored in invalid:
             with self.subTest(stored=stored):
+                archive.write_bytes(b"previous safe export")
                 self.report["top_candidates"][0]["review_image_path"] = stored
                 with self.assertRaises(ValueError):
                     self._export(archive)
