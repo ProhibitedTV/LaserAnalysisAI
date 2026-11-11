@@ -107,6 +107,51 @@ class ArtifactConfinementTests(unittest.TestCase):
                     self._export(archive)
                 self.assertEqual(archive.read_bytes(), b"previous safe export")
 
+    def test_failed_write_keeps_existing_export_and_cleans_staging(self) -> None:
+        archive = self.base / "review.zip"
+        archive.write_bytes(b"previous successful export")
+        with patch("laserlab.bundle.zipfile.ZipFile.write", side_effect=OSError("simulated disk full")):
+            with self.assertRaisesRegex(OSError, "simulated disk full"):
+                self._export(archive)
+        self.assertEqual(archive.read_bytes(), b"previous successful export")
+        self.assertEqual(list(self.base.glob(".review.zip.*.tmp")), [])
+
+    def test_failed_first_export_leaves_no_partial_zip(self) -> None:
+        archive = self.base / "new-export.zip"
+        with patch("laserlab.bundle.zipfile.ZipFile.write", side_effect=OSError("simulated disk full")):
+            with self.assertRaisesRegex(OSError, "simulated disk full"):
+                self._export(archive)
+        self.assertFalse(archive.exists())
+        self.assertEqual(list(self.base.glob(".new-export.zip.*.tmp")), [])
+
+    def test_successful_export_replaces_archive_and_supports_experiment_exports_folder(self) -> None:
+        archive = self.experiment / "exports" / "review.zip"
+        archive.parent.mkdir()
+        archive.write_bytes(b"older export")
+        self._export(archive)
+        with zipfile.ZipFile(archive) as result:
+            self.assertEqual(result.read("top_originals/candidate.png"), b"test-image-content")
+        self.assertEqual(list(archive.parent.glob(".review.zip.*.tmp")), [])
+
+    def test_export_cannot_overwrite_manifest_or_run_artifacts(self) -> None:
+        manifest_path = self.experiment / "manifest.json"
+        results_path = self.run / "results.json"
+        for protected in (manifest_path, results_path):
+            with self.subTest(protected=protected):
+                protected.write_bytes(b"essential experiment record")
+                with self.assertRaisesRegex(ValueError, "destination"):
+                    self._export(protected)
+                self.assertEqual(protected.read_bytes(), b"essential experiment record")
+
+    def test_export_cannot_overwrite_known_original_source(self) -> None:
+        source = self.base / "laser-capture.zip"
+        source.write_bytes(b"original raw media")
+        self.manifest["sources"] = [{"path": str(source)}]
+        with self.assertRaisesRegex(ValueError, "original capture source"):
+            self._export(source)
+        self.assertEqual(source.read_bytes(), b"original raw media")
+        self.assertEqual(list(self.base.glob(".laser-capture.zip.*.tmp")), [])
+
     def test_roi_paths_receive_the_same_confinement(self) -> None:
         self.report["top_candidates"][0]["candidate_rois"] = [
             {"crop_path": "../private.png", "processed_crop_path": None}

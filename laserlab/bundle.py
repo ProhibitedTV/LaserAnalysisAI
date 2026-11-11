@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import sys
+import tempfile
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +44,7 @@ def export_review_bundle(
     # In particular, an edited report must not make a sealed review bundle
     # copy unrelated local files by using absolute paths, traversal, or symlinks.
     review_images = _review_images(experiment_dir, run_dir, report)
+    _validate_export_destination(experiment_dir, run_dir, manifest, output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     environment = {
         "laserlab_version": __version__,
@@ -52,7 +57,7 @@ def export_review_bundle(
         "run_id": report.get("run_id"),
     }
 
-    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+    with _atomic_review_archive(output_path) as bundle:
         _write_json_member(bundle, "manifest.json", manifest if unblinded else _sealed_manifest(manifest))
         _write_json_member(bundle, "report.json", report)
         _write_json_member(bundle, "results.json", results)
@@ -92,6 +97,44 @@ def export_review_bundle(
         bundle.writestr("README.txt", readme)
 
     return output_path
+
+
+@contextmanager
+def _atomic_review_archive(output_path: Path) -> Iterator[zipfile.ZipFile]:
+    """Never replace an existing export with an incomplete ZIP.
+
+    Staging on the same filesystem permits an atomic final replacement on
+    supported platforms, including Windows after the temporary file is closed.
+    """
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=output_path.parent, prefix=f".{output_path.name}.", suffix=".tmp"
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w+b") as stream:
+            with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+                yield bundle
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, output_path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _validate_export_destination(
+    experiment_dir: Path, run_dir: Path, manifest: dict[str, Any], output_path: Path
+) -> None:
+    """Protect experiment data and known source files from export overwrites."""
+    destination = output_path.resolve()
+    if (destination == (experiment_dir / "manifest.json").resolve()
+            or destination.is_relative_to(run_dir.resolve())):
+        raise ValueError("Choose an export destination outside the saved manifest and analysis run.")
+    for source in manifest.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        stored = source.get("path")
+        if isinstance(stored, str) and stored.strip() and destination == Path(stored).expanduser().resolve():
+            raise ValueError("Choose an export destination different from the original capture source.")
 
 
 def _checked_review_image(experiment_dir: Path, run_dir: Path, stored: Any) -> Path | None:
