@@ -104,6 +104,11 @@ def _checked_review_image(experiment_dir: Path, run_dir: Path, stored: Any) -> P
     if relative.is_absolute() or ".." in relative.parts:
         raise ValueError("Saved review image path must be relative to the experiment.")
     resolved = (experiment_dir / relative).resolve()
+    # Older reports may contain stale image references outside a run.
+    # Missing files cannot be copied, so preserve the previous skip behavior.
+    # Existing files must pass the selected-run boundary before any read.
+    if not resolved.exists():
+        return None
     run_root = run_dir.resolve()
     if resolved == run_root or not resolved.is_relative_to(run_root):
         raise ValueError("Saved review image path escapes the selected analysis run.")
