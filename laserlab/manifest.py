@@ -200,7 +200,24 @@ def write_manifest(experiment_dir: Path, manifest: dict[str, Any]) -> None:
 
 
 def latest_run_dir(experiment_dir: Path, manifest: dict[str, Any]) -> Path:
+    """Resolve only a run recorded beneath this experiment's runs directory.
+
+    A saved manifest is local data, not authority to read or modify arbitrary
+    filesystem paths during review, unblinding, or bundle export.
+    """
     latest = manifest.get("outputs", {}).get("latest_run")
     if not latest:
         raise FileNotFoundError("No run output exists yet. Run laserlab first.")
-    return experiment_dir / latest
+    if not isinstance(latest, str):
+        raise ValueError("Saved run results must stay within the selected experiment (runs/).")
+
+    relative = Path(latest)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("Saved run results must stay within the selected experiment (runs/).")
+
+    experiment_root = Path(experiment_dir).resolve()
+    run_root = experiment_root / "runs"
+    resolved = (experiment_root / relative).resolve()
+    if resolved == run_root or not resolved.is_relative_to(run_root):
+        raise ValueError("Saved run results must stay within the selected experiment (runs/).")
+    return resolved
