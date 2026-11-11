@@ -25,8 +25,6 @@ def export_review_bundle(
     """Create a shareable zip with reports, hashes, thumbnails, and optional media."""
     experiment_dir = Path(experiment_dir)
     output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
     manifest = load_manifest(experiment_dir)
     run_dir = latest_run_dir(experiment_dir, manifest)
     results = current_statistics(load_json(run_dir / "results.json"))
@@ -38,6 +36,11 @@ def export_review_bundle(
         raise ValueError(
             "Review participant IDs, research plans, subjective context, community metadata, and sharing risk before export."
         )
+    # Check every saved image reference before creating or overwriting a ZIP.
+    # In particular, an edited report must not make a sealed review bundle
+    # copy unrelated local files by using absolute paths, traversal, or symlinks.
+    review_images = _review_images(experiment_dir, run_dir, report)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     environment = {
         "laserlab_version": __version__,
         "statistics_version": results.get("aggregate_statistics", {}).get("statistics_version"),
@@ -57,34 +60,9 @@ def export_review_bundle(
         bundle.writestr("report.html", render_html_report(report))
 
         hashes: dict[str, str] = {}
-        for candidate in report.get("top_candidates", [])[:20]:
-            for key in ("review_image_path", "processed_path", "roi_overlay_path"):
-                stored = candidate.get(key)
-                if stored:
-                    path = experiment_dir / stored
-                    if path.exists():
-                        folder = {
-                            "review_image_path": "top_originals",
-                            "processed_path": "top_candidates",
-                            "roi_overlay_path": "top_overlays",
-                        }[key]
-                        archive_name = f"{folder}/{path.name}"
-                        bundle.write(path, archive_name)
-                        hashes[archive_name] = sha256_file(path)
-            for roi in candidate.get("candidate_rois", [])[:3]:
-                for key, folder in (
-                    ("crop_path", "top_crops"),
-                    ("processed_crop_path", "top_processed_crops"),
-                    ("mask_path", "top_roi_masks"),
-                ):
-                    stored = roi.get(key)
-                    if not stored:
-                        continue
-                    path = experiment_dir / stored
-                    if path.exists():
-                        archive_name = f"{folder}/{path.parent.name}_{path.name}"
-                        bundle.write(path, archive_name)
-                        hashes[archive_name] = sha256_file(path)
+        for path, archive_name in review_images:
+            bundle.write(path, archive_name)
+            hashes[archive_name] = sha256_file(path)
 
         if include_media and unblinded:
             for source in manifest.get("sources", []):
@@ -114,6 +92,47 @@ def export_review_bundle(
         bundle.writestr("README.txt", readme)
 
     return output_path
+
+
+def _checked_review_image(experiment_dir: Path, run_dir: Path, stored: Any) -> Path | None:
+    """Accept only image artifacts produced inside the selected run."""
+    if stored is None or stored == "":
+        return None
+    if not isinstance(stored, str):
+        raise ValueError("Invalid saved review image path.")
+    relative = Path(stored)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("Saved review image path must be relative to the experiment.")
+    resolved = (experiment_dir / relative).resolve()
+    run_root = run_dir.resolve()
+    if resolved == run_root or not resolved.is_relative_to(run_root):
+        raise ValueError("Saved review image path escapes the selected analysis run.")
+    if resolved.suffix.lower() not in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}:
+        raise ValueError("Saved review artifact is not an image.")
+    return resolved if resolved.is_file() else None
+
+
+def _review_images(experiment_dir: Path, run_dir: Path, report: dict[str, Any]) -> list[tuple[Path, str]]:
+    images: list[tuple[Path, str]] = []
+    for candidate in report.get("top_candidates", [])[:20]:
+        for key, folder in (
+            ("review_image_path", "top_originals"),
+            ("processed_path", "top_candidates"),
+            ("roi_overlay_path", "top_overlays"),
+        ):
+            path = _checked_review_image(experiment_dir, run_dir, candidate.get(key))
+            if path is not None:
+                images.append((path, f"{folder}/{path.name}"))
+        for roi in candidate.get("candidate_rois", [])[:3]:
+            for key, folder in (
+                ("crop_path", "top_crops"),
+                ("processed_crop_path", "top_processed_crops"),
+                ("mask_path", "top_roi_masks"),
+            ):
+                path = _checked_review_image(experiment_dir, run_dir, roi.get(key))
+                if path is not None:
+                    images.append((path, f"{folder}/{path.parent.name}_{path.name}"))
+    return images
 
 
 def _contains_sensitive_context(manifest: dict[str, Any]) -> bool:
