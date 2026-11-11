@@ -209,15 +209,15 @@ def latest_run_dir(experiment_dir: Path, manifest: dict[str, Any]) -> Path:
     if not latest:
         raise FileNotFoundError("No run output exists yet. Run laserlab first.")
     if not isinstance(latest, str):
-        raise ValueError("Invalid saved run path: expected a relative directory.")
+        raise ValueError("Saved run results must stay within the selected experiment (runs/).")
 
     relative = Path(latest)
     if relative.is_absolute() or ".." in relative.parts:
-        raise ValueError("Invalid saved run path: expected a directory inside runs/.")
+        raise ValueError("Saved run results must stay within the selected experiment (runs/).")
 
     experiment_root = Path(experiment_dir).resolve()
     run_root = experiment_root / "runs"
     resolved = (experiment_root / relative).resolve()
     if resolved == run_root or not resolved.is_relative_to(run_root):
-        raise ValueError("Invalid saved run path: directory escapes the experiment's runs/.")
+        raise ValueError("Saved run results must stay within the selected experiment (runs/).")
     return resolved
