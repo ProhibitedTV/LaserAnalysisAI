@@ -55,6 +55,11 @@ class ArtifactConfinementTests(unittest.TestCase):
         with zipfile.ZipFile(self._export()) as archive:
             self.assertFalse(any(name.startswith("top_originals/") for name in archive.namelist()))
 
+    def test_missing_legacy_image_outside_run_is_skipped(self) -> None:
+        self.report["top_candidates"][0]["review_image_path"] = "processed/missing-legacy.png"
+        with zipfile.ZipFile(self._export()) as archive:
+            self.assertFalse(any(name.startswith("top_originals/") for name in archive.namelist()))
+
     def test_invalid_latest_run_paths_are_rejected(self) -> None:
         invalid = [
             self.base.as_posix(),
