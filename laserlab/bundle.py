@@ -44,7 +44,7 @@ def export_review_bundle(
     # In particular, an edited report must not make a sealed review bundle
     # copy unrelated local files by using absolute paths, traversal, or symlinks.
     review_images = _review_images(experiment_dir, run_dir, report)
-    _validate_export_destination(experiment_dir, run_dir, manifest, output_path)
+    _validate_export_destination(experiment_dir, manifest, output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     environment = {
         "laserlab_version": __version__,
@@ -122,18 +122,24 @@ def _atomic_review_archive(output_path: Path) -> Iterator[zipfile.ZipFile]:
 
 
 def _validate_export_destination(
-    experiment_dir: Path, run_dir: Path, manifest: dict[str, Any], output_path: Path
+    experiment_dir: Path, manifest: dict[str, Any], output_path: Path
 ) -> None:
     """Protect experiment data and known source files from export overwrites."""
     destination = output_path.resolve()
-    if (destination == (experiment_dir / "manifest.json").resolve()
-            or destination.is_relative_to(run_dir.resolve())):
-        raise ValueError("Choose an export destination outside the saved manifest and analysis run.")
+    protected_roots = [(experiment_dir / name).resolve() for name in ("runs", "frames")]
+    if destination == (experiment_dir / "manifest.json").resolve() or any(
+        destination.is_relative_to(root) for root in protected_roots
+    ):
+        raise ValueError("Choose an export destination outside the saved manifest, analysis runs, and imported frames.")
     for source in manifest.get("sources", []):
         if not isinstance(source, dict):
             continue
         stored = source.get("path")
-        if isinstance(stored, str) and stored.strip() and destination == Path(stored).expanduser().resolve():
+        if not isinstance(stored, str) or not stored.strip():
+            continue
+        source_path = Path(stored).expanduser().resolve()
+        is_image_set = source.get("kind") == "image-set" or source_path.is_dir()
+        if destination == source_path or (is_image_set and destination.is_relative_to(source_path)):
             raise ValueError("Choose an export destination different from the original capture source.")
 
 

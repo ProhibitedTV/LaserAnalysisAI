@@ -152,6 +152,44 @@ class ArtifactConfinementTests(unittest.TestCase):
         self.assertEqual(source.read_bytes(), b"original raw media")
         self.assertEqual(list(self.base.glob(".laser-capture.zip.*.tmp")), [])
 
+    def test_export_cannot_overwrite_other_runs_or_imported_frames(self) -> None:
+        protected_paths = (
+            self.experiment / "runs" / "run-previous" / "results.json",
+            self.experiment / "frames" / "cap-001" / "frame_000000.png",
+        )
+        for protected in protected_paths:
+            with self.subTest(protected=protected):
+                protected.parent.mkdir(parents=True)
+                protected.write_bytes(b"saved research data")
+                with self.assertRaisesRegex(ValueError, "destination"):
+                    self._export(protected)
+                self.assertEqual(protected.read_bytes(), b"saved research data")
+                self.assertEqual(list(protected.parent.glob(f".{protected.name}.*.tmp")), [])
+
+    def test_export_cannot_modify_original_image_set_directory(self) -> None:
+        source = self.base / "original-images"
+        source.mkdir()
+        original = source / "frame.png"
+        original.write_bytes(b"original image")
+        self.manifest["sources"] = [{"path": str(source), "kind": "image-set"}]
+        for destination in (original, source / "nested" / "review.zip"):
+            with self.subTest(destination=destination):
+                with self.assertRaisesRegex(ValueError, "original capture source"):
+                    self._export(destination)
+                self.assertEqual(original.read_bytes(), b"original image")
+                self.assertFalse((source / "nested").exists())
+
+    def test_failed_sync_or_replacement_keeps_previous_export_and_cleans_staging(self) -> None:
+        archive = self.base / "review.zip"
+        for operation in ("fsync", "replace"):
+            with self.subTest(operation=operation):
+                archive.write_bytes(b"previous successful export")
+                with patch(f"laserlab.bundle.os.{operation}", side_effect=OSError("simulated finalization failure")):
+                    with self.assertRaisesRegex(OSError, "simulated finalization failure"):
+                        self._export(archive)
+                self.assertEqual(archive.read_bytes(), b"previous successful export")
+                self.assertEqual(list(self.base.glob(".review.zip.*.tmp")), [])
+
     def test_roi_paths_receive_the_same_confinement(self) -> None:
         self.report["top_candidates"][0]["candidate_rois"] = [
             {"crop_path": "../private.png", "processed_crop_path": None}
