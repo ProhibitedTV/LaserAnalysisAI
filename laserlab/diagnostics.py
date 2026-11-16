@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
@@ -181,9 +182,12 @@ def export_support_bundle(
     output_path: str | os.PathLike[str],
     experiment_dir: str | os.PathLike[str] | None = None,
 ) -> Path:
-    """Write a deterministic, media-free support ZIP."""
+    """Create a deterministic, media-free support ZIP without overwriting files."""
 
     destination = Path(output_path)
+    exists_message = "A file already exists at that destination. Choose a new filename for the support bundle."
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(exists_message)
     destination.parent.mkdir(parents=True, exist_ok=True)
     diagnostics = collect_diagnostics(experiment_dir)
     diagnostic_bytes = (
@@ -200,13 +204,30 @@ def export_support_bundle(
     except OSError:
         pass
 
-    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
+    # Finish the bounded diagnostics/log archive before creating its destination.
+    # Support export deliberately does not read manifests or capture sources to
+    # decide which existing files are safe to replace: it replaces none of them.
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
         for name, content in sorted(members):
             info = zipfile.ZipInfo(name, date_time=_FIXED_ZIP_TIMESTAMP)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3
             info.external_attr = 0o600 << 16
             bundle.writestr(info, content, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+    try:
+        stream = destination.open("xb")
+    except FileExistsError:
+        # Exclusive creation also protects a file created after the preflight.
+        raise FileExistsError(exists_message) from None
+    try:
+        with stream:
+            stream.write(archive.getvalue())
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
     return destination
 
 

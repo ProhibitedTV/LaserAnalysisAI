@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -1441,7 +1442,8 @@ class LabDashboardWindow(QMainWindow):
             self._error(f"System check failed: {exc}")
 
     def export_support_bundle(self) -> None:
-        default_name = f"LaserLab-support-v{__version__}.zip"
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        default_name = f"LaserLab-support-v{__version__}-{timestamp}.zip"
         path, _ = QFileDialog.getSaveFileName(self, "Export Support Bundle", default_name, "ZIP (*.zip)")
         if not path:
             return
