@@ -42,6 +42,7 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
+from laserlab.artifacts import checked_image_artifact, load_json
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
 from laserlab.replication import comparison_html
@@ -53,7 +54,7 @@ from laserlab.diagnostics import (
     get_state_dir,
 )
 from laserlab.fixtures import list_fixtures
-from laserlab.manifest import load_manifest
+from laserlab.manifest import latest_run_dir, load_manifest
 from laserlab.preferences import load_preferences, remember_experiment, set_last_source_directory, set_veilbreak_cache_enabled
 from laserlab.runtime import default_experiments_dir
 from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
@@ -2098,23 +2099,41 @@ class LabDashboardWindow(QMainWindow):
         for label, text in ((self.original_preview, "Original"), (self.processed_preview, "Processed"), (self.crop_preview, "Candidate crop")):
             label.clear()
             label.setText(text)
-        if not self.experiment_dir:
+        if not self.experiment_dir or not self.latest_report:
             return
-        source = candidate.get("review_image_path") or candidate.get("source_path")
-        if source:
-            self._set_pixmap(self.original_preview, self.experiment_dir / source)
+        try:
+            manifest = load_json(self.experiment_dir / "manifest.json")
+            if not isinstance(manifest, dict) or not isinstance(manifest.get("outputs"), dict):
+                raise ValueError("Invalid saved run selection.")
+            run_dir = latest_run_dir(self.experiment_dir, manifest)
+            if not run_dir.is_dir() or self.latest_report.get("run_id") != run_dir.name:
+                raise ValueError("Saved run selection changed.")
+        except (OSError, ValueError, RuntimeError):
+            for label in (self.original_preview, self.processed_preview, self.crop_preview):
+                label.setText("Preview unavailable")
+            return
+        source = candidate.get("review_image_path")
+        source_dir = run_dir
+        if not source and self._review_is_unblinded() and manifest["outputs"].get("review_state") != "blinded":
+            source = candidate.get("source_path")
+            source_dir = self.experiment_dir / "frames"
         processed = (
             candidate.get("roi_overlay_path")
             if self.show_processed_overlay.isChecked()
             else candidate.get("processed_path")
         )
-        if processed:
-            self._set_pixmap(self.processed_preview, self.experiment_dir / processed)
+        previews = [(self.original_preview, source, source_dir), (self.processed_preview, processed, run_dir)]
         rois = candidate.get("candidate_rois", [])
         if self.show_crop_overlay.isChecked() and rois:
             crop = rois[0].get("processed_crop_path") or rois[0].get("crop_path")
-            if crop:
-                self._set_pixmap(self.crop_preview, self.experiment_dir / crop)
+            previews.append((self.crop_preview, crop, run_dir))
+        for label, stored, artifact_dir in previews:
+            try:
+                path = checked_image_artifact(self.experiment_dir, artifact_dir, stored)
+                if path is not None:
+                    self._set_pixmap(label, path)
+            except (OSError, ValueError, RuntimeError):
+                label.setText("Preview unavailable")
 
     def _set_pixmap(self, label: QLabel, path: Path) -> None:
         if path.exists():

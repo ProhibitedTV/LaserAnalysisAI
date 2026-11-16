@@ -12,6 +12,31 @@ from typing import Any, Iterable
 IMAGE_EXTENSIONS = {".bmp", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 
 
+def checked_image_artifact(experiment_dir: Path, artifact_dir: Path, stored: Any) -> Path | None:
+    """Resolve a relative image inside one dedicated experiment artifact folder."""
+    if stored is None or stored == "":
+        return None
+    if not isinstance(stored, str):
+        raise ValueError("Invalid saved review image path.")
+    relative = Path(stored)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("Saved review image path must be relative to the experiment.")
+    experiment_root = experiment_dir.resolve()
+    artifact_root = artifact_dir.resolve()
+    if artifact_root == experiment_root or not artifact_root.is_relative_to(experiment_root):
+        raise ValueError("Saved image directory escapes the selected experiment.")
+    resolved = (experiment_dir / relative).resolve()
+    # Missing legacy references remain optional; existing files must satisfy
+    # the artifact boundary before any consumer reads or decodes them.
+    if not resolved.exists():
+        return None
+    if resolved == artifact_root or not resolved.is_relative_to(artifact_root):
+        raise ValueError("Saved review image path escapes the selected artifact directory.")
+    if resolved.suffix.lower() not in IMAGE_EXTENSIONS:
+        raise ValueError("Saved review artifact is not an image.")
+    return resolved if resolved.is_file() else None
+
+
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
