@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import platform
 import sys
@@ -14,7 +16,7 @@ from typing import Any
 
 from . import __version__
 from .artifacts import load_json, sha256_file, write_json
-from .blinding import is_unblinded
+from .blinding import UNBLIND_FILENAME, is_unblinded
 from .manifest import latest_run_dir, load_manifest
 from .stats import current_statistics
 from .report import build_report, render_html_report
@@ -44,7 +46,7 @@ def export_review_bundle(
     # In particular, an edited report must not make a sealed review bundle
     # copy unrelated local files by using absolute paths, traversal, or symlinks.
     review_images = _review_images(experiment_dir, run_dir, report)
-    _validate_export_destination(experiment_dir, manifest, output_path)
+    _validate_export_destination(experiment_dir, run_dir, manifest, output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     environment = {
         "laserlab_version": __version__,
@@ -122,7 +124,7 @@ def _atomic_review_archive(output_path: Path) -> Iterator[zipfile.ZipFile]:
 
 
 def _validate_export_destination(
-    experiment_dir: Path, manifest: dict[str, Any], output_path: Path
+    experiment_dir: Path, run_dir: Path, manifest: dict[str, Any], output_path: Path
 ) -> None:
     """Protect experiment data and known source files from export overwrites."""
     destination = output_path.resolve()
@@ -131,7 +133,7 @@ def _validate_export_destination(
         destination.is_relative_to(root) for root in protected_roots
     ):
         raise ValueError("Choose an export destination outside the saved manifest, analysis runs, and imported frames.")
-    for source in manifest.get("sources", []):
+    for source in _protected_export_sources(run_dir, manifest):
         if not isinstance(source, dict):
             continue
         stored = source.get("path")
@@ -141,6 +143,38 @@ def _validate_export_destination(
         is_image_set = source.get("kind") == "image-set" or source_path.is_dir()
         if destination == source_path or (is_image_set and destination.is_relative_to(source_path)):
             raise ValueError("Choose an export destination different from the original capture source.")
+
+
+def _protected_export_sources(run_dir: Path, manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read sealed paths only for overwrite prevention; never restore or export them."""
+    sources = manifest.get("sources", [])
+    sealed_sources = [source for source in sources if isinstance(source, dict) and source.get("sealed")]
+    if not sealed_sources:
+        return sources
+    message = "The sealed source map is unavailable or inconsistent. Restore the saved run before exporting."
+    try:
+        path = run_dir / UNBLIND_FILENAME
+        if not path.resolve().is_relative_to(run_dir.resolve()):
+            raise ValueError(message)
+        data = path.read_bytes()
+        expected_hash = manifest.get("outputs", {}).get("unblind_seal_sha256")
+        if hashlib.sha256(data).hexdigest() != expected_hash:
+            raise ValueError(message)
+        payload = json.loads(data)
+        if not isinstance(payload, dict) or not isinstance(payload.get("manifest_sensitive"), dict):
+            raise ValueError(message)
+        originals = payload["manifest_sensitive"].get("sources")
+        if not isinstance(originals, list) or any(
+            not isinstance(source, dict) or not isinstance(source.get("path"), str) or not source["path"].strip()
+            for source in originals
+        ):
+            raise ValueError(message)
+        if any(not any(original.get("source_id") == source.get("source_id") for original in originals)
+               for source in sealed_sources):
+            raise ValueError(message)
+        return originals
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise ValueError(message) from exc
 
 
 def _checked_review_image(experiment_dir: Path, run_dir: Path, stored: Any) -> Path | None:
