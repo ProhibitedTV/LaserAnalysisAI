@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import shutil
 import uuid
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,9 @@ from .manifest import load_or_create_manifest, write_manifest
 from .provenance import inspect_source, provenance_warnings
 from .capture_protocol import capture_protocol_warnings, normalize_capture_metadata
 from .sampling import DuplicateTracker, frame_signature, resolve_sampling_plan, scene_change_score
+
+
+LOGGER = logging.getLogger("laserlab.ingest")
 
 
 CAPTURE_ROLES = {"laser", "control", "matched_control", "sensor_noise", "synthetic_positive", "synthetic_negative"}
@@ -59,63 +64,79 @@ def init_experiment(
         raise ValueError("The latest review is still blinded. Explicitly unblind it before changing captures.")
     source_id = f"src-{uuid.uuid4().hex[:10]}"
     capture_id = f"cap-{uuid.uuid4().hex[:10]}"
-    capture_dir = ensure_dir(experiment_dir / "frames" / capture_id)
 
-    media_metadata = inspect_source(source, kind)
-    metadata = normalize_capture_metadata(capture_metadata)
-    warnings = provenance_warnings(metadata, media_metadata) + capture_protocol_warnings(metadata)
+    frames_root = ensure_dir(experiment_dir / "frames")
+    if not frames_root.resolve().is_relative_to(experiment_dir.resolve()):
+        raise ValueError("Capture frames directory must stay inside the experiment.")
+    capture_dir = frames_root / capture_id
+    # Never reuse an existing directory: cleanup is permitted only for a newly
+    # created capture, not an old capture or user-owned files.
+    capture_dir.mkdir(exist_ok=False)
 
-    if kind == "image-set":
-        frame_records, source_hash, sampling_diagnostics = _ingest_image_set(
-            source=source,
-            experiment_dir=experiment_dir,
-            capture_dir=capture_dir,
-            capture_id=capture_id,
-            sampling_plan=sampling_plan,
+    try:
+        media_metadata = inspect_source(source, kind)
+        metadata = normalize_capture_metadata(capture_metadata)
+        warnings = provenance_warnings(metadata, media_metadata) + capture_protocol_warnings(metadata)
+
+        if kind == "image-set":
+            frame_records, source_hash, sampling_diagnostics = _ingest_image_set(
+                source=source,
+                experiment_dir=experiment_dir,
+                capture_dir=capture_dir,
+                capture_id=capture_id,
+                sampling_plan=sampling_plan,
+            )
+        else:
+            frame_records, source_hash, sampling_diagnostics = _ingest_video(
+                source=source,
+                experiment_dir=experiment_dir,
+                capture_dir=capture_dir,
+                capture_id=capture_id,
+                sampling_plan=sampling_plan,
+            )
+
+        if not frame_records:
+            raise ValueError(f"No frames were ingested from {source}")
+
+        source_record = {
+            "source_id": source_id,
+            "path": str(source),
+            "kind": kind,
+            "label": label,
+            "sha256": source_hash,
+            "created_at": utc_now_iso(),
+            "metadata": metadata,
+            "media_metadata": media_metadata,
+            "provenance_warnings": warnings,
+        }
+        capture_record = {
+            "capture_id": capture_id,
+            "source_id": source_id,
+            "kind": kind,
+            "label": label,
+            "frames": frame_records,
+            "created_at": utc_now_iso(),
+            "metadata": metadata,
+            "media_metadata": media_metadata,
+            "provenance_warnings": warnings,
+            "sampling": sampling_diagnostics,
+        }
+
+        manifest["sources"].append(source_record)
+        manifest["captures"].append(capture_record)
+        manifest["frame_sampling"].update(sampling_plan)
+        manifest.setdefault("validation_warnings", []).append(
+            {"capture_id": capture_id, "source_id": source_id, "warnings": warnings}
         )
-    else:
-        frame_records, source_hash, sampling_diagnostics = _ingest_video(
-            source=source,
-            experiment_dir=experiment_dir,
-            capture_dir=capture_dir,
-            capture_id=capture_id,
-            sampling_plan=sampling_plan,
-        )
-
-    if not frame_records:
-        raise ValueError(f"No frames were ingested from {source}")
-
-    source_record = {
-        "source_id": source_id,
-        "path": str(source),
-        "kind": kind,
-        "label": label,
-        "sha256": source_hash,
-        "created_at": utc_now_iso(),
-        "metadata": metadata,
-        "media_metadata": media_metadata,
-        "provenance_warnings": warnings,
-    }
-    capture_record = {
-        "capture_id": capture_id,
-        "source_id": source_id,
-        "kind": kind,
-        "label": label,
-        "frames": frame_records,
-        "created_at": utc_now_iso(),
-        "metadata": metadata,
-        "media_metadata": media_metadata,
-        "provenance_warnings": warnings,
-        "sampling": sampling_diagnostics,
-    }
-
-    manifest["sources"].append(source_record)
-    manifest["captures"].append(capture_record)
-    manifest["frame_sampling"].update(sampling_plan)
-    manifest.setdefault("validation_warnings", []).append(
-        {"capture_id": capture_id, "source_id": source_id, "warnings": warnings}
-    )
-    write_manifest(experiment_dir, manifest)
+        write_manifest(experiment_dir, manifest)
+    except BaseException:
+        # Recover from Python exceptions, timeouts and interruption; process
+        # termination inside a native codec cannot execute Python cleanup.
+        try:
+            shutil.rmtree(capture_dir)
+        except OSError:
+            LOGGER.warning("Could not clean failed capture output; review the experiment frames folder", exc_info=True)
+        raise
     return manifest
 
 
