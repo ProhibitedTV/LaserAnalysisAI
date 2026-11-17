@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -78,6 +79,61 @@ class DiagnosticsTests(unittest.TestCase):
                 "failure": "executable not found",
             },
         )
+
+    def test_linux_native_import_probe_succeeds_without_exposing_output(self) -> None:
+        completed = subprocess.CompletedProcess(["python", "-c", "import cv2"], 0, b"", b"")
+        with (
+            patch("laserlab.diagnostics.sys.platform", "linux"),
+            patch.object(sys, "frozen", False, create=True),
+            patch("laserlab.diagnostics.subprocess.run", return_value=completed) as run,
+        ):
+            record = diagnostics._opencv_import_record()
+        self.assertEqual(record, {"status": "available"})
+        self.assertEqual(run.call_args.kwargs["timeout"], 10)
+        self.assertEqual(run.call_args.kwargs["stderr"], subprocess.PIPE)
+
+    def test_linux_native_import_probe_classifies_missing_shared_library_without_leaking_paths(self) -> None:
+        error = b"ImportError: libGL.so.1: cannot open shared object file: /home/private/video.png"
+        completed = subprocess.CompletedProcess(["python", "-c", "import cv2"], 1, b"", error)
+        with (
+            patch("laserlab.diagnostics.sys.platform", "linux"),
+            patch.object(sys, "frozen", False, create=True),
+            patch("laserlab.diagnostics.subprocess.run", return_value=completed),
+        ):
+            record = diagnostics._opencv_import_record()
+        self.assertEqual(record, {"status": "failed", "failure": "shared_library_load_failed", "exit_code": 1})
+        self.assertNotIn("private", json.dumps(record))
+        self.assertNotIn("libGL", json.dumps(record))
+
+    def test_linux_native_import_probe_contains_a_native_crash_and_timeout(self) -> None:
+        crashed = subprocess.CompletedProcess(["python"], -11, b"", b"Segmentation fault")
+        with (
+            patch("laserlab.diagnostics.sys.platform", "linux"),
+            patch.object(sys, "frozen", False, create=True),
+            patch("laserlab.diagnostics.subprocess.run", return_value=crashed),
+        ):
+            self.assertEqual(
+                diagnostics._opencv_import_record(),
+                {"status": "failed", "failure": "native_process_terminated", "exit_code": -11},
+            )
+        with (
+            patch("laserlab.diagnostics.sys.platform", "linux"),
+            patch.object(sys, "frozen", False, create=True),
+            patch("laserlab.diagnostics.subprocess.run", side_effect=subprocess.TimeoutExpired("python", 10)),
+        ):
+            self.assertEqual(diagnostics._opencv_import_record(), {"status": "timeout"})
+
+    def test_packaged_opencv_probe_never_executes_the_app_as_python(self) -> None:
+        with (
+            patch("laserlab.diagnostics.sys.platform", "linux"),
+            patch.object(sys, "frozen", True, create=True),
+            patch("laserlab.diagnostics.subprocess.run") as run,
+        ):
+            self.assertEqual(
+                diagnostics._opencv_import_record(),
+                {"status": "not_checked", "reason": "packaged_executable"},
+            )
+        run.assert_not_called()
 
     def test_state_paths_follow_platform_conventions(self) -> None:
         with (
