@@ -111,6 +111,44 @@ class FailedCaptureCleanupTests(unittest.TestCase):
         self._unchanged()
         self.assertEqual(list(self.frames.iterdir()), [])
 
+    def test_successful_image_import_keeps_registered_frames(self) -> None:
+        def ingest_one(*, capture_dir: Path, capture_id: str, **_kwargs: object) -> tuple:
+            frame = capture_dir / "frame_000000.png"
+            frame.write_bytes(b"synthetic-frame")
+            return (
+                [{"frame_id": capture_id + "-frame-000000",
+                  "path": "frames/" + capture_id + "/frame_000000.png"}],
+                "hash",
+                {"selected_frames": 1},
+            )
+
+        with (
+            patch("laserlab.ingest.inspect_source", return_value={}),
+            patch("laserlab.ingest._ingest_image_set", side_effect=ingest_one),
+        ):
+            manifest = self._add()
+
+        self.assertEqual(len(manifest["captures"]), 1)
+        saved = manifest["captures"][0]["frames"][0]["path"]
+        self.assertEqual((self.experiment / saved).read_bytes(), b"synthetic-frame")
+        self.assertEqual(load_manifest(self.experiment)["captures"][0]["frames"][0]["path"], saved)
+
+    def test_symlinked_frames_folder_cannot_escape_experiment(self) -> None:
+        outside = self.root / "external-footage"
+        outside.mkdir()
+        (outside / "keep.png").write_bytes(b"external source")
+        try:
+            self.frames.symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"Symlinks unavailable: {exc}")
+
+        with self.assertRaisesRegex(ValueError, "inside the experiment"):
+            self._add()
+
+        self._unchanged()
+        self.assertEqual((outside / "keep.png").read_bytes(), b"external source")
+        self.assertEqual(list(outside.iterdir()), [outside / "keep.png"])
+
     def test_existing_directory_collision_is_never_deleted(self) -> None:
         class FixedUUID:
             hex = "abcd012345" + "0" * 22
