@@ -111,6 +111,8 @@ Use **Help > Export Support Bundle** or `LaserLabCLI support-bundle --output Las
 
 **OCR unavailable:** Tesseract is a separate optional executable. Install it for your operating system and make it discoverable on `PATH`. LaserLab continues with non-OCR detectors when it is absent.
 
+**Add Capture fails partway through:** For ordinary Python errors, LaserLab removes only the new, incomplete capture directory. Previously imported frames, saved captures and original source recordings are not intentionally deleted. A hard native process crash cannot run Python cleanup and may leave unused output in the experiment's `frames` directory; preserve and back up your experiment before investigating orphan folders. Report the exact error or a reviewed, redacted support bundle rather than sharing source footage.
+
 **Video opens with zero frames:** the OpenCV build may not support that codec. Convert a copy to H.264 MP4 or an image sequence, retain the original file, and document the conversion in capture metadata.
 
 **Paths fail:** extract the release before running it. Packaged builds default to a per-user LaserLab experiment folder; choose another short writable path when needed. Avoid network shares for initial troubleshooting.
