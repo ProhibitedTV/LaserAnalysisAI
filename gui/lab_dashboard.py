@@ -1426,6 +1426,11 @@ class LabDashboardWindow(QMainWindow):
                 item = dependencies.get(name, {})
                 version = f" {item.get('version')}" if item.get("version") else ""
                 lines.append(f"  {name}: {item.get('status', 'unknown')}{version}")
+            native = record.get("native_runtime", {}).get("opencv_import", {})
+            if native.get("status") in {"available", "failed", "timeout", "probe_failed"}:
+                lines.append(f"  OpenCV native import (Linux source): {native['status']}")
+                if native["status"] != "available":
+                    lines.append("  OpenCV could not be verified. See Help > Troubleshooting guide (Linux / WSL).")
             lines.extend(
                 [
                     "",
