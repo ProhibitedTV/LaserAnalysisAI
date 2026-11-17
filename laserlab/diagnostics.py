@@ -159,6 +159,7 @@ def collect_diagnostics(experiment_dir: str | os.PathLike[str] | None = None) ->
             "machine": platform.machine() or "unknown",
         },
         "dependencies": {name: _dependency_record(distributions) for name, distributions in _DEPENDENCIES.items()},
+        "native_runtime": {"opencv_import": _opencv_import_record()},
         "ocr": {
             "optional": True,
             "required_for_core_analysis": False,
@@ -241,6 +242,55 @@ def _entrypoint_kind() -> str:
     executable_name = Path(sys.executable).stem.lower()
     return "cli" if executable_name.endswith("cli") else "gui"
 
+
+
+def _opencv_import_record() -> dict[str, Any]:
+    """Probe Linux OpenCV in a child process so native loader errors cannot crash System Check.
+
+    Never export the child process stderr: it can contain private paths.
+    Packaged executables cannot be invoked using Python's -c flag.
+    """
+    if sys.platform != "linux":
+        return {"status": "not_checked", "reason": "linux_source_only"}
+    if getattr(sys, "frozen", False):
+        return {"status": "not_checked", "reason": "packaged_executable"}
+    if not sys.executable:
+        return {"status": "probe_failed"}
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", "import cv2"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {"status": "timeout"}
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {"status": "probe_failed"}
+
+    if result.returncode == 0:
+        return {"status": "available"}
+
+    error = result.stderr or b""
+    if isinstance(error, bytes):
+        error = error.decode("utf-8", errors="replace")
+    shared_library_missing = any(
+        marker in error.lower()
+        for marker in (
+            "cannot open shared object file",
+            "undefined symbol",
+            "error while loading shared libraries",
+        )
+    )
+    if shared_library_missing:
+        failure = "shared_library_load_failed"
+    elif result.returncode < 0:
+        failure = "native_process_terminated"
+    else:
+        failure = "import_failed"
+    return {"status": "failed", "failure": failure, "exit_code": result.returncode}
 
 def _dependency_record(distributions: tuple[str, ...]) -> dict[str, Any]:
     for distribution in distributions:
