@@ -6,6 +6,8 @@ import html
 import re
 from typing import Iterable
 
+from .branding import ALLOWED_BRAND_FAMILIES
+
 
 COLORS = {
     "canvas": "#070b12",
@@ -105,7 +107,7 @@ def dashboard_stylesheet(brand_font_family: str | None = None) -> str:
     c = COLORS
     tones = TONE_COLORS
     # Never interpolate arbitrary font names into Qt stylesheets.
-    wordmark_family = '"CodeOfReality"' if brand_font_family == "CodeOfReality" else '"Segoe UI"'
+    wordmark_family = f'"{brand_font_family}"' if brand_font_family in ALLOWED_BRAND_FAMILIES else '"Segoe UI"'
     return f"""
         QMainWindow, QWidget {{ background: {c['canvas']}; color: {c['text']}; font-family: "Segoe UI"; font-size: 12px; }}
         QMenuBar, QMenu, QStatusBar {{ background: {c['field']}; color: {c['text_soft']}; }}
