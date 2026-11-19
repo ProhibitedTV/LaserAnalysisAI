@@ -28,6 +28,7 @@ if str(ROOT) not in sys.path:
 
 from laserlab import __version__  # noqa: E402
 from laserlab.fixtures import FIXTURE_CATALOG, validate_fixture_catalog  # noqa: E402
+from laserlab.branding import BRAND_FONT_VARIANTS  # noqa: E402
 
 BUNDLED_METADATA = ("fixture_manifest.json", "ATTRIBUTION.md", "optical_benchmark_reference.json",
                     "optical_benchmark_observations.json")
@@ -97,6 +98,35 @@ def _stage_resources(build_root: Path) -> Path:
     return destination
 
 
+def _stage_authorized_fonts(build_root: Path) -> Path | None:
+    """Optional release-only font staging; never ingest arbitrary source files.
+
+    Release operators must explicitly attest they hold distribution permission.
+    Without both the local source directory and authorization flag, normal
+    public builds remain free of third-party fonts.
+    """
+    source_value = os.environ.get("LASERLAB_RELEASE_FONTS_DIR", "").strip()
+    if not source_value:
+        return None
+    if os.environ.get("LASERLAB_FONT_REDISTRIBUTION_CONFIRMED") != "yes":
+        raise ValueError("Set LASERLAB_FONT_REDISTRIBUTION_CONFIRMED=yes only with permission to redistribute all fonts")
+    source_dir = Path(source_value).expanduser().resolve()
+    if not source_dir.is_dir():
+        raise ValueError("The authorized font source directory does not exist")
+    destination = build_root / "resources" / "fonts"
+    filenames = sorted({spec[1] for spec in BRAND_FONT_VARIANTS.values()})
+    for name in filenames:
+        source = source_dir / name
+        if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(source_dir):
+            raise ValueError(f"Required authorized font file missing or unsafe: {name}")
+        if source.stat().st_size > 2 * 1024 * 1024 or source.stat().st_size < 1024:
+            raise ValueError(f"Invalid or unexpected authorized font size: {name}")
+    destination.mkdir(parents=True, exist_ok=False)
+    for name in filenames:
+        shutil.copy2(source_dir / name, destination / name)
+    return destination
+
+
 def default_target() -> str:
     system = {
         "Windows": "windows",
@@ -126,6 +156,7 @@ def _pyinstaller_command(
     windowed: bool,
     *,
     media_dir: Path | None = None,
+    fonts_dir: Path | None = None,
 ) -> list[str]:
     command = [
         sys.executable,
@@ -149,6 +180,8 @@ def _pyinstaller_command(
         "--add-data",
         f"{media_dir or ROOT / 'sample_media'}{os.pathsep}sample_media",
     ]
+    if fonts_dir is not None:
+        command.extend(["--add-data", f"{fonts_dir}{os.pathsep}fonts"])
     if windowed:
         command.append("--windowed")
     command.append(str(ROOT / launcher))
@@ -239,9 +272,10 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
     work_dir.mkdir(parents=True)
     spec_dir.mkdir(parents=True)
     media_dir = _stage_resources(build_root)
+    fonts_dir = _stage_authorized_fonts(build_root)
 
-    _run(_pyinstaller_command("laserlab_launcher.py", "LaserLab", dist_dir, work_dir / "gui", spec_dir, True, media_dir=media_dir))
-    _run(_pyinstaller_command("laserlab_cli_launcher.py", "LaserLabCLI", dist_dir, work_dir / "cli", spec_dir, False, media_dir=media_dir))
+    _run(_pyinstaller_command("laserlab_launcher.py", "LaserLab", dist_dir, work_dir / "gui", spec_dir, True, media_dir=media_dir, fonts_dir=fonts_dir))
+    _run(_pyinstaller_command("laserlab_cli_launcher.py", "LaserLabCLI", dist_dir, work_dir / "cli", spec_dir, False, media_dir=media_dir, fonts_dir=fonts_dir))
 
     gui_product = _gui_product(dist_dir)
     cli_product = dist_dir / executable_name("LaserLabCLI")
@@ -257,6 +291,8 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
     shutil.copy2(ROOT / "README.md", bundle_dir / "README.md")
     shutil.copy2(ROOT / "LICENSE", bundle_dir / "LICENSE")
     shutil.copytree(media_dir, bundle_dir / "sample_media")
+    if fonts_dir is not None:
+        shutil.copytree(fonts_dir, bundle_dir / "fonts")
     (bundle_dir / "BUILD-INFO.json").write_text(
         json.dumps(
             {
@@ -267,6 +303,8 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
                 "machine": platform.machine(),
                 "built_at_utc": datetime.now(timezone.utc).isoformat(),
                 "checksums_file": "SHA256SUMS",
+                "bundled_codeofreality_font_count": (len(BRAND_FONT_VARIANTS) if fonts_dir is not None else 0),
+                "font_redistribution_attested_by_release_builder": fonts_dir is not None,
                 "qualification": "headless startup/resources/demo/diagnostics/benchmark; native UI acceptance is separate",
             },
             indent=2,
