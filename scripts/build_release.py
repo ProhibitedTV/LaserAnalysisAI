@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,6 +34,9 @@ from laserlab.branding import BRAND_FONT_VARIANTS  # noqa: E402
 BUNDLED_METADATA = ("fixture_manifest.json", "ATTRIBUTION.md", "optical_benchmark_reference.json",
                     "optical_benchmark_observations.json")
 FONT_RIGHTS_NOTICE = "CODEOFREALITY-PERMISSION.txt"
+VENDORED_FONT_ARCHIVE = Path("assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz")
+VENDORED_FONT_ARCHIVE_SHA256 = "ad07981b0bdf10d2d6c51a9a2cfe1f3ffc00bac1f7920a19fd491884d7b7a2a7"
+VENDORED_FONT_ATTESTATION = Path("docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md")
 
 
 def _git(*arguments: str, allow_missing: bool = False) -> str:
@@ -110,6 +114,52 @@ def _expected_font_hashes() -> dict[str, str]:
     return {name: records[name]["sha256"] for name in sorted(expected)}
 
 
+def _stage_vendored_codeofreality_fonts(build_root: Path) -> Path | None:
+    """Stage the seven maintainer-authorized fonts from a pinned source archive.
+
+    Inspect archive members and checksums before writing. Never use tarfile's
+    extractall: only regular, exact-name, bounded members are permitted.
+    """
+    archive = ROOT / VENDORED_FONT_ARCHIVE
+    if not archive.is_file():
+        return None
+    notice = ROOT / VENDORED_FONT_ATTESTATION
+    if archive.is_symlink() or notice.is_symlink() or not notice.is_file():
+        raise ValueError("Vendored CodeOfReality archive or authorization attestation is unsafe or missing")
+    if not 1024 <= archive.stat().st_size <= 2 * 1024 * 1024:
+        raise ValueError("Vendored CodeOfReality archive size is outside expected limits")
+    if _sha256(archive) != VENDORED_FONT_ARCHIVE_SHA256:
+        raise ValueError("Vendored CodeOfReality archive fingerprint mismatch")
+    notice_text = notice.read_text(encoding="utf-8")
+    if "direct permission" not in notice_text or "Discord" not in notice_text:
+        raise ValueError("Vendored CodeOfReality authorization attestation is incomplete")
+
+    expected = _expected_font_hashes()
+    destination = build_root / "resources" / "fonts"
+    try:
+        with tarfile.open(archive, "r:xz") as records:
+            members = records.getmembers()
+            named = {member.name: member for member in members}
+            if len(named) != len(members) or set(named) != set(expected):
+                raise ValueError("Vendored CodeOfReality archive does not contain exactly the seven reviewed fonts")
+            for name, member in named.items():
+                if not member.isfile() or not 1024 <= member.size <= 2 * 1024 * 1024:
+                    raise ValueError(f"Unsafe font archive member: {name}")
+            destination.mkdir(parents=True, exist_ok=False)
+            for name in sorted(expected):
+                source = records.extractfile(named[name])
+                if source is None:
+                    raise ValueError(f"Missing font bytes in archive: {name}")
+                with source, (destination / name).open("xb") as output:
+                    shutil.copyfileobj(source, output)
+                if _sha256(destination / name) != expected[name]:
+                    raise ValueError(f"Vendored font fingerprint mismatch: {name}")
+    except (tarfile.TarError, EOFError) as exc:
+        raise ValueError("Vendored CodeOfReality archive cannot be decoded") from exc
+    shutil.copy2(notice, destination / FONT_RIGHTS_NOTICE)
+    return destination
+
+
 def _stage_authorized_fonts(build_root: Path) -> Path | None:
     """Optional release-only font staging; never ingest arbitrary source files.
 
@@ -119,7 +169,7 @@ def _stage_authorized_fonts(build_root: Path) -> Path | None:
     """
     source_value = os.environ.get("LASERLAB_RELEASE_FONTS_DIR", "").strip()
     if not source_value:
-        return None
+        return _stage_vendored_codeofreality_fonts(build_root)
     if os.environ.get("LASERLAB_FONT_REDISTRIBUTION_CONFIRMED") != "yes":
         raise ValueError("Set LASERLAB_FONT_REDISTRIBUTION_CONFIRMED=yes only with permission to redistribute all fonts")
     source_dir = Path(source_value).expanduser().resolve()
@@ -348,6 +398,11 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
                 "checksums_file": "SHA256SUMS",
                 "bundled_codeofreality_font_count": (len(BRAND_FONT_VARIANTS) if fonts_dir is not None else 0),
                 "font_redistribution_attested_by_release_builder": fonts_dir is not None,
+                "codeofreality_distribution_record": (
+                    str(VENDORED_FONT_ATTESTATION)
+                    if fonts_dir is not None and not os.environ.get("LASERLAB_RELEASE_FONTS_DIR", "").strip()
+                    else None
+                ),
                 "qualification": "headless startup/resources/demo/diagnostics/benchmark; native UI acceptance is separate",
             },
             indent=2,
