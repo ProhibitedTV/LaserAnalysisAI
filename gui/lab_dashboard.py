@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PyQt5.QtCore import QThread, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QCloseEvent, QDesktopServices, QPixmap
+from PyQt5.QtGui import QCloseEvent, QDesktopServices, QFont, QFontDatabase, QPixmap
 from PyQt5.QtWidgets import (
     QAction,
     QActionGroup,
@@ -44,7 +44,10 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
-from laserlab.branding import BRAND_FONT_VARIANTS, BRAND_WORDMARK, brand_font_path, install_local_fonts, load_brand_font
+from laserlab.branding import (
+    BRAND_FONT_VARIANTS, BRAND_STYLED_VARIANTS, BRAND_WORDMARK,
+    brand_font_path, install_local_fonts, load_brand_font,
+)
 from laserlab.font_ocr import FONT_OCR_ENV
 from laserlab.font_qualification import inspect_font_resources
 from laserlab.artifacts import checked_image_artifact, load_json
@@ -1219,6 +1222,18 @@ class LabDashboardWindow(QMainWindow):
 
     def _apply_style(self) -> None:
         self.setStyleSheet(dashboard_stylesheet(self.brand_font_family))
+        # Qt combines Symbols Regular, 3D and Outline under one OpenType
+        # typographic family. Font stylesheet family alone would display the
+        # Regular face for all three choices; apply the correct styleName to
+        # the decorative wordmark labels only.
+        styled = BRAND_STYLED_VARIANTS.get(self.brand_font_variant)
+        for label in self.findChildren(QLabel, "brandWordmark"):
+            if styled is not None and self.brand_font_family == styled[0]:
+                font = QFontDatabase().font(styled[0], styled[1], 36)
+                font.setStyleName(styled[1])
+                label.setFont(font)
+            else:
+                label.setFont(QFont())
 
     def change_brand_font(self, variant: str) -> None:
         """Switch decorative wordmark font without affecting scientific content."""
