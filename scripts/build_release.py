@@ -292,6 +292,12 @@ def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False
         subprocess.run([str(gui_executable), "--smoke-demo"], cwd=unrelated_cwd, check=True, timeout=120)
         subprocess.run([str(cli_product), "--help"], cwd=unrelated_cwd, check=True, timeout=60)
         if fonts_included:
+            font_smoke_env = os.environ.copy()
+            font_smoke_env.setdefault("QT_QPA_PLATFORM", "offscreen")
+            subprocess.run(
+                [str(gui_executable), "--smoke-fonts"],
+                cwd=unrelated_cwd, env=font_smoke_env, check=True, timeout=120,
+            )
             checked = subprocess.run(
                 [str(cli_product), "font-verify", "--require-all"],
                 cwd=unrelated_cwd, check=True, timeout=120,
