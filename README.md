@@ -89,7 +89,9 @@ python -m laserlab.cli font-ocr --image C:\\Research\\glyph-test.png --variant a
 ```
 
 To also include these experiments in the regular blinded analysis pipeline,
-opt in before launching LaserLab or running its CLI:
+turn on **Appearance > Compare CodeOfReality glyphs (experimental)** in the
+desktop app before starting a new run (this switch is session-only).
+Alternatively, opt in before launching LaserLab or running its CLI:
 
 ```powershell
 $env:LASERLAB_FONT_OCR_VARIANTS = "all"   # or "classic,circuit,oracle"
