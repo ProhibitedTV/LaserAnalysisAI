@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import tempfile
 import types
@@ -13,6 +15,8 @@ from laserlab.branding import (
     BRAND_FONT_ENV,
     BRAND_FONT_FILENAME,
     BRAND_FONT_FAMILY,
+    KNOWN_FONT_SHA256,
+    install_local_fonts,
     BRAND_FONT_VARIANTS,
     ALLOWED_BRAND_FAMILIES,
     BRAND_WORDMARK,
@@ -102,6 +106,52 @@ class BrandingTests(unittest.TestCase):
         self.assertIsNone(load_brand_font("not-a-style"))
         with self.assertRaises(ValueError):
             brand_font_path("not-a-style")
+
+    def test_reference_hashes_match_documented_uploaded_font_manifest(self):
+        manifest_path = Path(__file__).resolve().parents[1] / "docs" / "codeofreality_font_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            {name: record["sha256"] for name, record in manifest["filenames"].items()},
+            KNOWN_FONT_SHA256,
+        )
+
+    def test_local_install_checks_all_seven_hashes_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "uploads"
+            target = Path(directory) / "local-fonts"
+            source.mkdir()
+            sample = b"font fixture bytes" * 128
+            fake_hashes = {name: hashlib.sha256(sample).hexdigest() for name in KNOWN_FONT_SHA256}
+            for name in fake_hashes:
+                upload_name = "CodeOfRealityV1.otf_1" if name == "CodeOfRealityV1.otf" else name
+                (source / upload_name).write_bytes(sample)
+            with patch.dict(KNOWN_FONT_SHA256, fake_hashes, clear=True):
+                first = install_local_fonts(source, destination_dir=target)
+                self.assertEqual(first, {"installed": 7, "already_present": 0, "total": 7})
+                second = install_local_fonts(source, destination_dir=target)
+                self.assertEqual(second, {"installed": 0, "already_present": 7, "total": 7})
+                self.assertEqual({path.name for path in target.iterdir()}, set(fake_hashes))
+
+    def test_local_install_rejects_changes_before_writing_or_overwriting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "uploads"
+            target = Path(directory) / "local-fonts"
+            source.mkdir()
+            sample = b"font fixture bytes" * 128
+            fake_hashes = {name: hashlib.sha256(sample).hexdigest() for name in KNOWN_FONT_SHA256}
+            for name in fake_hashes:
+                (source / name).write_bytes(sample)
+            with patch.dict(KNOWN_FONT_SHA256, fake_hashes, clear=True):
+                (source / "CodeOfReality-Oracle.ttf").write_bytes(b"wrong font")
+                with self.assertRaisesRegex(ValueError, "CodeOfReality-Oracle.ttf"):
+                    install_local_fonts(source, destination_dir=target)
+                self.assertFalse(target.exists())
+                (source / "CodeOfReality-Oracle.ttf").write_bytes(sample)
+                target.mkdir()
+                (target / "CodeOfReality-Circuit.ttf").write_bytes(b"different font")
+                with self.assertRaisesRegex(ValueError, "different installed font"):
+                    install_local_fonts(source, destination_dir=target)
+                self.assertEqual({path.name for path in target.iterdir()}, {"CodeOfReality-Circuit.ttf"})
 
     def test_unexpected_family_falls_back(self):
         with tempfile.TemporaryDirectory() as temporary:
