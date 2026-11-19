@@ -292,7 +292,11 @@ class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
             with patch.dict(os.environ, {
                 "LASERLAB_RELEASE_FONTS_DIR": str(source),
                 "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
-            }):
+            }), patch.object(
+                release, "_expected_font_hashes",
+                return_value={spec[1]: hashlib.sha256(b"x" * 2048).hexdigest()
+                              for spec in BRAND_FONT_VARIANTS.values()},
+            ):
                 (source / "CodeOfReality-Oracle.ttf").unlink()
                 with self.assertRaisesRegex(ValueError, "CodeOfReality-Oracle"):
                     release._stage_authorized_fonts(build_root)
