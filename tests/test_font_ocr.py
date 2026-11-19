@@ -167,6 +167,37 @@ class FontOCRTests(unittest.TestCase):
         self.assertEqual(len(attempts), 2)
         self.assertIn("codeofreality-template:oracle", summary["engine_ids"])
         self.assertEqual(summary["attempt_count"], 2)
+        self.assertEqual(summary["agreement_scope"], "per_roi_primary_only")
+        self.assertEqual(summary["roi_results"][0]["agreement"]["total_attempts"], 1)
+        experimental = summary["roi_results"][0]["experimental_codeofreality"]
+        self.assertEqual(experimental["agreement"]["total_attempts"], 1)
+        self.assertIn("unvalidated", experimental["interpretation"])
+
+    def test_multiple_correlated_font_attempts_cannot_outvote_primary(self):
+        image, _ = _synthetic_reference()
+        ctx = DetectorContext(Path("."), Path("."), "blind-1", "raw", image)
+        rois = [{
+            "id": "roi-001", "score": 0.9, "fallback": False,
+            "bbox": {"x": 0, "y": 0, "width": 220, "height": 110},
+            "processed_bbox": {"x": 0, "y": 0, "width": 220, "height": 110},
+        }]
+        primary = DeterministicStubAdapter("tesseract", OCRPayload(text="unrelated", confidence=0.9))
+        correlated = [
+            DeterministicStubAdapter(f"codeofreality-template:{variant}", OCRPayload(text="abc"))
+            for variant in BRAND_FONT_VARIANTS
+        ]
+        with patch("laserlab.detectors._TESSERACT_ADAPTER", primary), patch(
+            "laserlab.detectors.configured_font_ocr_adapters", return_value=correlated
+        ):
+            legacy, attempts, summary = run_roi_ocr(image, rois, ctx)
+        self.assertEqual(legacy["text"], "unrelated")
+        self.assertEqual(len(attempts), 8)
+        result = summary["roi_results"][0]
+        self.assertEqual(result["agreement"]["consensus"]["text"], "unrelated")
+        self.assertEqual(result["agreement"]["total_attempts"], 1)
+        self.assertEqual(result["experimental_codeofreality"]["agreement"]["total_attempts"], 7)
+        self.assertEqual(summary["agreement_scope"], "per_roi_primary_only")
+
 
 
 if __name__ == "__main__":
