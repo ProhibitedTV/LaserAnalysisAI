@@ -220,9 +220,11 @@ def run_roi_ocr(
     )[:limit]
     attempts: list[dict[str, Any]] = []
     roi_results: list[dict[str, Any]] = []
-    # Explicitly enabled experimental reference-font attempts appear beside
-    # Tesseract results, never in the primary scientific OCR score.
-    adapters = [_TESSERACT_ADAPTER, *configured_font_ocr_adapters()]
+    # Keep exploratory font-template votes separate from the primary OCR
+    # agreement calculation: variants share underlying designs and are NOT
+    # independent engines that can outvote a standard OCR result.
+    font_adapters = configured_font_ocr_adapters()
+    primary_attempts: list[dict[str, Any]] = []
     for roi in ordered:
         x, y, width, height = _bbox_values(roi["processed_bbox"])
         crop = processed_image[y:y + height, x:x + width]
@@ -234,37 +236,41 @@ def run_roi_ocr(
             "crop_path": roi.get("crop_path"),
             "processed_crop_path": roi.get("processed_crop_path"),
         }
-        ensemble = run_ocr_ensemble(
-            adapters,
-            OCRRequest(
-                image=crop,
-                roi_reference=reference,
-                preprocessing_metadata={"variant": context.variant_name},
-                timeout_seconds=30.0,
-                language="eng",
-            ),
+        request = OCRRequest(
+            image=crop,
+            roi_reference=reference,
+            preprocessing_metadata={"variant": context.variant_name},
+            timeout_seconds=30.0,
+            language="eng",
         )
-        attempts.extend(ensemble["attempts"])
+        primary = run_ocr_ensemble([_TESSERACT_ADAPTER], request)
+        exploratory = run_ocr_ensemble(font_adapters, request) if font_adapters else None
+        primary_attempts.extend(primary["attempts"])
+        attempts.extend(primary["attempts"])
+        if exploratory is not None:
+            attempts.extend(exploratory["attempts"])
         roi_results.append(
             {
                 "roi_reference": reference,
-                "agreement": ensemble["agreement"],
+                "agreement": primary["agreement"],
+                "experimental_codeofreality": None if exploratory is None else {
+                    "agreement": exploratory["agreement"],
+                    "engine_ids": [item["engine_id"] for item in exploratory["attempts"]],
+                    "interpretation": "Reference-font shape matches only; unvalidated, not independent OCR votes.",
+                },
             }
         )
-        if ensemble["attempts"] and not any(item.get("available") for item in ensemble["attempts"]):
+        if attempts and not any(item.get("available") for item in attempts):
             break
 
     ensemble_summary = {
         "schema_version": "1.0",
-        "agreement_scope": "per_roi",
+        "agreement_scope": "per_roi_primary_only",
         "engine_ids": sorted({str(item.get("engine_id", "")) for item in attempts}),
         "attempt_count": len(attempts),
         "roi_results": roi_results,
     }
-    # Font-template matches are exploratory reference-shape annotations; they
-    # MUST NOT silently replace validated primary OCR scoring.
-    tesseract_attempts = [item for item in attempts if item.get("engine_id") == _TESSERACT_ADAPTER.engine_id]
-    return legacy_ocr_summary(tesseract_attempts), attempts, ensemble_summary
+    return legacy_ocr_summary(primary_attempts), attempts, ensemble_summary
 
 
 def legacy_ocr_summary(attempts: list[dict[str, Any]]) -> dict[str, Any]:
