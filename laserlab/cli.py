@@ -61,8 +61,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
             return 0 if result["all_verified"] or not args.require_all else 2
         if args.command == "font-install":
-            from .branding import install_local_fonts
-            result = install_local_fonts(args.source)
+            from .branding import install_font_archive, install_local_fonts
+            result = (
+                install_font_archive(args.archive)
+                if args.archive else install_local_fonts(args.source)
+            )
             print(json.dumps({"status": "local-only", **result}, sort_keys=True))
             return 0
         if args.command == "font-ocr":
@@ -268,7 +271,9 @@ def build_parser() -> argparse.ArgumentParser:
     font_verify = subparsers.add_parser("font-verify", help="Audit all seven optional CodeOfReality glyph references and checksums.")
     font_verify.add_argument("--require-all", action="store_true", help="Exit with failure unless every reviewed font is renderable.")
     font_install = subparsers.add_parser("font-install", help="Install all seven verified CodeOfReality files to local user storage.")
-    font_install.add_argument("--source", required=True, help="Folder containing the seven supplied OTF/TTF files.")
+    font_input = font_install.add_mutually_exclusive_group(required=True)
+    font_input.add_argument("--source", help="Folder containing the seven supplied OTF/TTF files.")
+    font_input.add_argument("--archive", help="The original authorized seven-font .tar.xz archive.")
     font_ocr = subparsers.add_parser("font-ocr", help="Experimental CodeOfReality reference-font OCR on one local image.")
     font_ocr.add_argument("--image", required=True, help="Local image containing isolated CodeOfReality glyphs.")
     font_ocr.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
