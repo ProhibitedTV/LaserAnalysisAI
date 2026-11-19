@@ -38,9 +38,15 @@ def main(argv: list[str] | None = None) -> int:
             reported = cv2.imread(str(args.reported_symbol_image), cv2.IMREAD_COLOR)
             if laser is None or reported is None:
                 raise ValueError("Cannot read one or both symbol comparison images")
+            control = None
+            if args.control_laser_image:
+                control = cv2.imread(str(args.control_laser_image), cv2.IMREAD_COLOR)
+                if control is None:
+                    raise ValueError("Cannot read the optional control laser image")
             result = compare_reported_and_laser_symbols(
                 laser, reported, variant=args.variant,
                 with_tesseract=not args.no_tesseract,
+                control_laser_image=control,
             )
             print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
             return 0
@@ -250,6 +256,10 @@ def build_parser() -> argparse.ArgumentParser:
     compare_symbols.add_argument("--laser-image", required=True, help="A local cropped laser-light symbol image.")
     compare_symbols.add_argument("--reported-symbol-image", required=True, help="A separately supplied reported-symbol crop.")
     compare_symbols.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
+    compare_symbols.add_argument(
+        "--control-laser-image",
+        help="Optional separate control laser crop, ideally from matched blinded capture conditions."
+    )
     compare_symbols.add_argument("--no-tesseract", action="store_true", help="Omit standard Tesseract OCR baselines.")
     font_calibrate = subparsers.add_parser(
         "font-calibrate", help="Measure CodeOfReality self-rendered glyph matches; NOT validation on laser captures."
