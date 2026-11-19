@@ -1,5 +1,20 @@
 # CodeOfReality font distribution permission
 
+**Current project status (2026-11-19):** The maintainer explicitly
+authorized the exact seven supplied CodeOfReality binaries for inclusion in
+public GitHub and the next LaserLab release, reporting direct permission from
+the creator over Discord. This provenance is recorded in
+[`CODEOFREALITY_DISTRIBUTION_ATTESTATION.md`](CODEOFREALITY_DISTRIBUTION_ATTESTATION.md).
+The approved source archive is now vendored as
+`assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz`, verified by its
+SHA-256 and each font's individual SHA-256. Native builds automatically
+include those fonts and a copy of the attestation. The original Discord
+message's exact legal terms have not been independently inspected.
+
+The following checklist still applies to **new, replacement, or externally
+supplied font files** and any additional license conditions. Do not assume
+that the maintainer's limited attestation licenses other font artwork.
+
 LaserLab's experimental OCR can use seven user-installed CodeOfReality fonts
 without the binaries appearing in the open-source repository. Shipping those
 font files in the public native installer is a **separate redistribution
