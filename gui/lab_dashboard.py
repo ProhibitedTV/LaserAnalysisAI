@@ -43,6 +43,7 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
+from laserlab.branding import BRAND_WORDMARK, load_brand_font
 from laserlab.artifacts import checked_image_artifact, load_json
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
@@ -205,6 +206,7 @@ class LabDashboardWindow(QMainWindow):
         self.comparison_directories: list[Path] = []
         self.preferences = preferences if preferences is not None else load_preferences()
         self.protocol_presets = app_api.list_protocol_presets()
+        self.brand_font_family = load_brand_font()
         self._build_ui()
         self._apply_style()
         self._load_fixtures()
@@ -285,8 +287,10 @@ class LabDashboardWindow(QMainWindow):
     def _setup_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        title = QLabel("LaserLab / explore recorded laser patterns")
-        title.setObjectName("title")
+        title = QLabel(BRAND_WORDMARK)
+        title.setObjectName("brandWordmark")
+        tagline = QLabel("Explore recorded laser patterns")
+        tagline.setObjectName("subtitle")
         subtitle = QLabel(
             "See what image-analysis tools find in laser recordings, then compare "
             "those findings against a similar control recording. No coding or login required."
@@ -294,6 +298,7 @@ class LabDashboardWindow(QMainWindow):
         subtitle.setObjectName("subtitle")
         subtitle.setWordWrap(True)
         layout.addWidget(title)
+        layout.addWidget(tagline)
         layout.addWidget(subtitle)
 
         beginner_tip = QLabel(
@@ -345,8 +350,8 @@ class LabDashboardWindow(QMainWindow):
     def _home_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        title = QLabel("LaserLab")
-        title.setObjectName("title")
+        title = QLabel(BRAND_WORDMARK)
+        title.setObjectName("brandWordmark")
         subtitle = QLabel("A local-first blinded validation lab for laser, diffraction, speckle, and symbol-recovery experiments.")
         subtitle.setObjectName("subtitle")
         layout.addWidget(title)
@@ -1179,7 +1184,7 @@ class LabDashboardWindow(QMainWindow):
         return page
 
     def _apply_style(self) -> None:
-        self.setStyleSheet(dashboard_stylesheet())
+        self.setStyleSheet(dashboard_stylesheet(self.brand_font_family))
 
     def show_quick_start(self) -> None:
         """Short, supportive guide for users without a technical background."""
