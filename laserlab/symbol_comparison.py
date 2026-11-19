@@ -7,7 +7,6 @@ not a decoder. Results never enter the primary blinded scientific score.
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any
 
 from .branding import BRAND_FONT_VARIANTS
@@ -73,6 +72,7 @@ def compare_reported_and_laser_symbols(
     *,
     variant: str = "all",
     with_tesseract: bool = True,
+    control_laser_image: Any | None = None,
 ) -> dict[str, Any]:
     """Return descriptive comparison only; never assert origin or language."""
     import numpy as np
@@ -81,6 +81,7 @@ def compare_reported_and_laser_symbols(
         raise ValueError("Unknown CodeOfReality font variant")
     for label, image in (
         ("laser", laser_image), ("reported symbol", reported_symbol_image),
+        *((("control laser", control_laser_image),) if control_laser_image is not None else ()),
     ):
         matrix = np.asarray(image)
         if matrix.ndim not in (2, 3) or matrix.size == 0:
@@ -88,6 +89,21 @@ def compare_reported_and_laser_symbols(
         if min(matrix.shape[:2]) < 8 or max(matrix.shape[:2]) > 2048:
             raise ValueError(f"The {label} image must be between 8 and 2048 pixels on each side")
 
+    raw_visual = _mask_comparison(laser_image, reported_symbol_image)
+    control_visual = (
+        _mask_comparison(control_laser_image, reported_symbol_image)
+        if control_laser_image is not None else None
+    )
+    control_delta = None
+    if (
+        control_visual is not None
+        and raw_visual["status"] == "measured"
+        and control_visual["status"] == "measured"
+    ):
+        control_delta = round(
+            control_visual["normalized_pixel_difference"]
+            - raw_visual["normalized_pixel_difference"], 6
+        )
     variants = list(BRAND_FONT_VARIANTS) if variant == "all" else [variant]
     comparisons = []
     for name in variants:
@@ -132,16 +148,24 @@ def compare_reported_and_laser_symbols(
             "reported_symbol": "user_supplied_reported_symbol_crop",
         },
         "font_reference_model": TEMPLATE_VERSION,
-        "comparison": _mask_comparison(laser_image, reported_symbol_image),
+        "comparison": raw_visual,
+        "laser_control": None if control_visual is None else {
+            "comparison": control_visual,
+            "laser_more_visually_similar_than_control": None if control_delta is None else control_delta > 0,
+            "difference_in_normalized_pixel_distance": control_delta,
+            "matching_capture_conditions_verified": False,
+        },
         "font_attempts": comparisons,
         "tesseract": tesseract,
         "independent_replicates": 0,
+        "user_supplied_control_crops": int(control_laser_image is not None),
         "matched_negative_controls": 0,
         "statistical_significance_estimated": False,
         "language_or_common_origin_established": False,
         "caution": (
             "These are image-shape comparisons and fallible OCR labels, not "
             "a decoding, validated DMT phenomenology dataset, or evidence of common origin. "
+            "A single supplied laser control is descriptive, not a significance test. "
             "Compare against blinded matched controls before claiming pattern specificity."
         ),
     }
