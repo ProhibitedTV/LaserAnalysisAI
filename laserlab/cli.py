@@ -31,6 +31,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "font-calibrate":
+            from .font_calibration import calibrate_reference_fonts
+            record = calibrate_reference_fonts(args.variant)
+            print(json.dumps(record, indent=2, sort_keys=True, allow_nan=False))
+            return 0 if record["evaluated_variants"] == record["variant_count"] else 2
         if args.command == "font-verify":
             from .font_qualification import inspect_font_resources
             result = inspect_font_resources()
@@ -226,6 +231,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     from .branding import BRAND_FONT_VARIANTS
+    font_calibrate = subparsers.add_parser(
+        "font-calibrate", help="Measure CodeOfReality self-rendered glyph matches; NOT validation on laser captures."
+    )
+    font_calibrate.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
     font_verify = subparsers.add_parser("font-verify", help="Audit all seven optional CodeOfReality glyph references and checksums.")
     font_verify.add_argument("--require-all", action="store_true", help="Exit with failure unless every reviewed font is renderable.")
     font_install = subparsers.add_parser("font-install", help="Install all seven verified CodeOfReality files to local user storage.")
