@@ -1258,13 +1258,20 @@ class LabDashboardWindow(QMainWindow):
         self._apply_style()
         count = verification["verified_variants"]
         self.status.showMessage(f"CodeOfReality local glyph references verified: {count}/7")
-        QMessageBox.information(
-            self, "CodeOfReality fonts installed",
+        message = (
             f"Installed {result['installed']} and found {result['already_present']} existing reviewed fonts.\n"
             f"Glyph references verified: {count}/7.\n\n"
             "OCR template comparisons are experimental and must be enabled separately in Appearance. "
             "No font files were uploaded to GitHub or a remote service."
         )
+        if count != len(BRAND_FONT_VARIANTS):
+            QMessageBox.warning(
+                self, "CodeOfReality verification incomplete",
+                message + "\n\nSome glyph references are unavailable or unreadable. "
+                "Use 'python -m laserlab.cli font-verify --require-all' for details."
+            )
+        else:
+            QMessageBox.information(self, "CodeOfReality fonts installed", message)
 
     def toggle_experimental_font_ocr(self, enabled: bool) -> None:
         """Opt in to unvalidated reference-glyph OCR for subsequent runs only."""
