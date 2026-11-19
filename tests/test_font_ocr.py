@@ -86,7 +86,7 @@ class FontOCRTests(unittest.TestCase):
         vertically_separated[130:240, 110:] = image[:, 110:]
         result = _match_reference(vertically_separated, templates)
         self.assertIsNone(result.text)
-        self.assertEqual(result.character_boxes, [])
+        self.assertEqual(len(result.character_boxes), 0)
 
     def test_character_boxes_track_each_glyph_not_the_full_word_height(self):
         image, templates = _synthetic_reference()
