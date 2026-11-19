@@ -7,7 +7,10 @@ rendered using these character-to-symbol maps.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import shutil
+import tempfile
 from pathlib import Path
 
 from .diagnostics import get_state_dir
@@ -32,6 +35,81 @@ BRAND_FONT_VARIANTS: dict[str, tuple[str, str, str]] = {
 BRAND_FONT_FILENAME = BRAND_FONT_VARIANTS["classic"][1]
 BRAND_FONT_FAMILY = BRAND_FONT_VARIANTS["classic"][2]
 ALLOWED_BRAND_FAMILIES = frozenset(item[2] for item in BRAND_FONT_VARIANTS.values())
+
+# SHA-256 of the user's seven reviewed font uploads. These identify reference
+# resources; they do not certify a redistribution license.
+KNOWN_FONT_SHA256 = {
+    "CodeOfRealityV1.otf": "d1f6a0ccb08c3863a0e05d07dc5efabd19b863f97b56f0646309088e116ae81a",
+    "CodeOfReality.ttf": "290b37e8d3d35c9bdf7f06f8b3a8768ee53acba6c97c218dd8d572da5d6fa3cb",
+    "CodeOfReality-Circuit.ttf": "2ea7c256eab5592180a73449bf4004bdd9881175bc4139eae83eb1dfb3f2c051",
+    "CodeOfReality-Oracle.ttf": "ebdc5b562eeedda503288969535c64fe5e0d99ae77428ca5abd038eb5a100c5e",
+    "CodeOfRealitySymbols 2.ttf": "9c79fa3c1c371f82c2946d30ad6a673d5a0724a158f441dc6d643501e57e5ef8",
+    "CodeOfRealitySymbols-3D.ttf": "9d9ee8df3617ec701b160816cb5ff713bcfd43ba8c46f714654adcd6222f71a0",
+    "CodeOfRealitySymbols-Outline.ttf": "39ebbd9aececa93566185758695b8200ff9ef7b554b5a3d6ba482dfe2eee1965",
+}
+
+# When files are exported from a chat upload, the first OTF may retain an
+# attachment suffix. Still require its exact known SHA-256.
+_FONT_UPLOAD_ALIASES = {
+    "CodeOfRealityV1.otf": ("CodeOfRealityV1.otf_1", "CodeOfRealityV1(1).otf_1"),
+}
+
+
+def _font_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def install_local_fonts(source_dir: str | Path, *, destination_dir: Path | None = None) -> dict[str, int]:
+    """Locally install the seven verified fonts without publishing them.
+
+    First validate every input and existing destination. Never overwrite an
+    unrecognized local font or silently accept a changed reference file.
+    """
+    source = Path(source_dir).expanduser()
+    if not source.is_dir():
+        raise ValueError("Source font directory does not exist")
+    target_dir = destination_dir if destination_dir is not None else get_state_dir() / "fonts"
+    inputs: dict[str, Path] = {}
+    for name, expected in KNOWN_FONT_SHA256.items():
+        choices = (name, *_FONT_UPLOAD_ALIASES.get(name, ()))
+        match = next((source / candidate for candidate in choices if (source / candidate).is_file()), None)
+        if match is None or match.is_symlink() or _font_sha256(match) != expected:
+            raise ValueError(f"Missing or unexpected CodeOfReality font: {name}")
+        inputs[name] = match
+
+    # Abort before copying if any previously installed font has different bytes.
+    present = 0
+    for name, expected in KNOWN_FONT_SHA256.items():
+        destination = target_dir / name
+        if destination.is_symlink():
+            raise ValueError(f"Refusing to replace linked font: {name}")
+        if destination.exists():
+            if not destination.is_file() or _font_sha256(destination) != expected:
+                raise ValueError(f"Refusing to replace different installed font: {name}")
+            present += 1
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    installed = 0
+    for name, original in inputs.items():
+        destination = target_dir / name
+        if destination.exists():
+            continue
+        descriptor, temporary_name = tempfile.mkstemp(dir=target_dir, prefix=".codeofreality-", suffix=".tmp")
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "wb") as output, original.open("rb") as content:
+                shutil.copyfileobj(content, output)
+            if _font_sha256(temporary) != KNOWN_FONT_SHA256[name]:
+                raise ValueError(f"CodeOfReality input changed during installation: {name}")
+            os.replace(temporary, destination)
+            installed += 1
+        finally:
+            temporary.unlink(missing_ok=True)
+    return {"installed": installed, "already_present": present, "total": len(KNOWN_FONT_SHA256)}
 
 
 def brand_font_path(variant: str = "classic") -> Path:
