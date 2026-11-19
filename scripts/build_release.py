@@ -98,6 +98,17 @@ def _stage_resources(build_root: Path) -> Path:
     return destination
 
 
+def _expected_font_hashes() -> dict[str, str]:
+    """Verify the seven externally supplied font files against reviewed inputs."""
+    manifest = ROOT / "docs" / "codeofreality_font_manifest.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    records = data["filenames"]
+    expected = {spec[1] for spec in BRAND_FONT_VARIANTS.values()}
+    if set(records) != expected:
+        raise ValueError("The CodeOfReality font manifest is incomplete or has unexpected entries")
+    return {name: records[name]["sha256"] for name in sorted(expected)}
+
+
 def _stage_authorized_fonts(build_root: Path) -> Path | None:
     """Optional release-only font staging; never ingest arbitrary source files.
 
@@ -115,12 +126,15 @@ def _stage_authorized_fonts(build_root: Path) -> Path | None:
         raise ValueError("The authorized font source directory does not exist")
     destination = build_root / "resources" / "fonts"
     filenames = sorted({spec[1] for spec in BRAND_FONT_VARIANTS.values()})
+    fingerprints = _expected_font_hashes()
     for name in filenames:
         source = source_dir / name
         if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(source_dir):
             raise ValueError(f"Required authorized font file missing or unsafe: {name}")
         if source.stat().st_size > 2 * 1024 * 1024 or source.stat().st_size < 1024:
             raise ValueError(f"Invalid or unexpected authorized font size: {name}")
+        if _sha256(source) != fingerprints[name]:
+            raise ValueError(f"Authorized font checksum mismatch: {name}")
     destination.mkdir(parents=True, exist_ok=False)
     for name in filenames:
         shutil.copy2(source_dir / name, destination / name)
