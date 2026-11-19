@@ -1,0 +1,14 @@
+{
+  "tag": "v0.9.7",
+  "authorization": "explicit-repository-maintainer-request",
+  "publish": true,
+  "platforms": [
+    "windows-x86_64",
+    "linux-x86_64",
+    "macos-x86_64",
+    "macos-arm64"
+  ],
+  "purpose": "Complete tagged native release including the seven checksum-pinned CodeOfReality fonts and experimental symbol-comparison workflow",
+  "prerequisites": "Builds and checksums must pass for all four platforms before publishing; never publish partial binaries.",
+  "requested_at_utc": "2026-11-19"
+}
