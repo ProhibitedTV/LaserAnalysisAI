@@ -389,10 +389,12 @@ class VendoredCodeOfRealityReleaseTests(unittest.TestCase):
 
 
 class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
-    def test_firmware_fonts_absent_from_default_releases(self):
+    def test_checkout_without_vendored_archive_remains_a_valid_unbundled_development_build(self):
         with patch.dict(os.environ, {"LASERLAB_RELEASE_FONTS_DIR": "", "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": ""}):
             with tempfile.TemporaryDirectory() as temporary:
-                self.assertIsNone(release._stage_authorized_fonts(Path(temporary)))
+                root = Path(temporary)
+                with patch.object(release, "ROOT", root):
+                    self.assertIsNone(release._stage_authorized_fonts(root))
 
     def test_authorized_font_build_requires_a_real_rights_notice_file(self):
         from laserlab.branding import BRAND_FONT_VARIANTS
