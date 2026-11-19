@@ -1,0 +1,143 @@
+"""Synthetic calibration and safety tests for the opt-in reference-font OCR.
+
+Tests do not redistribute or require the CodeOfReality font binaries.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import cv2
+import numpy as np
+
+from laserlab.branding import BRAND_FONT_VARIANTS
+from laserlab.font_ocr import (
+    FONT_OCR_ENV,
+    CodeOfRealityTemplateAdapter,
+    _match_reference,
+    _normalise_glyph,
+    _reference_templates,
+    _source_mask,
+    configured_font_ocr_adapters,
+    reference_alphabet,
+)
+from laserlab.detectors import DetectorContext, run_roi_ocr
+from laserlab.ocr_adapters import DeterministicStubAdapter, OCRPayload, OCRRequest
+
+
+def _synthetic_reference() -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    canvas = np.zeros((110, 220), dtype=np.uint8)
+    first = np.zeros((110, 90), dtype=np.uint8)
+    second = np.zeros((110, 90), dtype=np.uint8)
+    for image, character in ((first, "A"), (second, "B")):
+        cv2.putText(image, character, (5, 84), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, 3, cv2.LINE_AA)
+    canvas[:, 10:100] = first
+    canvas[:, 120:210] = second
+    return canvas, {"a": _normalise_glyph(first), "b": _normalise_glyph(second)}
+
+
+class FontOCRTests(unittest.TestCase):
+    def test_each_variant_has_an_explicit_reference_alphabet(self):
+        self.assertEqual(set(BRAND_FONT_VARIANTS), {
+            "classic", "classic-ttf", "circuit", "oracle",
+            "symbols", "symbols-3d", "symbols-outline",
+        })
+        for variant in BRAND_FONT_VARIANTS:
+            alphabet = reference_alphabet(variant)
+            self.assertEqual(len(alphabet), len(set(alphabet)))
+            self.assertIn("a", alphabet)
+            self.assertNotIn("?", alphabet)
+        self.assertNotIn("A", reference_alphabet("symbols"))
+        self.assertNotIn("0", reference_alphabet("classic"))
+        self.assertIn("0", reference_alphabet("oracle"))
+        with self.assertRaises(ValueError):
+            reference_alphabet("unapproved")
+
+    def test_selected_variants_are_explicit_and_safe(self):
+        with patch.dict(os.environ, {FONT_OCR_ENV: ""}):
+            self.assertEqual(configured_font_ocr_adapters(), [])
+        with patch.dict(os.environ, {FONT_OCR_ENV: "classic,oracle,classic"}):
+            self.assertEqual([a.variant for a in configured_font_ocr_adapters()], ["classic", "oracle"])
+        with patch.dict(os.environ, {FONT_OCR_ENV: "all"}):
+            self.assertEqual(len(configured_font_ocr_adapters()), 7)
+        with patch.dict(os.environ, {FONT_OCR_ENV: "unknown,classic"}):
+            self.assertEqual(configured_font_ocr_adapters(), [])
+
+    def test_synthetic_isolated_glyphs_match_without_training_claims(self):
+        image, templates = _synthetic_reference()
+        payload = _match_reference(image, templates)
+        self.assertEqual(payload.text, "ab")
+        self.assertIsNone(payload.confidence)
+        self.assertEqual(len(payload.character_boxes), 2)
+        self.assertTrue(payload.word_boxes[0]["unvalidated_for_recorded_laser_footage"])
+        self.assertEqual(payload.word_boxes[0]["method"], "isolated_glyph_template_comparison")
+        inverted = _match_reference(255 - image, templates)
+        self.assertEqual(inverted.text, "ab")
+
+    def test_ambiguous_or_unstructured_images_abstain(self):
+        image, templates = _synthetic_reference()
+        ambiguous = {**templates, "c": templates["a"].copy()}
+        self.assertIsNone(_match_reference(image, ambiguous).text)
+        self.assertIsNone(_match_reference(np.zeros((100, 100), dtype=np.uint8), templates).text)
+        noise = np.random.default_rng(123).integers(0, 255, (70, 80), dtype=np.uint8)
+        self.assertIsNone(_match_reference(noise, templates).text)
+        self.assertIsNone(_source_mask(np.zeros((6, 6), dtype=np.uint8)))
+
+    def test_missing_font_reports_explicit_unavailability(self):
+        image, _ = _synthetic_reference()
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "laserlab.font_ocr.brand_font_path", return_value=Path(directory) / "missing.ttf"
+        ):
+            attempt = CodeOfRealityTemplateAdapter("oracle").run(OCRRequest(image))
+        self.assertFalse(attempt["available"])
+        self.assertIsNone(attempt["text"])
+        self.assertIn("not installed", attempt["failure_reason"])
+
+    def test_normalized_attempts_preserve_experimental_engine_and_roi(self):
+        image, templates = _synthetic_reference()
+        with tempfile.TemporaryDirectory() as directory:
+            font = Path(directory) / "font.ttf"
+            font.write_bytes(b"x" * 2048)
+            with patch("laserlab.font_ocr.brand_font_path", return_value=font), patch(
+                "laserlab.font_ocr._reference_templates", return_value=templates
+            ):
+                result = CodeOfRealityTemplateAdapter("oracle").run(OCRRequest(
+                    image, roi_reference={"id": "reference-shape"}, preprocessing_metadata={"variant": "baseline"},
+                ))
+        self.assertEqual(result["engine_id"], "codeofreality-template:oracle")
+        self.assertEqual(result["text"], "ab")
+        self.assertIsNone(result["confidence"])
+        self.assertEqual(result["roi_reference"], {"id": "reference-shape"})
+        json.dumps(result, allow_nan=False)
+
+    def test_template_attempts_do_not_replace_primary_tesseract_score(self):
+        image, _ = _synthetic_reference()
+        ctx = DetectorContext(
+            experiment_dir=Path("."), run_dir=Path("."), blind_id="blind-1",
+            variant_name="raw", original_image=image,
+        )
+        rois = [{
+            "id": "roi-001", "score": 0.9, "fallback": False,
+            "bbox": {"x": 0, "y": 0, "width": 220, "height": 110},
+            "processed_bbox": {"x": 0, "y": 0, "width": 220, "height": 110},
+        }]
+        tesseract = DeterministicStubAdapter("tesseract", OCRPayload(text="TESSERACT", confidence=0.9))
+        template = DeterministicStubAdapter("codeofreality-template:oracle", OCRPayload(text="ab"))
+        with patch("laserlab.detectors._TESSERACT_ADAPTER", tesseract), patch(
+            "laserlab.detectors.configured_font_ocr_adapters", return_value=[template]
+        ):
+            legacy, attempts, summary = run_roi_ocr(image, rois, ctx)
+        self.assertEqual(legacy["text"], "TESSERACT")
+        self.assertEqual(legacy["engine"], "tesseract")
+        self.assertEqual(len(attempts), 2)
+        self.assertIn("codeofreality-template:oracle", summary["engine_ids"])
+        self.assertEqual(summary["attempt_count"], 2)
+
+
+if __name__ == "__main__":
+    unittest.main()
