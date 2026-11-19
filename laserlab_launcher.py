@@ -24,6 +24,58 @@ if __name__ == "__main__":
         raise SystemExit(0)
     if "--smoke" in sys.argv:
         raise SystemExit(main(smoke=True))
+    if "--smoke-fonts" in sys.argv:
+        # A Windows PyInstaller --windowed executable has no console stderr or
+        # stdout. Write a small deterministic diagnostic to the *test cwd* so
+        # native release qualification can report actual Qt failure causes.
+        import json
+        report = {"schema_version": "1.0", "status": "failed", "variants": []}
+        try:
+            from PyQt5.QtWidgets import QApplication
+            from PyQt5.QtGui import QFontDatabase
+            from laserlab.branding import BRAND_FONT_VARIANTS, BRAND_STYLED_VARIANTS, load_brand_font
+            from laserlab.font_qualification import inspect_font_resources
+            app = QApplication.instance() or QApplication([])
+            resources = inspect_font_resources()
+            report["verified_variants"] = resources["verified_variants"]
+            report["all_verified"] = resources["all_verified"]
+            if not resources["all_verified"]:
+                report["error"] = "At least one bundled font could not be verified"
+            else:
+                for variant, (_, _filename, named_family) in BRAND_FONT_VARIANTS.items():
+                    actual_family = load_brand_font(variant)
+                    styled = BRAND_STYLED_VARIANTS.get(variant)
+                    expected_family = styled[0] if styled is not None else named_family
+                    requested_style = styled[1] if styled is not None else None
+                    available_styles = (
+                        QFontDatabase().styles(actual_family) if actual_family else []
+                    )
+                    report["variants"].append({
+                        "variant": variant, "expected_family": expected_family,
+                        "registered_family": actual_family,
+                        "requested_style": requested_style,
+                        "available_styles": available_styles if requested_style else None,
+                        "style_available": requested_style is None or requested_style in available_styles,
+                    })
+                report["status"] = (
+                    "passed" if all(
+                        item["expected_family"] == item["registered_family"]
+                        and item["style_available"]
+                        for item in report["variants"]
+                    ) else "failed"
+                )
+                if report["status"] != "passed":
+                    report["error"] = "One or more Qt font-family registrations did not match"
+        except Exception as exc:
+            report["error"] = type(exc).__name__
+            report["status"] = "failed"
+        try:
+            Path("laserlab-font-smoke.json").write_text(
+                json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
+            )
+        except OSError:
+            raise SystemExit(3)
+        raise SystemExit(0 if report["status"] == "passed" else 2)
     if "--smoke-resources" in sys.argv:
         fixture_names = (
             "commons-double-slit-experiment.webm",

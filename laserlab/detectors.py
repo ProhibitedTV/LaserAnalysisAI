@@ -9,6 +9,7 @@ from typing import Any
 
 from .artifacts import ensure_dir, relative_to
 from .ocr_adapters import OCRRequest, TesseractAdapter, run_ocr_ensemble
+from .font_ocr import configured_font_ocr_adapters
 from .roi_detection import crop_rois, detect_code_rois, draw_roi_overlay
 from .scientific import cross_pattern_metrics, fft_spectrum_metrics, glcm_texture_metrics, speckle_contrast_metrics
 
@@ -219,6 +220,11 @@ def run_roi_ocr(
     )[:limit]
     attempts: list[dict[str, Any]] = []
     roi_results: list[dict[str, Any]] = []
+    # Keep exploratory font-template votes separate from the primary OCR
+    # agreement calculation: variants share underlying designs and are NOT
+    # independent engines that can outvote a standard OCR result.
+    font_adapters = configured_font_ocr_adapters()
+    primary_attempts: list[dict[str, Any]] = []
     for roi in ordered:
         x, y, width, height = _bbox_values(roi["processed_bbox"])
         crop = processed_image[y:y + height, x:x + width]
@@ -230,34 +236,44 @@ def run_roi_ocr(
             "crop_path": roi.get("crop_path"),
             "processed_crop_path": roi.get("processed_crop_path"),
         }
-        ensemble = run_ocr_ensemble(
-            [_TESSERACT_ADAPTER],
-            OCRRequest(
-                image=crop,
-                roi_reference=reference,
-                preprocessing_metadata={"variant": context.variant_name},
-                timeout_seconds=30.0,
-                language="eng",
-            ),
+        request = OCRRequest(
+            image=crop,
+            roi_reference=reference,
+            preprocessing_metadata={"variant": context.variant_name},
+            timeout_seconds=30.0,
+            language="eng",
         )
-        attempts.extend(ensemble["attempts"])
+        primary = run_ocr_ensemble([_TESSERACT_ADAPTER], request)
+        exploratory = run_ocr_ensemble(font_adapters, request) if font_adapters else None
+        roi_attempts = list(primary["attempts"])
+        primary_attempts.extend(primary["attempts"])
+        if exploratory is not None:
+            roi_attempts.extend(exploratory["attempts"])
+        attempts.extend(roi_attempts)
         roi_results.append(
             {
                 "roi_reference": reference,
-                "agreement": ensemble["agreement"],
+                "agreement": primary["agreement"],
+                "experimental_codeofreality": None if exploratory is None else {
+                    "agreement": exploratory["agreement"],
+                    "engine_ids": [item["engine_id"] for item in exploratory["attempts"]],
+                    "interpretation": "Reference-font shape matches only; unvalidated, not independent OCR votes.",
+                },
             }
         )
-        if ensemble["attempts"] and not any(item.get("available") for item in ensemble["attempts"]):
+        if roi_attempts and not any(item.get("available") for item in roi_attempts):
             break
 
     ensemble_summary = {
         "schema_version": "1.0",
         "agreement_scope": "per_roi",
+        "primary_agreement_only": True,
+        "experimental_agreement_scope": "separate_correlated_reference_variants",
         "engine_ids": sorted({str(item.get("engine_id", "")) for item in attempts}),
         "attempt_count": len(attempts),
         "roi_results": roi_results,
     }
-    return legacy_ocr_summary(attempts), attempts, ensemble_summary
+    return legacy_ocr_summary(primary_attempts), attempts, ensemble_summary
 
 
 def legacy_ocr_summary(attempts: list[dict[str, Any]]) -> dict[str, Any]:

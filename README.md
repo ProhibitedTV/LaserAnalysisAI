@@ -38,6 +38,231 @@ Field support remains local-first. **Help > System Check** reports packaged-runt
 ![LaserLab blinded review](screenshots/release_blinded_review.png)
 ![LaserLab report summary](screenshots/release_report_summary.png)
 
+### Optional CodeOfReality display fonts
+
+The **Appearance > Wordmark font** menu supports seven decorative
+CodeOfReality variants, plus the system-default typeface. **Authorized native
+release builds now include all seven reviewed font binaries automatically**.
+Source checkouts contain the seven files in a SHA-256-pinned tar.xz archive
+under `assets/codeofreality/`; install them into local user storage using
+the command below. You can switch styles from the menu, and the choice is
+remembered locally; missing or invalid fonts use the system fallback.
+
+| Menu style | Local font filename |
+| --- | --- |
+| Classic OTF (default) | `CodeOfRealityV1.otf` |
+| Classic TTF | `CodeOfReality.ttf` |
+| Circuit | `CodeOfReality-Circuit.ttf` |
+| Oracle | `CodeOfReality-Oracle.ttf` |
+| Symbols | `CodeOfRealitySymbols 2.ttf` |
+| Symbols 3D | `CodeOfRealitySymbols-3D.ttf` |
+| Symbols Outline | `CodeOfRealitySymbols-Outline.ttf` |
+
+**Qt font naming:** Symbols 3D and Symbols Outline share the OpenType
+typographic family `Code of Reality Symbols` with distinct styles
+`3D` and `Outline`. LaserLab selects the requested style explicitly for
+its decorative wordmarks rather than silently displaying the Regular face.
+The original font bytes are not modified. Native GUI smoke checks both
+their family registration and the availability of those named styles.
+
+For a complete verified local installation, put all seven files into one
+folder. In the desktop app select **Appearance > Install all seven
+CodeOfReality fonts…** and choose that folder. LaserLab verifies the original
+SHA-256 for every file, installs locally, refreshes the wordmark and reports
+the number of renderable references. This never publishes the fonts and does
+**not** automatically enable experimental OCR.
+
+From a source checkout, install directly from the reviewed archive:
+
+```powershell
+python -m laserlab.cli font-install --archive "assets\\codeofreality\\CodeOfReality-authorized-fonts.tar.xz"
+```
+
+You can also install from a separate folder of the original files (the
+uploaded `CodeOfRealityV1.otf_1` filename is accepted and renamed):
+
+```powershell
+python -m laserlab.cli font-install --source "C:\\Research\\CodeOfRealityFonts"
+```
+
+The installer checks every file against the reviewed SHA-256 manifest before
+copying anything, refuses to overwrite a different installed font, and reports
+how many fonts were installed. It never uploads them to a network service.
+
+To qualify the complete installed font family for OCR, run:
+
+```powershell
+python -m laserlab.cli font-verify --require-all
+```
+
+This checks every installed font's fingerprint and verifies that the expected
+character templates can be rasterized. It prints a JSON report with a separate
+status for missing, altered, unreadable or verified fonts, without exposing
+private local paths. A complete inspection reports `verified_variants: 7`
+and `all_verified: true`. This **does not measure OCR accuracy** on real
+laser footage.
+
+To reproduce a fuller synthetic glyph self-consistency benchmark using all
+seven fonts (across the 96, 64, 40 and 24 px reference sizes), run:
+
+```powershell
+python -m laserlab.cli font-calibrate --variant all
+```
+
+This prints per-font counts of correct matches, incorrect matches, abstentions,
+unrenderable samples and false accepts on three deterministic synthetic
+negative controls (blank, uniform and seeded noise). The samples are created
+**from the same fonts that generate the OCR templates**, not from independent
+capture footage, so this is a software calibration check only. It deliberately
+reports `empirical_accuracy_validated: false` and
+`independent_laser_capture_count: 0`, regardless of how many synthetic
+matches succeed. Do not present it as accuracy on actual laser recordings.
+
+Local installation directories:
+
+- Windows: `%LOCALAPPDATA%\\LaserLab\\fonts\\`
+- macOS: `~/Library/Application Support/LaserLab/fonts/`
+- Linux: `~/.local/state/laserlab/fonts/` (or `$XDG_STATE_HOME/laserlab/fonts/`)
+
+Alternatively, set `LASERLAB_BRAND_FONT_PATH` to the full path of a Classic
+OTF file before starting the app. That override applies to the **Classic OTF**
+menu entry for backwards compatibility.
+
+As UI typefaces, these fonts are limited to the lowercase `laserlab` wordmark,
+**not** scientific values, tables, OCR output text, or experiment labels.
+Separately, all seven can serve as glyph references for the optional OCR
+comparison adapter below. The symbol
+variants map some normal letters to pictographs and are not suitable for
+ordinary interface text. Classic OTF/TTF omit most punctuation and numerals.
+
+### Experimental CodeOfReality reference-glyph OCR
+
+The full seven-font family can now serve as a set of **local reference shapes**
+for an optional OCR comparison adapter. These files do not become a Tesseract
+language model simply by installing them. The experimental adapter renders
+glyph templates from the locally installed font and attempts exact-looking
+matches to **high-contrast, isolated, separated glyphs** in selected image
+regions. It deliberately **abstains** if a crop is noisy, crowded, ambiguous,
+or too different from a known reference.
+
+Try it with one local image (without sending the image to a network service):
+
+```powershell
+python -m laserlab.cli font-ocr --image C:\\Research\\glyph-test.png --variant all
+```
+
+To also include these experiments in the regular blinded analysis pipeline,
+turn on **Appearance > Compare CodeOfReality glyphs (experimental)** in the
+desktop app before starting a new run (this switch is session-only).
+Alternatively, opt in before launching LaserLab or running its CLI:
+
+```powershell
+$env:LASERLAB_FONT_OCR_VARIANTS = "all"   # or "classic,circuit,oracle"
+python main.py
+```
+
+Results are recorded as separate `codeofreality-template:<variant>` entries in
+the OCR attempt audit trail, and appear in the **Review** candidate details
+with an explicit experimental label. **They do not replace Tesseract or
+contribute to the primary structure score or primary OCR agreement.**
+Font variants are correlated reference comparisons, not independent
+confirmation votes. Multi-scale references are rendered at 96, 64, 40 and
+24 px to reduce small-glyph aliasing. A matched font silhouette is not a decoded
+message, language identification, or evidence of an external source. In
+particular, uppercase and lowercase Symbols glyphs are identical; the
+adapter only emits lowercase canonical labels. Classic supports `a-z1234`;
+Symbols supports `a-z1234567`; Circuit and Oracle additionally support
+uppercase, numerals, and brackets. No validated accuracy on real-world laser
+footage is claimed. More advanced segmentation, robustness testing, false
+positive controls, and independent external validation remain necessary.
+
+### Reported-symbol / laser-light comparison (experimental)
+
+You can compare **one cropped laser-light shape** against **one separately
+supplied image** of a symbol someone has reported seeing during a DMT
+experience. Optionally include a distinct laser control image captured under
+similar conditions. The two independent images are not bundled, shared, or
+uploaded by LaserLab:
+
+```powershell
+python -m laserlab.cli symbol-compare \
+  --laser-image "C:\\Research\\laser-crop.png" \
+  --reported-symbol-image "C:\\Research\\reported-symbol.png" \
+  --control-laser-image "C:\\Research\\control-crop.png" \
+  --variant all
+```
+
+For initial experimentation without a locally installed Tesseract executable,
+add `--no-tesseract`. Otherwise the command records Tesseract's **separate,
+untrained** output for both crops. The opt-in CodeOfReality reference matcher
+tries all seven font variants independently on each image, and reports possible
+shared reference labels without treating correlated font variants as
+independent votes. The original images are not exported.
+
+The JSON output includes two **descriptive** image-shape metrics:
+`normalized_pixel_difference` (smaller means more alike after foreground
+cropping and rescaling) and `foreground_intersection_over_union` (larger
+means greater binary shape overlap). If a control is supplied, it also records
+a **difference in pixel distance** between the experimental laser crop and
+the user-supplied control; capture-condition matching has not been verified.
+No statistical significance, language, meaning, DMT mechanism or common origin
+is inferred. Blank, oversized, or unstructured images may produce an explicit
+`unavailable` outcome instead of a false match.
+
+For reliable scientific comparison, obtain independently documented symbol
+references with their source/context, predefine image crop locations and shape
+thresholds before unblinding, add camera-matched negative-control recordings,
+and repeat with independently acquired data. A font inspired by reported
+experiences is a reference-shape library, **not** a validated map of
+experiences or a cipher key. See
+[the distribution attestation](docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md)
+for the maintainer-reported creator authorization.
+
+### Authorized release packaging
+
+The exact seven supplied fonts are **now committed to GitHub**, as a single
+checksum-pinned compressed source asset:
+
+`assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz`
+
+The maintainer stated on November 19, 2026, that they received direct
+permission from the creator over Discord and explicitly authorized these
+fonts' integration into GitHub and LaserLab releases. That statement is
+recorded in
+[the distribution attestation](docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md).
+We have **not** inspected the original Discord message or an independent
+license grant. Classic font metadata credits Chris Johnson (2026); the
+Symbols family identifies Luke Hearn as a designer. Retain applicable
+attributions and any additional distribution terms.
+
+**Ordinary native builds from this branch now stage all seven fonts by
+default.** The builder validates the exact compressed-archive SHA-256,
+extracts only the seven expected regular files, verifies their individual
+SHA-256 values, and includes them and the maintainer-attestation text in
+both PyInstaller applications and the ZIP archive. A packaged
+`font-verify --require-all` smoke test must pass before the ZIP is finalized.
+
+```powershell
+python scripts/build_release.py
+```
+
+Advanced release operators can still override the vendored archive by
+providing a separately authorized font directory and a UTF-8
+`CODEOFREALITY-PERMISSION.txt` rights notice. For that override, both
+environment variables remain required:
+
+```powershell
+$env:LASERLAB_RELEASE_FONTS_DIR = "C:\\ApprovedCodeOfRealityFonts"
+$env:LASERLAB_FONT_REDISTRIBUTION_CONFIRMED = "yes"
+python scripts/build_release.py
+```
+
+See [the permission guide](docs/CODEOFREALITY_PERMISSION_GUIDE.md) for the
+recordkeeping checklist. Bundling glyph shapes does not turn Tesseract into
+a CodeOfReality-trained model and does not validate symbols from captured
+laser light. Native release artifacts and independently obtained field
+data still require separate acceptance testing.
+
 ## Community and Support
 
 New to the project? Browse the [LaserLab Wiki](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki), [Getting Started](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Getting-Started), and [FAQ](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/FAQ). Community guides are maintained in the Wiki's separate repository.

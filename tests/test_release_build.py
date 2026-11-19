@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import io
+import tarfile
 import json
 import os
 import re
@@ -91,6 +92,52 @@ class ReleaseBuildTests(unittest.TestCase):
             embedded = Path(command[command.index("--add-data") + 1].rsplit(os.pathsep, 1)[0])
             self.assertNotEqual(embedded, self.root / "sample_media")
             self.assertEqual({path.name for path in embedded.iterdir()}, set(release.BUNDLED_METADATA) | {"public.mp4"})
+
+    def test_explicitly_authorized_fonts_are_embedded_in_both_products_and_archive(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+        font_root = self.parent / "approved-fonts"
+        font_root.mkdir()
+        sample = b"sample-font-test-data" * 128
+        expected = {}
+        for _, filename, _ in BRAND_FONT_VARIANTS.values():
+            (font_root / filename).write_bytes(sample)
+            expected[filename] = hashlib.sha256(sample).hexdigest()
+        permission = "CodeOfReality fonts: copyright holders authorize this specific LaserLab binary distribution.\\n"
+        (font_root / release.FONT_RIGHTS_NOTICE).write_text(permission, encoding="utf-8")
+        with patch.dict(os.environ, {
+            "LASERLAB_RELEASE_FONTS_DIR": str(font_root),
+            "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
+        }), patch.object(release, "_expected_font_hashes", return_value=expected):
+            archive = self.build()
+        bundle = archive.with_suffix("")
+        info = json.loads((bundle / "BUILD-INFO.json").read_text())
+        self.assertEqual(info["bundled_codeofreality_font_count"], 7)
+        self.assertTrue(info["font_redistribution_attested_by_release_builder"])
+        self.assertEqual({path.name for path in (bundle / "fonts").iterdir()}, set(expected) | {release.FONT_RIGHTS_NOTICE})
+        self.assertEqual((bundle / "fonts" / release.FONT_RIGHTS_NOTICE).read_text(), permission)
+        for name, digest in expected.items():
+            self.assertEqual(hashlib.sha256((bundle / "fonts" / name).read_bytes()).hexdigest(), digest)
+        for command in self.commands:
+            entries = [command[index + 1] for index, arg in enumerate(command) if arg == "--add-data"]
+            self.assertEqual(len(entries), 2)
+            staged_fonts, target = entries[1].rsplit(os.pathsep, 1)
+            self.assertEqual(target, "fonts")
+            self.assertEqual(
+                {p.name for p in Path(staged_fonts).iterdir()},
+                set(expected) | {release.FONT_RIGHTS_NOTICE},
+            )
+        self.smoke.assert_called_once()
+        self.assertTrue(self.smoke.call_args.kwargs["fonts_included"])
+        with zipfile.ZipFile(archive) as zipped:
+            for name in expected:
+                self.assertEqual(
+                    zipped.read(f"{bundle.name}/fonts/{name}"),
+                    sample,
+                )
+            self.assertEqual(
+                zipped.read(f"{bundle.name}/fonts/{release.FONT_RIGHTS_NOTICE}").decode("utf-8"),
+                permission,
+            )
 
     def test_matching_tag_at_exact_commit_builds_a_release(self):
         tag = "v0.9.0"
@@ -263,6 +310,170 @@ class ReleaseVersionConsistencyTests(unittest.TestCase):
         version = re.search(r'(?m)^version\s*=\s*"([^"\n]+)"\s*$', project)
         self.assertIsNotNone(version)
         self.assertEqual(version[1], release.__version__)
+
+
+
+class VendoredCodeOfRealityReleaseTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.build_root = self.root / "work"
+        self.build_root.mkdir()
+        self.archive_path = self.root / release.VENDORED_FONT_ARCHIVE
+        self.archive_path.parent.mkdir(parents=True)
+        self.notice = self.root / release.VENDORED_FONT_ATTESTATION
+        self.notice.parent.mkdir(parents=True)
+        self.notice.write_text(
+            "The maintainer reports direct permission from the creator on Discord for these seven fonts.",
+            encoding="utf-8",
+        )
+        from laserlab.branding import BRAND_FONT_VARIANTS
+        # Incompressible deterministic fixtures keep the tar.xz above the
+        # release builder's minimum archive-size threshold.
+        self.data = {filename: hashlib.shake_256(filename.encode()).digest(2048)
+                     for _, filename, _ in BRAND_FONT_VARIANTS.values()}
+        self.hashes = {name: hashlib.sha256(payload).hexdigest()
+                       for name, payload in self.data.items()}
+
+    def write_archive(self, *, entries=None):
+        with tarfile.open(self.archive_path, "w:xz") as bundle:
+            for name, payload in (entries if entries is not None else self.data.items()):
+                info = tarfile.TarInfo(name)
+                info.size = len(payload)
+                bundle.addfile(info, io.BytesIO(payload))
+
+    def stage(self):
+        with patch.object(release, "ROOT", self.root), \
+             patch.object(release, "VENDORED_FONT_ARCHIVE_SHA256", release._sha256(self.archive_path)), \
+             patch.object(release, "_expected_font_hashes", return_value=self.hashes), \
+             patch.dict(os.environ, {
+                 "LASERLAB_RELEASE_FONTS_DIR": "",
+                 "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "",
+             }):
+            return release._stage_authorized_fonts(self.build_root)
+
+    def test_vendored_archive_verifies_all_original_filenames_and_packages_permission(self):
+        self.write_archive()
+        destination = self.stage()
+        self.assertEqual({f.name for f in destination.iterdir()}, set(self.data) | {release.FONT_RIGHTS_NOTICE})
+        for name, payload in self.data.items():
+            self.assertEqual((destination / name).read_bytes(), payload)
+        self.assertIn("Discord", (destination / release.FONT_RIGHTS_NOTICE).read_text())
+
+    def test_archive_rejects_unexpected_file_before_any_extraction(self):
+        self.write_archive(entries=list(self.data.items()) + [("../escape.ttf", b"unexpected")])
+        with self.assertRaisesRegex(ValueError, "exactly the seven reviewed"):
+            self.stage()
+        self.assertFalse((self.build_root / "resources" / "fonts").exists())
+
+    def test_archive_rejects_bad_font_hash(self):
+        self.write_archive(entries=[
+            (name, b"not the reviewed font " * 128 if name == "CodeOfReality-Oracle.ttf" else payload)
+            for name, payload in self.data.items()
+        ])
+        with self.assertRaisesRegex(ValueError, "font fingerprint mismatch"):
+            self.stage()
+
+    def test_vendored_archive_fingerprint_is_pinned_to_the_exact_source_bytes(self):
+        self.write_archive()
+        with patch.object(release, "ROOT", self.root), \
+             patch.object(release, "_expected_font_hashes", return_value=self.hashes), \
+             patch.dict(os.environ, {"LASERLAB_RELEASE_FONTS_DIR": ""}):
+            with self.assertRaisesRegex(ValueError, "archive fingerprint mismatch"):
+                release._stage_authorized_fonts(self.build_root)
+
+    def test_archive_requires_a_true_record_of_maintainer_reported_permission(self):
+        self.write_archive()
+        self.notice.write_text("Some unrelated placeholder", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "attestation is incomplete"):
+            self.stage()
+
+
+class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
+    def test_checkout_without_vendored_archive_remains_a_valid_unbundled_development_build(self):
+        with patch.dict(os.environ, {"LASERLAB_RELEASE_FONTS_DIR": "", "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": ""}):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with patch.object(release, "ROOT", root):
+                    self.assertIsNone(release._stage_authorized_fonts(root))
+
+    def test_authorized_font_build_requires_a_real_rights_notice_file(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "approved"
+            source.mkdir()
+            fixture = b"synthetic-font" * 200
+            expected = {}
+            for _, filename, _ in BRAND_FONT_VARIANTS.values():
+                (source / filename).write_bytes(fixture)
+                expected[filename] = hashlib.sha256(fixture).hexdigest()
+            with patch.dict(os.environ, {
+                "LASERLAB_RELEASE_FONTS_DIR": str(source),
+                "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
+            }), patch.object(release, "_expected_font_hashes", return_value=expected):
+                with self.assertRaisesRegex(ValueError, "CODEOFREALITY-PERMISSION.txt"):
+                    release._stage_authorized_fonts(root)
+                notice = source / release.FONT_RIGHTS_NOTICE
+                notice.write_text("placeholder", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "notice"):
+                    release._stage_authorized_fonts(root)
+                self.assertFalse((root / "resources" / "fonts").exists())
+                notice.write_text(
+                    "This is a synthetic test permission notice; no real font distribution is authorized.",
+                    encoding="utf-8",
+                )
+                destination = release._stage_authorized_fonts(root)
+            self.assertTrue((destination / release.FONT_RIGHTS_NOTICE).is_file())
+
+    def test_release_font_staging_requires_explicit_authorization_and_all_seven_files(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "author-fonts"
+            source.mkdir()
+            for _, filename, _ in BRAND_FONT_VARIANTS.values():
+                (source / filename).write_bytes(b"x" * 2048)
+            (source / release.FONT_RIGHTS_NOTICE).write_text(
+                "Verified author permission for distribution of all CodeOfReality styles in LaserLab.",
+                encoding="utf-8",
+            )
+            build_root = root / "build"
+            build_root.mkdir()
+            with patch.dict(os.environ, {
+                "LASERLAB_RELEASE_FONTS_DIR": str(source),
+                "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "",
+            }):
+                with self.assertRaisesRegex(ValueError, "permission to redistribute"):
+                    release._stage_authorized_fonts(build_root)
+            with patch.dict(os.environ, {
+                "LASERLAB_RELEASE_FONTS_DIR": str(source),
+                "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
+            }), patch.object(
+                release, "_expected_font_hashes",
+                return_value={spec[1]: hashlib.sha256(b"x" * 2048).hexdigest()
+                              for spec in BRAND_FONT_VARIANTS.values()},
+            ):
+                (source / "CodeOfReality-Oracle.ttf").unlink()
+                with self.assertRaisesRegex(ValueError, "CodeOfReality-Oracle"):
+                    release._stage_authorized_fonts(build_root)
+                (source / "CodeOfReality-Oracle.ttf").write_bytes(b"x" * 2048)
+                destination = release._stage_authorized_fonts(build_root)
+            self.assertIsNotNone(destination)
+            self.assertEqual({p.name for p in destination.iterdir()}, {
+                item[1] for item in BRAND_FONT_VARIANTS.values()
+            } | {release.FONT_RIGHTS_NOTICE})
+            command = release._pyinstaller_command(
+                "laserlab_launcher.py", "LaserLab", root / "dist", root / "work",
+                root / "spec", True, media_dir=root / "public-media", fonts_dir=destination,
+            )
+            data_args = [command[index + 1] for index, value in enumerate(command) if value == "--add-data"]
+            self.assertEqual(len(data_args), 2)
+            self.assertTrue(data_args[0].endswith(os.pathsep + "sample_media"))
+            self.assertEqual(data_args[1], f"{destination}{os.pathsep}fonts")
 
 
 if __name__ == "__main__":
