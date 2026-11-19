@@ -57,6 +57,18 @@ uninstalled or invalid font files automatically use the system fallback.
 | Symbols 3D | `CodeOfRealitySymbols-3D.ttf` |
 | Symbols Outline | `CodeOfRealitySymbols-Outline.ttf` |
 
+For a complete verified local installation, put all seven files into one
+folder and run (the original uploaded `CodeOfRealityV1.otf_1` filename is also
+accepted and installed as `CodeOfRealityV1.otf`):
+
+```powershell
+python -m laserlab.cli font-install --source "C:\\Research\\CodeOfRealityFonts"
+```
+
+The installer checks every file against the reviewed SHA-256 manifest before
+copying anything, refuses to overwrite a different installed font, and reports
+how many fonts were installed. It never uploads them to a network service.
+
 Local installation directories:
 
 - Windows: `%LOCALAPPDATA%\\LaserLab\\fonts\\`
@@ -99,8 +111,12 @@ python main.py
 ```
 
 Results are recorded as separate `codeofreality-template:<variant>` entries in
-the OCR attempt audit trail. **They do not replace Tesseract or contribute
-to the primary structure score.** A matched font silhouette is not a decoded
+the OCR attempt audit trail, and appear in the **Review** candidate details
+with an explicit experimental label. **They do not replace Tesseract or
+contribute to the primary structure score or primary OCR agreement.**
+Font variants are correlated reference comparisons, not independent
+confirmation votes. Multi-scale references are rendered at 96, 64, 40 and
+24 px to reduce small-glyph aliasing. A matched font silhouette is not a decoded
 message, language identification, or evidence of an external source. In
 particular, uppercase and lowercase Symbols glyphs are identical; the
 adapter only emits lowercase canonical labels. Classic supports `a-z1234`;
