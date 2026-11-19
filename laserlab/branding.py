@@ -12,6 +12,7 @@ import hashlib
 import os
 import shutil
 import tempfile
+import tarfile
 from pathlib import Path
 
 from .diagnostics import get_state_dir
@@ -111,6 +112,46 @@ def install_local_fonts(source_dir: str | Path, *, destination_dir: Path | None 
         finally:
             temporary.unlink(missing_ok=True)
     return {"installed": installed, "already_present": present, "total": len(KNOWN_FONT_SHA256)}
+
+
+VENDORED_FONT_ARCHIVE_SHA256 = "ad07981b0bdf10d2d6c51a9a2cfe1f3ffc00bac1f7920a19fd491884d7b7a2a7"
+
+
+def install_font_archive(archive_path: str | Path, *, destination_dir: Path | None = None) -> dict[str, int]:
+    """Install the exact creator-authorized seven-font archive locally.
+
+    The package is available in public source checkouts. Native releases
+    already contain the verified individual font resources and need no import.
+    """
+    archive = Path(archive_path).expanduser()
+    if not archive.is_file() or archive.is_symlink():
+        raise ValueError("The CodeOfReality font archive is missing or unsafe")
+    if not 1024 <= archive.stat().st_size <= 2 * 1024 * 1024:
+        raise ValueError("The CodeOfReality font archive has an invalid size")
+    if _font_sha256(archive) != VENDORED_FONT_ARCHIVE_SHA256:
+        raise ValueError("The CodeOfReality font archive has an unexpected fingerprint")
+    try:
+        with tempfile.TemporaryDirectory(prefix="laserlab-approved-fonts-") as temporary:
+            stage = Path(temporary)
+            with tarfile.open(archive, "r:xz") as data:
+                entries = data.getmembers()
+                names = {entry.name: entry for entry in entries}
+                if len(names) != len(entries) or set(names) != set(KNOWN_FONT_SHA256):
+                    raise ValueError("The CodeOfReality archive contains unexpected members")
+                for name in sorted(names):
+                    entry = names[name]
+                    if not entry.isfile() or not 1024 <= entry.size <= 2 * 1024 * 1024:
+                        raise ValueError(f"Unsafe CodeOfReality archive member: {name}")
+                    handle = data.extractfile(entry)
+                    if handle is None:
+                        raise ValueError(f"Missing CodeOfReality bytes: {name}")
+                    with handle, (stage / name).open("xb") as output:
+                        shutil.copyfileobj(handle, output)
+                    if _font_sha256(stage / name) != KNOWN_FONT_SHA256[name]:
+                        raise ValueError(f"CodeOfReality checksum mismatch: {name}")
+            return install_local_fonts(stage, destination_dir=destination_dir)
+    except (OSError, tarfile.TarError, EOFError) as exc:
+        raise ValueError("Unable to read the CodeOfReality font archive") from exc
 
 
 def brand_font_path(variant: str = "classic") -> Path:
