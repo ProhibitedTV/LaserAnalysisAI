@@ -216,7 +216,7 @@ def _gui_product(dist_dir: Path) -> Path:
     return dist_dir / executable_name("LaserLab")
 
 
-def _smoke(gui_product: Path, cli_product: Path) -> None:
+def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False) -> None:
     gui_executable = gui_product
     if gui_product.suffix == ".app":
         gui_executable = gui_product / "Contents" / "MacOS" / "LaserLab"
@@ -226,6 +226,20 @@ def _smoke(gui_product: Path, cli_product: Path) -> None:
         subprocess.run([str(gui_executable), "--smoke-resources"], cwd=unrelated_cwd, check=True, timeout=60)
         subprocess.run([str(gui_executable), "--smoke-demo"], cwd=unrelated_cwd, check=True, timeout=120)
         subprocess.run([str(cli_product), "--help"], cwd=unrelated_cwd, check=True, timeout=60)
+        if fonts_included:
+            checked = subprocess.run(
+                [str(cli_product), "font-verify", "--require-all"],
+                cwd=unrelated_cwd, check=True, timeout=120,
+                capture_output=True, text=True,
+            )
+            qualification = json.loads(checked.stdout)
+            if (
+                qualification.get("total_variants") != len(BRAND_FONT_VARIANTS)
+                or qualification.get("verified_variants") != len(BRAND_FONT_VARIANTS)
+                or qualification.get("all_verified") is not True
+                or qualification.get("scientific_accuracy_validated") is not False
+            ):
+                raise RuntimeError("Packaged CodeOfReality OCR reference qualification failed")
         diagnostics = subprocess.run(
             [str(cli_product), "diagnostics", "--format", "json"],
             cwd=unrelated_cwd,
@@ -296,7 +310,7 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
     for product in (gui_product, cli_product):
         if not product.exists():
             raise FileNotFoundError(f"PyInstaller product missing: {product}")
-    _smoke(gui_product, cli_product)
+    _smoke(gui_product, cli_product, fonts_included=fonts_dir is not None)
     _assert_source_unchanged(context)
 
     bundle_dir.mkdir()
