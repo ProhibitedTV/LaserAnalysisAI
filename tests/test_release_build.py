@@ -265,5 +265,52 @@ class ReleaseVersionConsistencyTests(unittest.TestCase):
         self.assertEqual(version[1], release.__version__)
 
 
+
+class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
+    def test_firmware_fonts_absent_from_default_releases(self):
+        with patch.dict(os.environ, {"LASERLAB_RELEASE_FONTS_DIR": "", "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": ""}):
+            with tempfile.TemporaryDirectory() as temporary:
+                self.assertIsNone(release._stage_authorized_fonts(Path(temporary)))
+
+    def test_release_font_staging_requires_explicit_authorization_and_all_seven_files(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "author-fonts"
+            source.mkdir()
+            for _, filename, _ in BRAND_FONT_VARIANTS.values():
+                (source / filename).write_bytes(b"x" * 2048)
+            build_root = root / "build"
+            build_root.mkdir()
+            with patch.dict(os.environ, {
+                "LASERLAB_RELEASE_FONTS_DIR": str(source),
+                "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "",
+            }):
+                with self.assertRaisesRegex(ValueError, "permission to redistribute"):
+                    release._stage_authorized_fonts(build_root)
+            with patch.dict(os.environ, {
+                "LASERLAB_RELEASE_FONTS_DIR": str(source),
+                "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
+            }):
+                (source / "CodeOfReality-Oracle.ttf").unlink()
+                with self.assertRaisesRegex(ValueError, "CodeOfReality-Oracle"):
+                    release._stage_authorized_fonts(build_root)
+                (source / "CodeOfReality-Oracle.ttf").write_bytes(b"x" * 2048)
+                destination = release._stage_authorized_fonts(build_root)
+            self.assertIsNotNone(destination)
+            self.assertEqual({p.name for p in destination.iterdir()}, {
+                item[1] for item in BRAND_FONT_VARIANTS.values()
+            })
+            command = release._pyinstaller_command(
+                "laserlab_launcher.py", "LaserLab", root / "dist", root / "work",
+                root / "spec", True, media_dir=root / "public-media", fonts_dir=destination,
+            )
+            data_args = [command[index + 1] for index, value in enumerate(command) if value == "--add-data"]
+            self.assertEqual(len(data_args), 2)
+            self.assertTrue(data_args[0].endswith(os.pathsep + "sample_media"))
+            self.assertEqual(data_args[1], f"{destination}{os.pathsep}fonts")
+
+
 if __name__ == "__main__":
     unittest.main()
