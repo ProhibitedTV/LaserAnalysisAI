@@ -41,6 +41,7 @@ jobs:
           project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
           assert request["tag"] == "v0.9.7"
           assert request["authorization"] == "explicit-repository-maintainer-request"
+          assert request["publish"] is True
           assert request["platforms"] == [
               "windows-x86_64", "linux-x86_64",
               "macos-x86_64", "macos-arm64"
