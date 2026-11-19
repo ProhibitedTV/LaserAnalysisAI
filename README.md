@@ -180,15 +180,16 @@ positive controls, and independent external validation remain necessary.
 
 You can compare **one cropped laser-light shape** against **one separately
 supplied image** of a symbol someone has reported seeing during a DMT
-experience. Optionally include a distinct laser control image captured under
-similar conditions. The two independent images are not bundled, shared, or
-uploaded by LaserLab:
+experience. Optionally include up to **32 separate control laser crops** to
+describe a background distribution of visual similarities. The image files
+are processed locally; none are bundled, shared, or uploaded by LaserLab:
 
 ```powershell
 python -m laserlab.cli symbol-compare \
   --laser-image "C:\\Research\\laser-crop.png" \
   --reported-symbol-image "C:\\Research\\reported-symbol.png" \
-  --control-laser-image "C:\\Research\\control-crop.png" \
+  --control-laser-image "C:\\Research\\control-01.png" \
+  --control-laser-image "C:\\Research\\control-02.png" \
   --variant all
 ```
 
@@ -202,12 +203,20 @@ independent votes. The original images are not exported.
 The JSON output includes two **descriptive** image-shape metrics:
 `normalized_pixel_difference` (smaller means more alike after foreground
 cropping and rescaling) and `foreground_intersection_over_union` (larger
-means greater binary shape overlap). If a control is supplied, it also records
-a **difference in pixel distance** between the experimental laser crop and
-the user-supplied control; capture-condition matching has not been verified.
-No statistical significance, language, meaning, DMT mechanism or common origin
-is inferred. Blank, oversized, or unstructured images may produce an explicit
-`unavailable` outcome instead of a false match.
+means greater binary shape overlap). If controls are supplied, the report records each comparison separately,
+plus the median control distance, how many controls looked more/less similar
+than the primary laser crop, and the **descriptive fraction** of controls
+at least as visually similar as the primary crop. The old `laser_control`
+field remains available for a single control; multiple controls appear under
+`control_comparisons` and `control_summary`. The new fraction is **not a
+p-value**: the program cannot verify independent samples, blinded selection,
+or matching camera/capture conditions. It still reports
+`statistical_significance_estimated: false` and
+`matched_negative_controls: 0` regardless of how many unverified control
+crops were supplied. No statistical significance, language, meaning, DMT
+mechanism or common origin is inferred. Blank, oversized, or unstructured
+images may produce an explicit `unavailable` outcome instead of a false
+match.
 
 For reliable scientific comparison, obtain independently documented symbol
 references with their source/context, predefine image crop locations and shape

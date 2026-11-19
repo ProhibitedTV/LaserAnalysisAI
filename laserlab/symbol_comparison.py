@@ -7,6 +7,7 @@ not a decoder. Results never enter the primary blinded scientific score.
 
 from __future__ import annotations
 
+from statistics import median
 from typing import Any
 
 from .branding import BRAND_FONT_VARIANTS
@@ -73,15 +74,28 @@ def compare_reported_and_laser_symbols(
     variant: str = "all",
     with_tesseract: bool = True,
     control_laser_image: Any | None = None,
+    control_laser_images: list[Any] | tuple[Any, ...] | None = None,
 ) -> dict[str, Any]:
     """Return descriptive comparison only; never assert origin or language."""
     import numpy as np
+
+    if control_laser_images is not None and control_laser_image is not None:
+        raise ValueError("Supply either one legacy control_laser_image or control_laser_images, not both")
+    if control_laser_images is not None and not isinstance(control_laser_images, (list, tuple)):
+        raise ValueError("control_laser_images must be a list or tuple of image crops")
+    controls = (
+        list(control_laser_images)
+        if control_laser_images is not None
+        else ([control_laser_image] if control_laser_image is not None else [])
+    )
+    if len(controls) > 32:
+        raise ValueError("At most 32 control laser crops can be compared per diagnostic")
 
     if variant != "all" and variant not in BRAND_FONT_VARIANTS:
         raise ValueError("Unknown CodeOfReality font variant")
     for label, image in (
         ("laser", laser_image), ("reported symbol", reported_symbol_image),
-        *((("control laser", control_laser_image),) if control_laser_image is not None else ()),
+        *((f"control laser {index + 1}", control) for index, control in enumerate(controls)),
     ):
         matrix = np.asarray(image)
         if matrix.ndim not in (2, 3) or matrix.size == 0:
@@ -90,20 +104,56 @@ def compare_reported_and_laser_symbols(
             raise ValueError(f"The {label} image must be between 8 and 2048 pixels on each side")
 
     raw_visual = _mask_comparison(laser_image, reported_symbol_image)
-    control_visual = (
-        _mask_comparison(control_laser_image, reported_symbol_image)
-        if control_laser_image is not None else None
+    control_comparisons = []
+    for index, control in enumerate(controls, start=1):
+        measured = _mask_comparison(control, reported_symbol_image)
+        delta = None
+        if raw_visual["status"] == "measured" and measured["status"] == "measured":
+            delta = round(
+                measured["normalized_pixel_difference"]
+                - raw_visual["normalized_pixel_difference"], 6
+            )
+        control_comparisons.append({
+            "control_index": index,
+            "comparison": measured,
+            "laser_more_visually_similar_than_control": None if delta is None else delta > 0,
+            "difference_in_normalized_pixel_distance": delta,
+            "matching_capture_conditions_verified": False,
+        })
+
+    measurable_distances = sorted(
+        record["comparison"]["normalized_pixel_difference"]
+        for record in control_comparisons
+        if record["comparison"]["status"] == "measured"
     )
-    control_delta = None
-    if (
-        control_visual is not None
-        and raw_visual["status"] == "measured"
-        and control_visual["status"] == "measured"
-    ):
-        control_delta = round(
-            control_visual["normalized_pixel_difference"]
-            - raw_visual["normalized_pixel_difference"], 6
+    laser_distance = (
+        raw_visual["normalized_pixel_difference"]
+        if raw_visual["status"] == "measured" else None
+    )
+    laser_better = laser_tied = laser_worse = fraction_as_similar = None
+    if measurable_distances and laser_distance is not None:
+        laser_better = sum(value > laser_distance for value in measurable_distances)
+        laser_tied = sum(value == laser_distance for value in measurable_distances)
+        laser_worse = sum(value < laser_distance for value in measurable_distances)
+        # This is a descriptive proportion of selected crops, not a p-value.
+        fraction_as_similar = round(
+            (laser_tied + laser_worse) / len(measurable_distances), 6
         )
+    control_summary = {
+        "user_supplied_control_count": len(controls),
+        "measured_control_count": len(measurable_distances),
+        "unavailable_control_count": len(controls) - len(measurable_distances),
+        "median_control_normalized_pixel_difference": (
+            round(float(median(measurable_distances)), 6) if measurable_distances else None
+        ),
+        "laser_more_similar_than_control_count": laser_better,
+        "laser_equal_to_control_count": laser_tied,
+        "laser_less_similar_than_control_count": laser_worse,
+        "fraction_controls_at_least_as_similar_as_laser": fraction_as_similar,
+        "matching_capture_conditions_verified": False,
+        "statistical_significance_estimated": False,
+        "control_independence_verified": False,
+    }
     variants = list(BRAND_FONT_VARIANTS) if variant == "all" else [variant]
     comparisons = []
     for name in variants:
@@ -149,23 +199,26 @@ def compare_reported_and_laser_symbols(
         },
         "font_reference_model": TEMPLATE_VERSION,
         "comparison": raw_visual,
-        "laser_control": None if control_visual is None else {
-            "comparison": control_visual,
-            "laser_more_visually_similar_than_control": None if control_delta is None else control_delta > 0,
-            "difference_in_normalized_pixel_distance": control_delta,
-            "matching_capture_conditions_verified": False,
-        },
+        # Preserve the original single-control JSON contract for existing users.
+        "laser_control": (
+            {key: value for key, value in control_comparisons[0].items() if key != "control_index"}
+            if len(control_comparisons) == 1 else None
+        ),
+        "control_comparisons": control_comparisons,
+        "control_summary": control_summary,
         "font_attempts": comparisons,
         "tesseract": tesseract,
         "independent_replicates": 0,
-        "user_supplied_control_crops": int(control_laser_image is not None),
+        "user_supplied_control_crops": len(controls),
         "matched_negative_controls": 0,
         "statistical_significance_estimated": False,
         "language_or_common_origin_established": False,
         "caution": (
             "These are image-shape comparisons and fallible OCR labels, not "
             "a decoding, validated DMT phenomenology dataset, or evidence of common origin. "
-            "A single supplied laser control is descriptive, not a significance test. "
-            "Compare against blinded matched controls before claiming pattern specificity."
+            "Even multiple user-selected laser controls provide descriptive comparisons, "
+            "not a significance test: capture matching, independence and blinded selection "
+            "have not been verified. Compare against preregistered blinded matched controls "
+            "before claiming pattern specificity."
         ),
     }
