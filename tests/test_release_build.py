@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import io
+import tarfile
 import json
 import os
 import re
@@ -310,6 +311,81 @@ class ReleaseVersionConsistencyTests(unittest.TestCase):
         self.assertIsNotNone(version)
         self.assertEqual(version[1], release.__version__)
 
+
+
+class VendoredCodeOfRealityReleaseTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.build_root = self.root / "work"
+        self.build_root.mkdir()
+        self.archive_path = self.root / release.VENDORED_FONT_ARCHIVE
+        self.archive_path.parent.mkdir(parents=True)
+        self.notice = self.root / release.VENDORED_FONT_ATTESTATION
+        self.notice.parent.mkdir(parents=True)
+        self.notice.write_text(
+            "The maintainer reports direct permission from the creator on Discord for these seven fonts.",
+            encoding="utf-8",
+        )
+        from laserlab.branding import BRAND_FONT_VARIANTS
+        self.data = {filename: b"synthetic font data " * 128
+                     for _, filename, _ in BRAND_FONT_VARIANTS.values()}
+        self.hashes = {name: hashlib.sha256(payload).hexdigest()
+                       for name, payload in self.data.items()}
+
+    def write_archive(self, *, entries=None):
+        with tarfile.open(self.archive_path, "w:xz") as bundle:
+            for name, payload in (entries if entries is not None else self.data.items()):
+                info = tarfile.TarInfo(name)
+                info.size = len(payload)
+                bundle.addfile(info, io.BytesIO(payload))
+
+    def stage(self):
+        with patch.object(release, "ROOT", self.root), \
+             patch.object(release, "VENDORED_FONT_ARCHIVE_SHA256", release._sha256(self.archive_path)), \
+             patch.object(release, "_expected_font_hashes", return_value=self.hashes), \
+             patch.dict(os.environ, {
+                 "LASERLAB_RELEASE_FONTS_DIR": "",
+                 "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "",
+             }):
+            return release._stage_authorized_fonts(self.build_root)
+
+    def test_vendored_archive_verifies_all_original_filenames_and_packages_permission(self):
+        self.write_archive()
+        destination = self.stage()
+        self.assertEqual({f.name for f in destination.iterdir()}, set(self.data) | {release.FONT_RIGHTS_NOTICE})
+        for name, payload in self.data.items():
+            self.assertEqual((destination / name).read_bytes(), payload)
+        self.assertIn("Discord", (destination / release.FONT_RIGHTS_NOTICE).read_text())
+
+    def test_archive_rejects_unexpected_file_before_any_extraction(self):
+        self.write_archive(entries=list(self.data.items()) + [("../escape.ttf", b"unexpected")])
+        with self.assertRaisesRegex(ValueError, "exactly the seven reviewed"):
+            self.stage()
+        self.assertFalse((self.build_root / "resources" / "fonts").exists())
+
+    def test_archive_rejects_bad_font_hash(self):
+        self.write_archive(entries=[
+            (name, b"not the reviewed font " * 128 if name == "CodeOfReality-Oracle.ttf" else payload)
+            for name, payload in self.data.items()
+        ])
+        with self.assertRaisesRegex(ValueError, "font fingerprint mismatch"):
+            self.stage()
+
+    def test_vendored_archive_fingerprint_is_pinned_to_the_exact_source_bytes(self):
+        self.write_archive()
+        with patch.object(release, "ROOT", self.root), \
+             patch.object(release, "_expected_font_hashes", return_value=self.hashes), \
+             patch.dict(os.environ, {"LASERLAB_RELEASE_FONTS_DIR": ""}):
+            with self.assertRaisesRegex(ValueError, "archive fingerprint mismatch"):
+                release._stage_authorized_fonts(self.build_root)
+
+    def test_archive_requires_a_true_record_of_maintainer_reported_permission(self):
+        self.write_archive()
+        self.notice.write_text("Some unrelated placeholder", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "attestation is incomplete"):
+            self.stage()
 
 
 class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
