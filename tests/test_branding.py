@@ -19,6 +19,7 @@ from laserlab.branding import (
     install_local_fonts,
     install_font_archive,
     BRAND_FONT_VARIANTS,
+    BRAND_STYLED_VARIANTS,
     ALLOWED_BRAND_FAMILIES,
     BRAND_WORDMARK,
     brand_font_path,
@@ -101,6 +102,33 @@ class BrandingTests(unittest.TestCase):
             ):
                 self.assertEqual(load_brand_font("circuit"), "Code of Reality Circuit")
             self.assertIn('font-family: "Code of Reality Circuit"', dashboard_stylesheet("Code of Reality Circuit"))
+
+    def test_typographic_family_name_variants_register_without_modifying_font_files(self):
+        self.assertEqual(
+            BRAND_STYLED_VARIANTS["symbols-3d"], ("Code of Reality Symbols", "3D")
+        )
+        self.assertEqual(
+            BRAND_STYLED_VARIANTS["symbols-outline"], ("Code of Reality Symbols", "Outline")
+        )
+        class FakeDatabase:
+            @staticmethod
+            def addApplicationFont(_path):
+                return 17
+
+            @staticmethod
+            def applicationFontFamilies(_id):
+                return ["Code of Reality Symbols"]
+
+        fake_qt_gui = types.ModuleType("PyQt5.QtGui")
+        fake_qt_gui.QFontDatabase = FakeDatabase
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "real-variant.ttf"
+            path.write_bytes(b"test resource placeholder")
+            with patch("laserlab.branding.brand_font_path", return_value=path), patch.dict(
+                "sys.modules", {"PyQt5.QtGui": fake_qt_gui}
+            ):
+                self.assertEqual(load_brand_font("symbols-3d"), "Code of Reality Symbols")
+                self.assertEqual(load_brand_font("symbols-outline"), "Code of Reality Symbols")
 
     def test_system_and_unknown_variant_fall_back_without_touching_qt(self):
         self.assertIsNone(load_brand_font("system"))
