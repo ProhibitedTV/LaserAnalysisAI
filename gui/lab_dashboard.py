@@ -2152,6 +2152,25 @@ class LabDashboardWindow(QMainWindow):
         else:
             details.append("Source role, path, frame attribution, and q-value are sealed.")
         details.extend(["", candidate.get("ocr_text", "")])
+        font_attempts = [
+            attempt for attempt in candidate.get("ocr_attempts", [])
+            if str(attempt.get("engine_id", "")).startswith("codeofreality-template:")
+        ]
+        if font_attempts:
+            details.extend(["", "Experimental CodeOfReality reference-shape comparisons (NOT validated decoding):"])
+            for attempt in font_attempts:
+                variant = str(attempt.get("engine_id", "")).partition(":")[2]
+                roi = attempt.get("roi_reference") or {}
+                roi_id = roi.get("id", "unknown") if isinstance(roi, dict) else "unknown"
+                if not attempt.get("available"):
+                    outcome = "unavailable"
+                elif attempt.get("failure_reason"):
+                    outcome = "failed"
+                elif attempt.get("text"):
+                    outcome = f"possible glyph match: {str(attempt['text'])[:80]}"
+                else:
+                    outcome = "no unambiguous glyph match"
+                details.append(f"  {variant} / ROI {roi_id}: {outcome}")
         annotation = candidate.get("review_annotation") or {}
         if annotation:
             details.extend(["", f"Review flags: {', '.join(annotation.get('flags', []))}", annotation.get("note", "")])
