@@ -72,12 +72,69 @@ scientific values, tables, OCR results, or experiment labels. The symbol
 variants map some normal letters to pictographs and are not suitable for
 ordinary interface text. Classic OTF/TTF omit most punctuation and numerals.
 
-**Font redistribution:** Uploaded font metadata credits Chris Johnson (2026)
-for Classic OTF/TTF, and names Luke Hearn as designer for the Symbols family;
-no embedded redistribution license was found. The binaries remain
-**unbundled**: this repository does not publish the font files and the
-source-code license does not license the typefaces. Obtain permission from
-the relevant rights holders before adding font binaries to public downloads.
+### Experimental CodeOfReality reference-glyph OCR
+
+The full seven-font family can now serve as a set of **local reference shapes**
+for an optional OCR comparison adapter. These files do not become a Tesseract
+language model simply by installing them. The experimental adapter renders
+glyph templates from the locally installed font and attempts exact-looking
+matches to **high-contrast, isolated, separated glyphs** in selected image
+regions. It deliberately **abstains** if a crop is noisy, crowded, ambiguous,
+or too different from a known reference.
+
+Try it with one local image (without sending the image to a network service):
+
+```powershell
+python -m laserlab.cli font-ocr --image C:\\Research\\glyph-test.png --variant all
+```
+
+To also include these experiments in the regular blinded analysis pipeline,
+opt in before launching LaserLab or running its CLI:
+
+```powershell
+$env:LASERLAB_FONT_OCR_VARIANTS = "all"   # or "classic,circuit,oracle"
+python main.py
+```
+
+Results are recorded as separate `codeofreality-template:<variant>` entries in
+the OCR attempt audit trail. **They do not replace Tesseract or contribute
+to the primary structure score.** A matched font silhouette is not a decoded
+message, language identification, or evidence of an external source. In
+particular, uppercase and lowercase Symbols glyphs are identical; the
+adapter only emits lowercase canonical labels. Classic supports `a-z1234`;
+Symbols supports `a-z1234567`; Circuit and Oracle additionally support
+uppercase, numerals, and brackets. No validated accuracy on real-world laser
+footage is claimed. More advanced segmentation, robustness testing, false
+positive controls, and independent external validation remain necessary.
+
+### Authorized release packaging
+
+Normally the seven font **binaries are not checked in to public GitHub** and
+standard release CI does not redistribute them. Once the creator's
+redistribution permission for the complete family is confirmed and recorded,
+a release operator can build a fully bundled package from their own local font
+directory. The directory must contain **all seven files with precisely the
+names in the table above**. Set both explicit release-build variables:
+
+```powershell
+$env:LASERLAB_RELEASE_FONTS_DIR = "C:\\ApprovedCodeOfRealityFonts"
+$env:LASERLAB_FONT_REDISTRIBUTION_CONFIRMED = "yes"
+python scripts/build_release.py
+```
+
+The release builder rejects missing or unsafe font inputs, places approved
+fonts into both packaged apps and the release archive, and records that the
+builder attested redistribution permission in `BUILD-INFO.json`. After
+release, LaserLab resolves packaged fonts before looking for user-local
+overrides. Include the relevant copyright notice and license or written
+permission with every externally distributed release.
+
+**Font attribution and rights:** The supplied files' metadata credits Chris
+Johnson (2026) for Classic and identifies Luke Hearn as designer for the
+Symbols family. No embedded redistribution license was supplied. Source code
+changes here are not a grant of font redistribution rights. The user reports
+that the font creator wants them used in a future release; the release
+operator must record the applicable permission before enabling distribution.
 
 ## Community and Support
 
