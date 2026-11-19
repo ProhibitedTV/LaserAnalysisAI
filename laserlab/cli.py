@@ -31,6 +31,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "font-install":
+            from .branding import install_local_fonts
+            result = install_local_fonts(args.source)
+            print(json.dumps({"status": "local-only", **result}, sort_keys=True))
+            return 0
         if args.command == "font-ocr":
             import cv2
             from .branding import BRAND_FONT_VARIANTS
@@ -216,6 +221,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     from .branding import BRAND_FONT_VARIANTS
+    font_install = subparsers.add_parser("font-install", help="Install all seven verified CodeOfReality files to local user storage.")
+    font_install.add_argument("--source", required=True, help="Folder containing the seven supplied OTF/TTF files.")
     font_ocr = subparsers.add_parser("font-ocr", help="Experimental CodeOfReality reference-font OCR on one local image.")
     font_ocr.add_argument("--image", required=True, help="Local image containing isolated CodeOfReality glyphs.")
     font_ocr.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
