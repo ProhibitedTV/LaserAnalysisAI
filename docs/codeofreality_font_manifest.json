@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Fingerprints and character-set metadata for the seven user-supplied CodeOfReality reference fonts. This manifest contains no font binaries and does not grant redistribution rights.",
+  "description": "SHA-256 fingerprints and glyph metadata for seven creator-authorized CodeOfReality font uploads, stored in a pinned GitHub source archive. Distribution permission is maintainer-attested from a direct Discord conversation; exact terms were not independently inspected.",
   "filenames": {
     "CodeOfRealityV1.otf": {
       "source_upload": "CodeOfRealityV1.otf_1",
@@ -51,5 +51,14 @@
       "glyph_codepoints": 115,
       "characters": "a-z A-Z 1-7 (uppercase/lowercase same glyphs)"
     }
+  },
+  "vendored_archive": {
+    "path": "assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz",
+    "format": "tar.xz",
+    "sha256": "ad07981b0bdf10d2d6c51a9a2cfe1f3ffc00bac1f7920a19fd491884d7b7a2a7",
+    "size_bytes": 60912,
+    "font_count": 7,
+    "authorization_record": "docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md",
+    "authorization_source": "maintainer reports direct creator approval via Discord on 2026-11-19"
   }
 }
