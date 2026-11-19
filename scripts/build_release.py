@@ -293,11 +293,21 @@ def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False
         subprocess.run([str(cli_product), "--help"], cwd=unrelated_cwd, check=True, timeout=60)
         if fonts_included:
             font_smoke_env = os.environ.copy()
-            font_smoke_env.setdefault("QT_QPA_PLATFORM", "offscreen")
-            subprocess.run(
+            font_smoke_env["QT_QPA_PLATFORM"] = "offscreen"
+            font_result = subprocess.run(
                 [str(gui_executable), "--smoke-fonts"],
-                cwd=unrelated_cwd, env=font_smoke_env, check=True, timeout=120,
+                cwd=unrelated_cwd, env=font_smoke_env, check=False, timeout=120,
             )
+            font_report_path = unrelated_cwd / "laserlab-font-smoke.json"
+            if not font_report_path.is_file():
+                raise RuntimeError(
+                    f"Packaged GUI font smoke exited {font_result.returncode} without its diagnostic record"
+                )
+            font_report = json.loads(font_report_path.read_text(encoding="utf-8"))
+            if font_result.returncode != 0 or font_report.get("status") != "passed":
+                # The diagnostic has only variant names and Qt family values;
+                # it contains no experiment media, recording paths or secrets.
+                raise RuntimeError("Packaged GUI font smoke failed: " + json.dumps(font_report, sort_keys=True))
             checked = subprocess.run(
                 [str(cli_product), "font-verify", "--require-all"],
                 cwd=unrelated_cwd, check=True, timeout=120,
