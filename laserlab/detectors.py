@@ -245,10 +245,11 @@ def run_roi_ocr(
         )
         primary = run_ocr_ensemble([_TESSERACT_ADAPTER], request)
         exploratory = run_ocr_ensemble(font_adapters, request) if font_adapters else None
+        roi_attempts = list(primary["attempts"])
         primary_attempts.extend(primary["attempts"])
-        attempts.extend(primary["attempts"])
         if exploratory is not None:
-            attempts.extend(exploratory["attempts"])
+            roi_attempts.extend(exploratory["attempts"])
+        attempts.extend(roi_attempts)
         roi_results.append(
             {
                 "roi_reference": reference,
@@ -260,7 +261,7 @@ def run_roi_ocr(
                 },
             }
         )
-        if attempts and not any(item.get("available") for item in attempts):
+        if roi_attempts and not any(item.get("available") for item in roi_attempts):
             break
 
     ensemble_summary = {
