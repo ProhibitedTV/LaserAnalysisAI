@@ -38,31 +38,46 @@ Field support remains local-first. **Help > System Check** reports packaged-runt
 ![LaserLab blinded review](screenshots/release_blinded_review.png)
 ![LaserLab report summary](screenshots/release_report_summary.png)
 
-### Optional CodeOfReality display font
+### Optional CodeOfReality display fonts
 
-LaserLab can use the **CodeOfReality** OpenType font for the lowercase `laserlab`
-wordmark on the dashboard. This is an optional local customization; without
-the font, the app keeps the standard Segoe UI fallback. The font's glyph set
-contains lowercase letters and only digits 1–4, so menus, controls, numerical
-readouts, and scientific results intentionally keep their readable system
-fonts.
+The **Appearance > Wordmark font** menu now supports seven decorative
+CodeOfReality variants, plus the system-default typeface. Place any of your
+**appropriately licensed** font files in the local `LaserLab/fonts` directory
+shown below, then restart LaserLab. You can switch between installed styles
+from the menu without restarting again. Your choice is remembered locally;
+uninstalled or invalid font files automatically use the system fallback.
 
-Install your **own appropriately licensed copy** of `CodeOfRealityV1.otf`
-in the user-specific folder below, then restart the app:
+| Menu style | Local font filename |
+| --- | --- |
+| Classic OTF (default) | `CodeOfRealityV1.otf` |
+| Classic TTF | `CodeOfReality.ttf` |
+| Circuit | `CodeOfReality-Circuit.ttf` |
+| Oracle | `CodeOfReality-Oracle.ttf` |
+| Symbols | `CodeOfRealitySymbols 2.ttf` |
+| Symbols 3D | `CodeOfRealitySymbols-3D.ttf` |
+| Symbols Outline | `CodeOfRealitySymbols-Outline.ttf` |
 
-- Windows: `%LOCALAPPDATA%\\LaserLab\\fonts\\CodeOfRealityV1.otf`
-- macOS: `~/Library/Application Support/LaserLab/fonts/CodeOfRealityV1.otf`
-- Linux: `~/.local/state/laserlab/fonts/CodeOfRealityV1.otf` (or `$XDG_STATE_HOME/laserlab/fonts/`)
+Local installation directories:
 
-Alternatively, set `LASERLAB_BRAND_FONT_PATH` to the full path of the font
-file before starting LaserLab. The app loads the font only after Qt starts,
-without needing a system-wide font installation.
+- Windows: `%LOCALAPPDATA%\\LaserLab\\fonts\\`
+- macOS: `~/Library/Application Support/LaserLab/fonts/`
+- Linux: `~/.local/state/laserlab/fonts/` (or `$XDG_STATE_HOME/laserlab/fonts/`)
 
-The provided font metadata credits **Chris Johnson (2026)**, but does not
-declare redistribution rights. Accordingly, **the font binary is not stored
-in this repository or included in public release artifacts**. The repository's
-source license does not grant rights to the font. Obtain or verify the font
-author's permission before adding it to redistributed builds.
+Alternatively, set `LASERLAB_BRAND_FONT_PATH` to the full path of a Classic
+OTF file before starting the app. That override applies to the **Classic OTF**
+menu entry for backwards compatibility.
+
+These fonts are limited to the lowercase `laserlab` wordmark, **not**
+scientific values, tables, OCR results, or experiment labels. The symbol
+variants map some normal letters to pictographs and are not suitable for
+ordinary interface text. Classic OTF/TTF omit most punctuation and numerals.
+
+**Font redistribution:** Uploaded font metadata credits Chris Johnson (2026)
+for Classic OTF/TTF, and names Luke Hearn as designer for the Symbols family;
+no embedded redistribution license was found. The binaries remain
+**unbundled**: this repository does not publish the font files and the
+source-code license does not license the typefaces. Obtain permission from
+the relevant rights holders before adding font binaries to public downloads.
 
 ## Community and Support
 
