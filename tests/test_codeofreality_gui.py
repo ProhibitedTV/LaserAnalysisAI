@@ -71,6 +71,22 @@ class CodeOfRealityFontGuiTests(unittest.TestCase):
         self.assertIn("7/7", self.window.status.currentMessage())
         self.assertIn("experimental", notice.call_args.args[2].lower())
 
+    def test_incomplete_verification_warns_even_when_copy_succeeded(self):
+        with patch("gui.lab_dashboard.QFileDialog.getExistingDirectory", return_value="/local/fonts"), \
+             patch("gui.lab_dashboard.install_local_fonts", return_value={
+                 "installed": 7, "already_present": 0, "total": 7,
+             }), \
+             patch("gui.lab_dashboard.inspect_font_resources", return_value={
+                 "verified_variants": 6, "all_verified": False,
+             }), \
+             patch("gui.lab_dashboard.QMessageBox.warning") as warning, \
+             patch("gui.lab_dashboard.QMessageBox.information") as notice:
+            self.window.install_codeofreality_fonts()
+        self.assertIn("6/7", warning.call_args.args[2])
+        self.assertIn("verification incomplete", warning.call_args.args[1].lower())
+        self.assertIn("6/7", self.window.status.currentMessage())
+        notice.assert_not_called()
+
     def test_failed_install_does_not_claim_fonts_are_installed(self):
         with patch("gui.lab_dashboard.QFileDialog.getExistingDirectory", return_value="/incorrect"), \
              patch("gui.lab_dashboard.install_local_fonts", side_effect=ValueError("Unrecognized font")), \
