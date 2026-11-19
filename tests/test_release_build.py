@@ -329,7 +329,9 @@ class VendoredCodeOfRealityReleaseTests(unittest.TestCase):
             encoding="utf-8",
         )
         from laserlab.branding import BRAND_FONT_VARIANTS
-        self.data = {filename: b"synthetic font data " * 128
+        # Incompressible deterministic fixtures keep the tar.xz above the
+        # release builder's minimum archive-size threshold.
+        self.data = {filename: hashlib.shake_256(filename.encode()).digest(2048)
                      for _, filename, _ in BRAND_FONT_VARIANTS.values()}
         self.hashes = {name: hashlib.sha256(payload).hexdigest()
                        for name, payload in self.data.items()}
