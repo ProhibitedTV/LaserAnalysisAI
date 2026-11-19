@@ -9,6 +9,7 @@ from typing import Any
 
 from .artifacts import ensure_dir, relative_to
 from .ocr_adapters import OCRRequest, TesseractAdapter, run_ocr_ensemble
+from .font_ocr import configured_font_ocr_adapters
 from .roi_detection import crop_rois, detect_code_rois, draw_roi_overlay
 from .scientific import cross_pattern_metrics, fft_spectrum_metrics, glcm_texture_metrics, speckle_contrast_metrics
 
@@ -219,6 +220,9 @@ def run_roi_ocr(
     )[:limit]
     attempts: list[dict[str, Any]] = []
     roi_results: list[dict[str, Any]] = []
+    # Explicitly enabled experimental reference-font attempts appear beside
+    # Tesseract results, never in the primary scientific OCR score.
+    adapters = [_TESSERACT_ADAPTER, *configured_font_ocr_adapters()]
     for roi in ordered:
         x, y, width, height = _bbox_values(roi["processed_bbox"])
         crop = processed_image[y:y + height, x:x + width]
@@ -231,7 +235,7 @@ def run_roi_ocr(
             "processed_crop_path": roi.get("processed_crop_path"),
         }
         ensemble = run_ocr_ensemble(
-            [_TESSERACT_ADAPTER],
+            adapters,
             OCRRequest(
                 image=crop,
                 roi_reference=reference,
@@ -257,7 +261,10 @@ def run_roi_ocr(
         "attempt_count": len(attempts),
         "roi_results": roi_results,
     }
-    return legacy_ocr_summary(attempts), attempts, ensemble_summary
+    # Font-template matches are exploratory reference-shape annotations; they
+    # MUST NOT silently replace validated primary OCR scoring.
+    tesseract_attempts = [item for item in attempts if item.get("engine_id") == _TESSERACT_ADAPTER.engine_id]
+    return legacy_ocr_summary(tesseract_attempts), attempts, ensemble_summary
 
 
 def legacy_ocr_summary(attempts: list[dict[str, Any]]) -> dict[str, Any]:
