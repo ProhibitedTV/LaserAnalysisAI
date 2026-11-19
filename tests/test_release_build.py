@@ -101,6 +101,8 @@ class ReleaseBuildTests(unittest.TestCase):
         for _, filename, _ in BRAND_FONT_VARIANTS.values():
             (font_root / filename).write_bytes(sample)
             expected[filename] = hashlib.sha256(sample).hexdigest()
+        permission = "CodeOfReality fonts: copyright holders authorize this specific LaserLab binary distribution.\\n"
+        (font_root / release.FONT_RIGHTS_NOTICE).write_text(permission, encoding="utf-8")
         with patch.dict(os.environ, {
             "LASERLAB_RELEASE_FONTS_DIR": str(font_root),
             "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
@@ -110,7 +112,8 @@ class ReleaseBuildTests(unittest.TestCase):
         info = json.loads((bundle / "BUILD-INFO.json").read_text())
         self.assertEqual(info["bundled_codeofreality_font_count"], 7)
         self.assertTrue(info["font_redistribution_attested_by_release_builder"])
-        self.assertEqual({path.name for path in (bundle / "fonts").iterdir()}, set(expected))
+        self.assertEqual({path.name for path in (bundle / "fonts").iterdir()}, set(expected) | {release.FONT_RIGHTS_NOTICE})
+        self.assertEqual((bundle / "fonts" / release.FONT_RIGHTS_NOTICE).read_text(), permission)
         for name, digest in expected.items():
             self.assertEqual(hashlib.sha256((bundle / "fonts" / name).read_bytes()).hexdigest(), digest)
         for command in self.commands:
@@ -118,7 +121,10 @@ class ReleaseBuildTests(unittest.TestCase):
             self.assertEqual(len(entries), 2)
             staged_fonts, target = entries[1].rsplit(os.pathsep, 1)
             self.assertEqual(target, "fonts")
-            self.assertEqual({p.name for p in Path(staged_fonts).iterdir()}, set(expected))
+            self.assertEqual(
+                {p.name for p in Path(staged_fonts).iterdir()},
+                set(expected) | {release.FONT_RIGHTS_NOTICE},
+            )
         self.smoke.assert_called_once()
         self.assertTrue(self.smoke.call_args.kwargs["fonts_included"])
         with zipfile.ZipFile(archive) as zipped:
@@ -127,6 +133,10 @@ class ReleaseBuildTests(unittest.TestCase):
                     zipped.read(f"{bundle.name}/fonts/{name}"),
                     sample,
                 )
+            self.assertEqual(
+                zipped.read(f"{bundle.name}/fonts/{release.FONT_RIGHTS_NOTICE}").decode("utf-8"),
+                permission,
+            )
 
     def test_matching_tag_at_exact_commit_builds_a_release(self):
         tag = "v0.9.0"
@@ -317,6 +327,10 @@ class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
             source.mkdir()
             for _, filename, _ in BRAND_FONT_VARIANTS.values():
                 (source / filename).write_bytes(b"x" * 2048)
+            (source / release.FONT_RIGHTS_NOTICE).write_text(
+                "Verified author permission for distribution of all CodeOfReality styles in LaserLab.",
+                encoding="utf-8",
+            )
             build_root = root / "build"
             build_root.mkdir()
             with patch.dict(os.environ, {
@@ -341,7 +355,7 @@ class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
             self.assertIsNotNone(destination)
             self.assertEqual({p.name for p in destination.iterdir()}, {
                 item[1] for item in BRAND_FONT_VARIANTS.values()
-            })
+            } | {release.FONT_RIGHTS_NOTICE})
             command = release._pyinstaller_command(
                 "laserlab_launcher.py", "LaserLab", root / "dist", root / "work",
                 root / "spec", True, media_dir=root / "public-media", fonts_dir=destination,
