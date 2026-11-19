@@ -31,6 +31,22 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "font-ocr":
+            import cv2
+            from .branding import BRAND_FONT_VARIANTS
+            from .font_ocr import CodeOfRealityTemplateAdapter
+            from .ocr_adapters import OCRRequest, run_ocr_ensemble
+            image = cv2.imread(str(args.image), cv2.IMREAD_COLOR)
+            if image is None:
+                raise ValueError("Cannot read font OCR input image")
+            variants = list(BRAND_FONT_VARIANTS) if args.variant == "all" else [args.variant]
+            adapters = [CodeOfRealityTemplateAdapter(variant) for variant in variants]
+            results = run_ocr_ensemble(adapters, OCRRequest(
+                image=image, roi_reference={"id": "font_calibration"},
+                preprocessing_metadata={"research_only": True, "known_glyph_reference": True},
+            ))
+            print(json.dumps(results, indent=2, allow_nan=False))
+            return 0
         if args.command == "exchange":
             from .research_exchange import prepare_exchange, export_exchange
             if (args.reference_kind is None) != (args.reference_id is None):
@@ -199,6 +215,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    from .branding import BRAND_FONT_VARIANTS
+    font_ocr = subparsers.add_parser("font-ocr", help="Experimental CodeOfReality reference-font OCR on one local image.")
+    font_ocr.add_argument("--image", required=True, help="Local image containing isolated CodeOfReality glyphs.")
+    font_ocr.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
+    
     exchange = subparsers.add_parser("exchange", help="Preview and save a reviewed, media-free local results exchange.")
     exchange_actions = exchange.add_subparsers(dest="exchange_action", required=True)
     for action in ("preview", "export"):
