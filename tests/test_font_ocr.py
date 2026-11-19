@@ -15,7 +15,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from laserlab.branding import BRAND_FONT_VARIANTS
+from laserlab.branding import BRAND_FONT_VARIANTS, KNOWN_FONT_SHA256
 from laserlab.font_ocr import (
     FONT_OCR_ENV,
     CodeOfRealityTemplateAdapter,
@@ -128,12 +128,26 @@ class FontOCRTests(unittest.TestCase):
         self.assertIsNone(attempt["text"])
         self.assertIn("not installed", attempt["failure_reason"])
 
+    def test_unreviewed_font_bytes_are_not_treated_as_codeofreality_reference(self):
+        image, _ = _synthetic_reference()
+        with tempfile.TemporaryDirectory() as directory:
+            unknown = Path(directory) / "CodeOfReality-Oracle.ttf"
+            unknown.write_bytes(b"synthetic unreviewed font bytes" * 100)
+            with patch("laserlab.font_ocr.brand_font_path", return_value=unknown):
+                attempt = CodeOfRealityTemplateAdapter("oracle").run(OCRRequest(image))
+        self.assertFalse(attempt["available"])
+        self.assertIsNone(attempt["text"])
+        self.assertIn("fingerprint", attempt["failure_reason"])
+
     def test_normalized_attempts_preserve_experimental_engine_and_roi(self):
         image, templates = _synthetic_reference()
         with tempfile.TemporaryDirectory() as directory:
             font = Path(directory) / "font.ttf"
             font.write_bytes(b"x" * 2048)
             with patch("laserlab.font_ocr.brand_font_path", return_value=font), patch(
+                "laserlab.font_ocr._font_sha256",
+                return_value=KNOWN_FONT_SHA256["CodeOfReality-Oracle.ttf"],
+            ), patch(
                 "laserlab.font_ocr._reference_templates", return_value=templates
             ):
                 result = CodeOfRealityTemplateAdapter("oracle").run(OCRRequest(
