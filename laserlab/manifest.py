@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 import uuid
 from copy import deepcopy
 from pathlib import Path
@@ -195,8 +197,24 @@ def upgrade_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_manifest(experiment_dir: Path, manifest: dict[str, Any]) -> None:
-    ensure_dir(experiment_dir)
-    write_json(manifest_path(experiment_dir), manifest)
+    """Atomically replace the experiment manifest after a complete JSON write.
+
+    A failed serializer, full disk, or interrupted write must never truncate
+    an existing experiment record. A temporary sibling file is used so the
+    final os.replace() occurs on the same filesystem.
+    """
+    experiment_dir = ensure_dir(experiment_dir)
+    destination = manifest_path(experiment_dir)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=".manifest-", suffix=".json.tmp", dir=experiment_dir
+    )
+    os.close(descriptor)
+    staged = Path(temporary)
+    try:
+        write_json(staged, manifest)
+        os.replace(staged, destination)
+    finally:
+        staged.unlink(missing_ok=True)
 
 
 def latest_run_dir(experiment_dir: Path, manifest: dict[str, Any]) -> Path:
