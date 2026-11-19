@@ -163,7 +163,12 @@ standard release CI does not redistribute them. Once the creator's
 redistribution permission for the complete family is confirmed and recorded,
 a release operator can build a fully bundled package from their own local font
 directory. The directory must contain **all seven files with precisely the
-names in the table above**. Set both explicit release-build variables:
+names in the table above**, **plus a UTF-8
+`CODEOFREALITY-PERMISSION.txt` notice** describing the actual redistribution
+terms granted by the rights holder(s). See
+[the CodeOfReality permission guide](docs/CODEOFREALITY_PERMISSION_GUIDE.md)
+for the attribution and permission checklist. Set both explicit
+release-build variables:
 
 ```powershell
 $env:LASERLAB_RELEASE_FONTS_DIR = "C:\\ApprovedCodeOfRealityFonts"
@@ -171,9 +176,10 @@ $env:LASERLAB_FONT_REDISTRIBUTION_CONFIRMED = "yes"
 python scripts/build_release.py
 ```
 
-The release builder rejects missing, altered, or unsafe font inputs, places
-approved fonts into both packaged apps and the release archive, and records
-that the builder attested redistribution permission in `BUILD-INFO.json`.
+The release builder rejects missing, altered, or unsafe font inputs and a
+missing rights notice, places approved fonts **and the rights notice** into
+both packaged apps and the release archive, and records that the builder
+attested redistribution permission in `BUILD-INFO.json`.
 Before the archive is produced, the native release smoke test runs the
 **packaged** `font-verify --require-all` command and requires all seven glyph
 references to be complete, fingerprint-matched, and renderable. This confirms
