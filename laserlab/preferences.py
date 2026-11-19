@@ -14,6 +14,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
+from .branding import BRAND_FONT_VARIANTS
+
 
 SCHEMA_VERSION = 1
 MAX_RECENT_EXPERIMENTS = 5
@@ -132,6 +134,15 @@ def set_veilbreak_cache_enabled(enabled: bool, path: str | os.PathLike[str] | No
     return save_preferences(data, path)
 
 
+def set_brand_font_variant(variant: str, path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
+    """Remember a display-only wordmark variant, without touching experiment data."""
+    if variant != "system" and variant not in BRAND_FONT_VARIANTS:
+        raise ValueError("Unknown wordmark font variant")
+    data = load_preferences(path)
+    data["brand_font_variant"] = variant
+    return save_preferences(data, path)
+
+
 def _target_path(path: str | os.PathLike[str] | None) -> Path:
     return Path(path).expanduser() if path is not None else preferences_path()
 
@@ -142,6 +153,7 @@ def _default_preferences() -> dict[str, Any]:
         "recent_experiments": [],
         "last_source_directory": None,
         "veilbreak_cache_enabled": False,
+        "brand_font_variant": "classic",
     }
 
 
@@ -164,6 +176,9 @@ def _normalize_preferences(data: Mapping[str, Any]) -> dict[str, Any]:
 
     normalized["last_source_directory"] = _directory_string(data.get("last_source_directory"))
     normalized["veilbreak_cache_enabled"] = data.get("veilbreak_cache_enabled") is True
+    variant = data.get("brand_font_variant")
+    if isinstance(variant, str) and (variant == "system" or variant in BRAND_FONT_VARIANTS):
+        normalized["brand_font_variant"] = variant
     return normalized
 
 
