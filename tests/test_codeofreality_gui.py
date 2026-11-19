@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QLabel
 from gui.lab_dashboard import LabDashboardWindow
 from laserlab.font_ocr import FONT_OCR_ENV
 
@@ -43,6 +43,22 @@ class CodeOfRealityFontGuiTests(unittest.TestCase):
         toggle = [action for action in actions if "experimental" in action.text().lower()]
         self.assertEqual(len(toggle), 1)
         self.assertTrue(toggle[0].isCheckable())
+
+    def test_three_dimensional_and_outline_wordmarks_use_distinct_qt_style_names(self):
+        wordmarks = self.window.findChildren(QLabel, "brandWordmark")
+        self.assertTrue(wordmarks)
+        for variant, expected_style in (("symbols-3d", "3D"), ("symbols-outline", "Outline")):
+            with self.subTest(variant=variant):
+                self.window.brand_font_variant = variant
+                self.window.brand_font_family = "Code of Reality Symbols"
+                self.window._apply_style()
+                self.assertTrue(
+                    all(label.font().styleName() == expected_style for label in wordmarks)
+                )
+        self.window.brand_font_variant = "system"
+        self.window.brand_font_family = None
+        self.window._apply_style()
+        self.assertTrue(all(label.font().styleName() != "Outline" for label in wordmarks))
 
     def test_cancelled_install_does_not_modify_files_or_ocr_selection(self):
         with patch("gui.lab_dashboard.QFileDialog.getExistingDirectory", return_value=""), \
