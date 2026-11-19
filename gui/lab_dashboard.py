@@ -13,6 +13,7 @@ from PyQt5.QtCore import QThread, Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QDesktopServices, QPixmap
 from PyQt5.QtWidgets import (
     QAction,
+    QActionGroup,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -43,7 +44,7 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
-from laserlab.branding import BRAND_WORDMARK, load_brand_font
+from laserlab.branding import BRAND_FONT_VARIANTS, BRAND_WORDMARK, brand_font_path, load_brand_font
 from laserlab.artifacts import checked_image_artifact, load_json
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
@@ -57,7 +58,8 @@ from laserlab.diagnostics import (
 )
 from laserlab.fixtures import list_fixtures
 from laserlab.manifest import latest_run_dir, load_manifest
-from laserlab.preferences import load_preferences, remember_experiment, set_last_source_directory, set_veilbreak_cache_enabled
+from laserlab.preferences import (load_preferences, remember_experiment, set_brand_font_variant as save_brand_font_variant,
+                                  set_last_source_directory, set_veilbreak_cache_enabled)
 from laserlab.runtime import default_experiments_dir
 from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
 from .veilbreak_catalog import VeilbreakCatalogDialog
@@ -206,7 +208,10 @@ class LabDashboardWindow(QMainWindow):
         self.comparison_directories: list[Path] = []
         self.preferences = preferences if preferences is not None else load_preferences()
         self.protocol_presets = app_api.list_protocol_presets()
-        self.brand_font_family = load_brand_font()
+        self.brand_font_variant = self.preferences.get("brand_font_variant", "classic")
+        if self.brand_font_variant != "system" and self.brand_font_variant not in BRAND_FONT_VARIANTS:
+            self.brand_font_variant = "classic"
+        self.brand_font_family = load_brand_font(self.brand_font_variant)
         self._build_ui()
         self._apply_style()
         self._load_fixtures()
@@ -229,6 +234,18 @@ class LabDashboardWindow(QMainWindow):
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+        appearance_menu = self.menuBar().addMenu("Appearance")
+        font_menu = appearance_menu.addMenu("Wordmark font")
+        self.brand_font_actions = QActionGroup(self)
+        self.brand_font_actions.setExclusive(True)
+        for variant, label in [("system", "System default"), *[(key, spec[0]) for key, spec in BRAND_FONT_VARIANTS.items()]]:
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(variant == self.brand_font_variant)
+            action.triggered.connect(lambda _checked=False, selected=variant: self.change_brand_font(selected))
+            self.brand_font_actions.addAction(action)
+            font_menu.addAction(action)
 
         help_menu = self.menuBar().addMenu("Help")
         walkthrough = QAction("First-time walkthrough", self)
@@ -1185,6 +1202,23 @@ class LabDashboardWindow(QMainWindow):
 
     def _apply_style(self) -> None:
         self.setStyleSheet(dashboard_stylesheet(self.brand_font_family))
+
+    def change_brand_font(self, variant: str) -> None:
+        """Switch decorative wordmark font without affecting scientific content."""
+        if variant != "system" and variant not in BRAND_FONT_VARIANTS:
+            return
+        self.brand_font_variant = variant
+        self.brand_font_family = load_brand_font(variant)
+        self._apply_style()
+        try:
+            self.preferences = save_brand_font_variant(variant)
+        except OSError:
+            self.status.showMessage("Wordmark changed, but the choice could not be saved.")
+            return
+        if variant != "system" and self.brand_font_family is None:
+            self.status.showMessage(f"Wordmark font not installed: {brand_font_path(variant)} (using system fallback)")
+        else:
+            self.status.showMessage(f"Wordmark font: {variant}")
 
     def show_quick_start(self) -> None:
         """Short, supportive guide for users without a technical background."""
