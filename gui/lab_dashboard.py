@@ -1250,7 +1250,7 @@ class LabDashboardWindow(QMainWindow):
         except (OSError, ValueError) as exc:
             QMessageBox.warning(
                 self, "CodeOfReality fonts not installed",
-                f"All seven original font files are required. Installation was not completed.\\n\\n{exc}"
+                f"All seven original font files are required. Installation was not completed.\n\n{exc}"
             )
             return
         # Refresh the wordmark once Qt has access to the newly installed font.
@@ -1260,8 +1260,8 @@ class LabDashboardWindow(QMainWindow):
         self.status.showMessage(f"CodeOfReality local glyph references verified: {count}/7")
         QMessageBox.information(
             self, "CodeOfReality fonts installed",
-            f"Installed {result['installed']} and found {result['already_present']} existing reviewed fonts.\\n"
-            f"Glyph references verified: {count}/7.\\n\\n"
+            f"Installed {result['installed']} and found {result['already_present']} existing reviewed fonts.\n"
+            f"Glyph references verified: {count}/7.\n\n"
             "OCR template comparisons are experimental and must be enabled separately in Appearance. "
             "No font files were uploaded to GitHub or a remote service."
         )
