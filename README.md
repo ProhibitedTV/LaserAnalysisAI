@@ -40,12 +40,13 @@ Field support remains local-first. **Help > System Check** reports packaged-runt
 
 ### Optional CodeOfReality display fonts
 
-The **Appearance > Wordmark font** menu now supports seven decorative
-CodeOfReality variants, plus the system-default typeface. Place any of your
-**appropriately licensed** font files in the local `LaserLab/fonts` directory
-shown below, then restart LaserLab. You can switch between installed styles
-from the menu without restarting again. Your choice is remembered locally;
-uninstalled or invalid font files automatically use the system fallback.
+The **Appearance > Wordmark font** menu supports seven decorative
+CodeOfReality variants, plus the system-default typeface. **Authorized native
+release builds now include all seven reviewed font binaries automatically**.
+Source checkouts contain the seven files in a SHA-256-pinned tar.xz archive
+under `assets/codeofreality/`; install them into local user storage using
+the command below. You can switch styles from the menu, and the choice is
+remembered locally; missing or invalid fonts use the system fallback.
 
 | Menu style | Local font filename |
 | --- | --- |
@@ -64,9 +65,14 @@ SHA-256 for every file, installs locally, refreshes the wordmark and reports
 the number of renderable references. This never publishes the fonts and does
 **not** automatically enable experimental OCR.
 
-You can also install from the command line (the original uploaded
-`CodeOfRealityV1.otf_1` filename is accepted and renamed to
-`CodeOfRealityV1.otf`):
+From a source checkout, install directly from the reviewed archive:
+
+```powershell
+python -m laserlab.cli font-install --archive "assets\\codeofreality\\CodeOfReality-authorized-fonts.tar.xz"
+```
+
+You can also install from a separate folder of the original files (the
+uploaded `CodeOfRealityV1.otf_1` filename is accepted and renamed):
 
 ```powershell
 python -m laserlab.cli font-install --source "C:\\Research\\CodeOfRealityFonts"
@@ -207,17 +213,36 @@ for the maintainer-reported creator authorization.
 
 ### Authorized release packaging
 
-Normally the seven font **binaries are not checked in to public GitHub** and
-standard release CI does not redistribute them. Once the creator's
-redistribution permission for the complete family is confirmed and recorded,
-a release operator can build a fully bundled package from their own local font
-directory. The directory must contain **all seven files with precisely the
-names in the table above**, **plus a UTF-8
-`CODEOFREALITY-PERMISSION.txt` notice** describing the actual redistribution
-terms granted by the rights holder(s). See
-[the CodeOfReality permission guide](docs/CODEOFREALITY_PERMISSION_GUIDE.md)
-for the attribution and permission checklist. Set both explicit
-release-build variables:
+The exact seven supplied fonts are **now committed to GitHub**, as a single
+checksum-pinned compressed source asset:
+
+`assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz`
+
+The maintainer stated on November 19, 2026, that they received direct
+permission from the creator over Discord and explicitly authorized these
+fonts' integration into GitHub and LaserLab releases. That statement is
+recorded in
+[the distribution attestation](docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md).
+We have **not** inspected the original Discord message or an independent
+license grant. Classic font metadata credits Chris Johnson (2026); the
+Symbols family identifies Luke Hearn as a designer. Retain applicable
+attributions and any additional distribution terms.
+
+**Ordinary native builds from this branch now stage all seven fonts by
+default.** The builder validates the exact compressed-archive SHA-256,
+extracts only the seven expected regular files, verifies their individual
+SHA-256 values, and includes them and the maintainer-attestation text in
+both PyInstaller applications and the ZIP archive. A packaged
+`font-verify --require-all` smoke test must pass before the ZIP is finalized.
+
+```powershell
+python scripts/build_release.py
+```
+
+Advanced release operators can still override the vendored archive by
+providing a separately authorized font directory and a UTF-8
+`CODEOFREALITY-PERMISSION.txt` rights notice. For that override, both
+environment variables remain required:
 
 ```powershell
 $env:LASERLAB_RELEASE_FONTS_DIR = "C:\\ApprovedCodeOfRealityFonts"
@@ -225,24 +250,11 @@ $env:LASERLAB_FONT_REDISTRIBUTION_CONFIRMED = "yes"
 python scripts/build_release.py
 ```
 
-The release builder rejects missing, altered, or unsafe font inputs and a
-missing rights notice, places approved fonts **and the rights notice** into
-both packaged apps and the release archive, and records that the builder
-attested redistribution permission in `BUILD-INFO.json`.
-Before the archive is produced, the native release smoke test runs the
-**packaged** `font-verify --require-all` command and requires all seven glyph
-references to be complete, fingerprint-matched, and renderable. This confirms
-the packaged CLI can really find them rather than only testing source files.
-After release, LaserLab resolves packaged fonts before looking for user-local
-overrides. Include the relevant copyright notice and license or written
-permission with every externally distributed release.
-
-**Font attribution and rights:** The supplied files' metadata credits Chris
-Johnson (2026) for Classic and identifies Luke Hearn as designer for the
-Symbols family. No embedded redistribution license was supplied. Source code
-changes here are not a grant of font redistribution rights. The user reports
-that the font creator wants them used in a future release; the release
-operator must record the applicable permission before enabling distribution.
+See [the permission guide](docs/CODEOFREALITY_PERMISSION_GUIDE.md) for the
+recordkeeping checklist. Bundling glyph shapes does not turn Tesseract into
+a CodeOfReality-trained model and does not validate symbols from captured
+laser light. Native release artifacts and independently obtained field
+data still require separate acceptance testing.
 
 ## Community and Support
 
