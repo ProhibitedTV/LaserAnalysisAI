@@ -38,6 +38,32 @@ Field support remains local-first. **Help > System Check** reports packaged-runt
 ![LaserLab blinded review](screenshots/release_blinded_review.png)
 ![LaserLab report summary](screenshots/release_report_summary.png)
 
+### Optional CodeOfReality display font
+
+LaserLab can use the **CodeOfReality** OpenType font for the lowercase `laserlab`
+wordmark on the dashboard. This is an optional local customization; without
+the font, the app keeps the standard Segoe UI fallback. The font's glyph set
+contains lowercase letters and only digits 1–4, so menus, controls, numerical
+readouts, and scientific results intentionally keep their readable system
+fonts.
+
+Install your **own appropriately licensed copy** of `CodeOfRealityV1.otf`
+in the user-specific folder below, then restart the app:
+
+- Windows: `%LOCALAPPDATA%\\LaserLab\\fonts\\CodeOfRealityV1.otf`
+- macOS: `~/Library/Application Support/LaserLab/fonts/CodeOfRealityV1.otf`
+- Linux: `~/.local/state/laserlab/fonts/CodeOfRealityV1.otf` (or `$XDG_STATE_HOME/laserlab/fonts/`)
+
+Alternatively, set `LASERLAB_BRAND_FONT_PATH` to the full path of the font
+file before starting LaserLab. The app loads the font only after Qt starts,
+without needing a system-wide font installation.
+
+The provided font metadata credits **Chris Johnson (2026)**, but does not
+declare redistribution rights. Accordingly, **the font binary is not stored
+in this repository or included in public release artifacts**. The repository's
+source license does not grant rights to the font. Obtain or verify the font
+author's permission before adding it to redistributed builds.
+
 ## Community and Support
 
 New to the project? Browse the [LaserLab Wiki](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki), [Getting Started](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Getting-Started), and [FAQ](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/FAQ). Community guides are maintained in the Wiki's separate repository.
