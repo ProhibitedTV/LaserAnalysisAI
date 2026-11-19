@@ -17,6 +17,7 @@ from laserlab.branding import (
     BRAND_FONT_FAMILY,
     KNOWN_FONT_SHA256,
     install_local_fonts,
+    install_font_archive,
     BRAND_FONT_VARIANTS,
     ALLOWED_BRAND_FAMILIES,
     BRAND_WORDMARK,
@@ -131,6 +132,31 @@ class BrandingTests(unittest.TestCase):
                 second = install_local_fonts(source, destination_dir=target)
                 self.assertEqual(second, {"installed": 0, "already_present": 7, "total": 7})
                 self.assertEqual({path.name for path in target.iterdir()}, set(fake_hashes))
+
+    def test_vendored_creator_authorized_archive_installs_all_seven_real_fonts(self):
+        archive = Path(__file__).resolve().parents[1] / "assets" / "codeofreality" / "CodeOfReality-authorized-fonts.tar.xz"
+        self.assertTrue(archive.is_file(), "The released source must include the authorized font archive")
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "installed-fonts"
+            result = install_font_archive(archive, destination_dir=folder)
+            self.assertEqual(result, {"installed": 7, "already_present": 0, "total": 7})
+            self.assertEqual({path.name for path in folder.iterdir()}, set(KNOWN_FONT_SHA256))
+            self.assertEqual(
+                {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in folder.iterdir()},
+                KNOWN_FONT_SHA256,
+            )
+            again = install_font_archive(archive, destination_dir=folder)
+            self.assertEqual(again, {"installed": 0, "already_present": 7, "total": 7})
+
+    def test_vendored_archive_rejects_altered_bytes_before_creating_user_fonts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            archive = folder / "untrusted.tar.xz"
+            archive.write_bytes(b"not a validated CodeOfReality font archive" * 100)
+            installed = folder / "fonts"
+            with self.assertRaisesRegex(ValueError, "unexpected fingerprint"):
+                install_font_archive(archive, destination_dir=installed)
+            self.assertFalse(installed.exists())
 
     def test_local_install_rejects_changes_before_writing_or_overwriting(self):
         with tempfile.TemporaryDirectory() as directory:
