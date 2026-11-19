@@ -1,8 +1,9 @@
-"""Optional local CodeOfReality typefaces for the LaserLab wordmark.
+"""CodeOfReality font inventory and safe local installation for LaserLab.
 
-These third-party font binaries are never shipped in this repository or
-packaged releases. Fonts are decorative only; measurements and OCR are not
-rendered using these character-to-symbol maps.
+Reference fonts are used only for the wordmark and experimental glyph-template
+OCR, never as ordinary scientific readout typography. Public source releases
+do not contain font bytes; authorized native builds can bundle reviewed fonts
+when their redistribution terms have been established.
 """
 
 from __future__ import annotations
