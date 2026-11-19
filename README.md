@@ -58,6 +58,13 @@ remembered locally; missing or invalid fonts use the system fallback.
 | Symbols 3D | `CodeOfRealitySymbols-3D.ttf` |
 | Symbols Outline | `CodeOfRealitySymbols-Outline.ttf` |
 
+**Qt font naming:** Symbols 3D and Symbols Outline share the OpenType
+typographic family `Code of Reality Symbols` with distinct styles
+`3D` and `Outline`. LaserLab selects the requested style explicitly for
+its decorative wordmarks rather than silently displaying the Regular face.
+The original font bytes are not modified. Native GUI smoke checks both
+their family registration and the availability of those named styles.
+
 For a complete verified local installation, put all seven files into one
 folder. In the desktop app select **Appearance > Install all seven
 CodeOfReality fonts…** and choose that folder. LaserLab verifies the original
