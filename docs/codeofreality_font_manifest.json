@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "description": "Fingerprints and character-set metadata for the seven user-supplied CodeOfReality reference fonts. This manifest contains no font binaries and does not grant redistribution rights.",
+  "filenames": {
+    "CodeOfRealityV1.otf": {
+      "source_upload": "CodeOfRealityV1.otf_1",
+      "sha256": "d1f6a0ccb08c3863a0e05d07dc5efabd19b863f97b56f0646309088e116ae81a",
+      "size_bytes": 11688,
+      "glyph_codepoints": 30,
+      "characters": "a-z 1-4"
+    },
+    "CodeOfReality.ttf": {
+      "source_upload": "CodeOfReality.ttf",
+      "sha256": "290b37e8d3d35c9bdf7f06f8b3a8768ee53acba6c97c218dd8d572da5d6fa3cb",
+      "size_bytes": 5076,
+      "glyph_codepoints": 30,
+      "characters": "a-z 1-4"
+    },
+    "CodeOfReality-Circuit.ttf": {
+      "source_upload": "CodeOfReality-Circuit.ttf",
+      "sha256": "2ea7c256eab5592180a73449bf4004bdd9881175bc4139eae83eb1dfb3f2c051",
+      "size_bytes": 17928,
+      "glyph_codepoints": 138,
+      "characters": "a-z A-Z 0-9 [ ]"
+    },
+    "CodeOfReality-Oracle.ttf": {
+      "source_upload": "CodeOfReality-Oracle.ttf",
+      "sha256": "ebdc5b562eeedda503288969535c64fe5e0d99ae77428ca5abd038eb5a100c5e",
+      "size_bytes": 33244,
+      "glyph_codepoints": 138,
+      "characters": "a-z A-Z 0-9 [ ]"
+    },
+    "CodeOfRealitySymbols 2.ttf": {
+      "source_upload": "CodeOfRealitySymbols 2.ttf",
+      "sha256": "9c79fa3c1c371f82c2946d30ad6a673d5a0724a158f441dc6d643501e57e5ef8",
+      "size_bytes": 10968,
+      "glyph_codepoints": 115,
+      "characters": "a-z A-Z 1-7 (uppercase/lowercase same glyphs)"
+    },
+    "CodeOfRealitySymbols-3D.ttf": {
+      "source_upload": "CodeOfRealitySymbols-3D.ttf",
+      "sha256": "9d9ee8df3617ec701b160816cb5ff713bcfd43ba8c46f714654adcd6222f71a0",
+      "size_bytes": 24516,
+      "glyph_codepoints": 115,
+      "characters": "a-z A-Z 1-7 (uppercase/lowercase same glyphs)"
+    },
+    "CodeOfRealitySymbols-Outline.ttf": {
+      "source_upload": "CodeOfRealitySymbols-Outline.ttf",
+      "sha256": "39ebbd9aececa93566185758695b8200ff9ef7b554b5a3d6ba482dfe2eee1965",
+      "size_bytes": 19828,
+      "glyph_codepoints": 115,
+      "characters": "a-z A-Z 1-7 (uppercase/lowercase same glyphs)"
+    }
+  }
+}
