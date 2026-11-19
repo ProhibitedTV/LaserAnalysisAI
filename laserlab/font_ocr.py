@@ -175,13 +175,30 @@ def _match_reference(image: Any, templates: dict[str, Any]) -> OCRPayload:
     if not spans or len(spans) > _MAX_GLYPHS:
         return OCRPayload(text=None)
 
-    glyphs: list[str] = []
-    boxes: list[dict[str, Any]] = []
-    distances: list[float] = []
+    # This adapter recognizes a *single row* of isolated glyphs. Two
+    # horizontally disjoint shapes at different vertical positions are not
+    # one word, even if they each resemble a glyph when cropped alone.
+    glyph_intervals: list[tuple[int, int]] = []
     for left, right in spans:
         if right - left < 3:
             return OCRPayload(text=None)
-        normalized = _normalise_glyph(mask[:, left:right])
+        filled_rows = np.flatnonzero(np.any(mask[:, left:right] > 0, axis=1))
+        if not len(filled_rows):
+            return OCRPayload(text=None)
+        glyph_intervals.append((int(filled_rows[0]), int(filled_rows[-1]) + 1))
+    for (first_top, first_bottom), (next_top, next_bottom) in zip(
+        glyph_intervals, glyph_intervals[1:]
+    ):
+        shared_height = min(first_bottom, next_bottom) - max(first_top, next_top)
+        shorter_glyph_height = min(first_bottom - first_top, next_bottom - next_top)
+        if shared_height < max(2, int(shorter_glyph_height * 0.2)):
+            return OCRPayload(text=None)
+
+    glyphs: list[str] = []
+    boxes: list[dict[str, Any]] = []
+    distances: list[float] = []
+    for (left, right), (glyph_top, glyph_bottom) in zip(spans, glyph_intervals):
+        normalized = _normalise_glyph(mask[glyph_top:glyph_bottom, left:right])
         normalized_float = normalized.astype(np.float32)
         ranked = []
         for letter, samples in templates.items():
@@ -207,9 +224,9 @@ def _match_reference(image: Any, templates: dict[str, Any]) -> OCRPayload:
         boxes.append({
             "character": letter,
             "x": left,
-            "y": top,
+            "y": glyph_top,
             "width": right - left,
-            "height": bottom - top,
+            "height": glyph_bottom - glyph_top,
             "template_distance": round(distance, 6),
             "runner_up_margin": round(margin, 6),
         })
