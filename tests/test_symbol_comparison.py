@@ -70,6 +70,23 @@ class SymbolComparisonTests(unittest.TestCase):
         self.assertGreater(result["normalized_pixel_difference"], 0)
         self.assertLess(result["foreground_intersection_over_union"], 1)
 
+    def test_optional_laser_control_reports_descriptive_comparison_not_significance(self):
+        with patch("laserlab.symbol_comparison.CodeOfRealityTemplateAdapter", StubFont):
+            result = compare_reported_and_laser_symbols(
+                _rectangle(), _rectangle(), variant="classic",
+                with_tesseract=False, control_laser_image=_circle(),
+            )
+        control = result["laser_control"]
+        self.assertEqual(result["comparison"]["normalized_pixel_difference"], 0)
+        self.assertGreater(control["comparison"]["normalized_pixel_difference"], 0)
+        self.assertTrue(control["laser_more_visually_similar_than_control"])
+        self.assertGreater(control["difference_in_normalized_pixel_distance"], 0)
+        self.assertFalse(control["matching_capture_conditions_verified"])
+        self.assertEqual(result["user_supplied_control_crops"], 1)
+        self.assertEqual(result["matched_negative_controls"], 0)
+        self.assertFalse(result["statistical_significance_estimated"])
+        self.assertFalse(result["language_or_common_origin_established"])
+
     def test_blank_and_unstructured_images_abstain(self):
         result = _mask_comparison(np.zeros((96, 96), np.uint8), _rectangle())
         self.assertEqual(result["status"], "unavailable")
@@ -127,6 +144,11 @@ class SymbolComparisonTests(unittest.TestCase):
         ])
         self.assertEqual(args.variant, "symbols")
         self.assertTrue(args.no_tesseract)
+        control_args = build_parser().parse_args([
+            "symbol-compare", "--laser-image", "laser.png",
+            "--reported-symbol-image", "reported.png", "--control-laser-image", "control.png",
+        ])
+        self.assertEqual(control_args.control_laser_image, "control.png")
 
         output = io.StringIO()
         with patch("cv2.imread", side_effect=[_rectangle(), _rectangle()]), \
