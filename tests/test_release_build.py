@@ -318,6 +318,36 @@ class OptionalCodeOfRealityReleaseTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temporary:
                 self.assertIsNone(release._stage_authorized_fonts(Path(temporary)))
 
+    def test_authorized_font_build_requires_a_real_rights_notice_file(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "approved"
+            source.mkdir()
+            fixture = b"synthetic-font" * 200
+            expected = {}
+            for _, filename, _ in BRAND_FONT_VARIANTS.values():
+                (source / filename).write_bytes(fixture)
+                expected[filename] = hashlib.sha256(fixture).hexdigest()
+            with patch.dict(os.environ, {
+                "LASERLAB_RELEASE_FONTS_DIR": str(source),
+                "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
+            }), patch.object(release, "_expected_font_hashes", return_value=expected):
+                with self.assertRaisesRegex(ValueError, "CODEOFREALITY-PERMISSION.txt"):
+                    release._stage_authorized_fonts(root)
+                notice = source / release.FONT_RIGHTS_NOTICE
+                notice.write_text("placeholder", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "notice"):
+                    release._stage_authorized_fonts(root)
+                self.assertFalse((root / "resources" / "fonts").exists())
+                notice.write_text(
+                    "This is a synthetic test permission notice; no real font distribution is authorized.",
+                    encoding="utf-8",
+                )
+                destination = release._stage_authorized_fonts(root)
+            self.assertTrue((destination / release.FONT_RIGHTS_NOTICE).is_file())
+
     def test_release_font_staging_requires_explicit_authorization_and_all_seven_files(self):
         from laserlab.branding import BRAND_FONT_VARIANTS
 
