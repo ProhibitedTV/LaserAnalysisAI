@@ -101,9 +101,11 @@ def quality_checklist_html(items: Iterable[tuple[str, bool]]) -> str:
     return "".join(rows)
 
 
-def dashboard_stylesheet() -> str:
+def dashboard_stylesheet(brand_font_family: str | None = None) -> str:
     c = COLORS
     tones = TONE_COLORS
+    # Never interpolate arbitrary font names into Qt stylesheets.
+    wordmark_family = '"CodeOfReality"' if brand_font_family == "CodeOfReality" else '"Segoe UI"'
     return f"""
         QMainWindow, QWidget {{ background: {c['canvas']}; color: {c['text']}; font-family: "Segoe UI"; font-size: 12px; }}
         QMenuBar, QMenu, QStatusBar {{ background: {c['field']}; color: {c['text_soft']}; }}
@@ -132,6 +134,7 @@ def dashboard_stylesheet() -> str:
         QProgressBar {{ border: 1px solid {c['border']}; background: {c['surface']}; text-align: center; color: {c['text']}; }}
         QProgressBar::chunk {{ background: {c['cyan']}; }}
         QLabel#title {{ font-size: 24px; font-weight: 700; color: {c['mint']}; }}
+        QLabel#brandWordmark {{ font-family: {wordmark_family}; font-size: 36px; font-weight: normal; color: {c['mint']}; }}
         QLabel#subtitle {{ font-size: 14px; color: {c['muted']}; }}
         QLabel#metricValue {{ font-size: 18px; font-weight: 700; color: {c['cyan']}; }}
         QLabel#metricValue[tone="positive"] {{ color: {tones['positive']}; }}
