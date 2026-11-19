@@ -1,0 +1,79 @@
+name: CodeOfReality Windows Release Preview
+
+on:
+  pull_request:
+    paths:
+      - "assets/codeofreality/**"
+      - "laserlab/branding.py"
+      - "laserlab/font_qualification.py"
+      - "scripts/build_release.py"
+      - ".github/workflows/codeofreality-windows-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: Build and qualify Windows font-inclusive preview
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout complete source history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install build tooling
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Verify all CodeOfReality source fonts
+        shell: pwsh
+        run: |
+          python -m laserlab.cli font-install --archive assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m laserlab.cli font-verify --require-all
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and smoke native Windows ZIP with seven included fonts
+        run: python scripts/build_release.py --target windows-x86_64 --output-dir dist
+
+      - name: Verify archive metadata
+        shell: pwsh
+        run: |
+          @'
+          import json
+          import pathlib
+          import zipfile
+          root = pathlib.Path("dist")
+          archives = list(root.glob("LaserLab-v*-windows-x86_64.zip"))
+          assert len(archives) == 1, archives
+          with zipfile.ZipFile(archives[0]) as z:
+              names = z.namelist()
+              info_name = next(name for name in names if name.endswith("/BUILD-INFO.json"))
+              info = json.loads(z.read(info_name))
+              assert info["bundled_codeofreality_font_count"] == 7
+              assert info["font_redistribution_attested_by_release_builder"]
+              prefix = info_name.rsplit("/", 1)[0] + "/fonts/"
+              fonts = [name for name in names if name.startswith(prefix) and name.lower().endswith((".ttf", ".otf"))]
+              assert len(fonts) == 7, fonts
+              assert prefix + "CODEOFREALITY-PERMISSION.txt" in names
+          print("Seven approved font binaries and provenance notice confirmed in native ZIP.")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installable Windows candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaserLab-CodeOfReality-Windows-preview
+          path: |
+            dist/LaserLab-v*-windows-x86_64.zip
+            dist/LaserLab-v*-windows-x86_64.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
