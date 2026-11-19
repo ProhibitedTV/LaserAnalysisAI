@@ -21,7 +21,9 @@ from .ocr_adapters import BaseOCRAdapter, OCRPayload, OCRRequest
 
 
 FONT_OCR_ENV = "LASERLAB_FONT_OCR_VARIANTS"
-TEMPLATE_VERSION = "isolated-glyph-v1"
+TEMPLATE_VERSION = "isolated-glyph-multiscale-v2"
+# Several small stylized glyphs alias when only a 96 px template is used.
+_REFERENCE_SIZES = (96, 64, 40, 24)
 _CANVAS = 32
 _MAX_GLYPHS = 32
 _MAX_IMAGE_DIM = 2048
@@ -95,17 +97,20 @@ def _reference_templates(variant: str, filename: str, stamp: int) -> dict[str, A
     import numpy as np
     from PIL import ImageFont
 
-    font = ImageFont.truetype(filename, 96)
+    fonts = [ImageFont.truetype(filename, size) for size in _REFERENCE_SIZES]
     templates = {}
     for character in reference_alphabet(variant):
-        mask = font.getmask(character, mode="L")
-        width, height = mask.size
-        if width <= 0 or height <= 0:
-            continue
-        image = np.frombuffer(bytes(mask), dtype=np.uint8).reshape(height, width)
-        if not image.any():
-            continue
-        templates[character] = _normalise_glyph(image)
+        samples = []
+        for font in fonts:
+            mask = font.getmask(character, mode="L")
+            width, height = mask.size
+            if width <= 0 or height <= 0:
+                continue
+            image = np.frombuffer(bytes(mask), dtype=np.uint8).reshape(height, width)
+            if image.any():
+                samples.append(_normalise_glyph(image))
+        if samples:
+            templates[character] = tuple(samples)
     return templates
 
 
@@ -177,11 +182,20 @@ def _match_reference(image: Any, templates: dict[str, Any]) -> OCRPayload:
         if right - left < 3:
             return OCRPayload(text=None)
         normalized = _normalise_glyph(mask[:, left:right])
-        ranked = sorted(
-            ((float(np.abs(normalized.astype(np.float32) - sample.astype(np.float32)).mean() / 255.0), letter)
-             for letter, sample in templates.items()),
-            key=lambda candidate: (candidate[0], candidate[1]),
-        )
+        normalized_float = normalized.astype(np.float32)
+        ranked = []
+        for letter, samples in templates.items():
+            # Existing synthetic fixtures may provide one ndarray; installed
+            # fonts provide a size-dependent tuple of ndarray references.
+            candidates = samples if isinstance(samples, (list, tuple)) else (samples,)
+            if not candidates:
+                continue
+            distance = min(
+                float(np.abs(normalized_float - sample.astype(np.float32)).mean() / 255.0)
+                for sample in candidates
+            )
+            ranked.append((distance, letter))
+        ranked.sort(key=lambda candidate: (candidate[0], candidate[1]))
         if len(ranked) < 2:
             return OCRPayload(text=None)
         distance, letter = ranked[0]
@@ -210,6 +224,7 @@ def _match_reference(image: Any, templates: dict[str, Any]) -> OCRPayload:
             "width": spans[-1][1] - spans[0][0],
             "height": bottom - top,
             "method": "isolated_glyph_template_comparison",
+            "reference_sizes_px": list(_REFERENCE_SIZES),
             "unvalidated_for_recorded_laser_footage": True,
             "mean_pixel_distance": round(float(sum(distances) / len(distances)), 6),
         }],
