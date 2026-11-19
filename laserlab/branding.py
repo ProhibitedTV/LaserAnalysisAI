@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 
 from .diagnostics import get_state_dir
+from .runtime import resource_path
 
 
 BRAND_WORDMARK = "laserlab"
@@ -44,6 +45,11 @@ def brand_font_path(variant: str = "classic") -> Path:
     override = os.environ.get(BRAND_FONT_ENV, "").strip() if variant == "classic" else ""
     if override:
         return Path(override).expanduser()
+    # A release builder may explicitly package fonts after confirming permission.
+    # Preserve local per-user font support for ordinary source/CI installations.
+    bundled = resource_path("fonts", BRAND_FONT_VARIANTS[variant][1])
+    if bundled.is_file():
+        return bundled
     return get_state_dir() / "fonts" / BRAND_FONT_VARIANTS[variant][1]
 
 
