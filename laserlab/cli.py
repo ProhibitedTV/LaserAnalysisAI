@@ -31,6 +31,59 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "symbol-compare":
+            import cv2
+            from .symbol_comparison import compare_reported_and_laser_symbols
+            laser = cv2.imread(str(args.laser_image), cv2.IMREAD_COLOR)
+            reported = cv2.imread(str(args.reported_symbol_image), cv2.IMREAD_COLOR)
+            if laser is None or reported is None:
+                raise ValueError("Cannot read one or both symbol comparison images")
+            control = None
+            if args.control_laser_image:
+                control = cv2.imread(str(args.control_laser_image), cv2.IMREAD_COLOR)
+                if control is None:
+                    raise ValueError("Cannot read the optional control laser image")
+            result = compare_reported_and_laser_symbols(
+                laser, reported, variant=args.variant,
+                with_tesseract=not args.no_tesseract,
+                control_laser_image=control,
+            )
+            print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
+            return 0
+        if args.command == "font-calibrate":
+            from .font_calibration import calibrate_reference_fonts
+            record = calibrate_reference_fonts(args.variant)
+            print(json.dumps(record, indent=2, sort_keys=True, allow_nan=False))
+            return 0 if record["evaluated_variants"] == record["variant_count"] else 2
+        if args.command == "font-verify":
+            from .font_qualification import inspect_font_resources
+            result = inspect_font_resources()
+            print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
+            return 0 if result["all_verified"] or not args.require_all else 2
+        if args.command == "font-install":
+            from .branding import install_font_archive, install_local_fonts
+            result = (
+                install_font_archive(args.archive)
+                if args.archive else install_local_fonts(args.source)
+            )
+            print(json.dumps({"status": "local-only", **result}, sort_keys=True))
+            return 0
+        if args.command == "font-ocr":
+            import cv2
+            from .branding import BRAND_FONT_VARIANTS
+            from .font_ocr import CodeOfRealityTemplateAdapter
+            from .ocr_adapters import OCRRequest, run_ocr_ensemble
+            image = cv2.imread(str(args.image), cv2.IMREAD_COLOR)
+            if image is None:
+                raise ValueError("Cannot read font OCR input image")
+            variants = list(BRAND_FONT_VARIANTS) if args.variant == "all" else [args.variant]
+            adapters = [CodeOfRealityTemplateAdapter(variant) for variant in variants]
+            results = run_ocr_ensemble(adapters, OCRRequest(
+                image=image, roi_reference={"id": "font_calibration"},
+                preprocessing_metadata={"research_only": True, "known_glyph_reference": True},
+            ))
+            print(json.dumps(results, indent=2, allow_nan=False))
+            return 0
         if args.command == "exchange":
             from .research_exchange import prepare_exchange, export_exchange
             if (args.reference_kind is None) != (args.reference_id is None):
@@ -199,6 +252,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    from .branding import BRAND_FONT_VARIANTS
+    compare_symbols = subparsers.add_parser(
+        "symbol-compare", help="Experimental visual comparison of reported and laser symbol crops."
+    )
+    compare_symbols.add_argument("--laser-image", required=True, help="A local cropped laser-light symbol image.")
+    compare_symbols.add_argument("--reported-symbol-image", required=True, help="A separately supplied reported-symbol crop.")
+    compare_symbols.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
+    compare_symbols.add_argument(
+        "--control-laser-image",
+        help="Optional separate control laser crop, ideally from matched blinded capture conditions."
+    )
+    compare_symbols.add_argument("--no-tesseract", action="store_true", help="Omit standard Tesseract OCR baselines.")
+    font_calibrate = subparsers.add_parser(
+        "font-calibrate", help="Measure CodeOfReality self-rendered glyph matches; NOT validation on laser captures."
+    )
+    font_calibrate.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
+    font_verify = subparsers.add_parser("font-verify", help="Audit all seven optional CodeOfReality glyph references and checksums.")
+    font_verify.add_argument("--require-all", action="store_true", help="Exit with failure unless every reviewed font is renderable.")
+    font_install = subparsers.add_parser("font-install", help="Install all seven verified CodeOfReality files to local user storage.")
+    font_input = font_install.add_mutually_exclusive_group(required=True)
+    font_input.add_argument("--source", help="Folder containing the seven supplied OTF/TTF files.")
+    font_input.add_argument("--archive", help="The original authorized seven-font .tar.xz archive.")
+    font_ocr = subparsers.add_parser("font-ocr", help="Experimental CodeOfReality reference-font OCR on one local image.")
+    font_ocr.add_argument("--image", required=True, help="Local image containing isolated CodeOfReality glyphs.")
+    font_ocr.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
+    
     exchange = subparsers.add_parser("exchange", help="Preview and save a reviewed, media-free local results exchange.")
     exchange_actions = exchange.add_subparsers(dest="exchange_action", required=True)
     for action in ("preview", "export"):

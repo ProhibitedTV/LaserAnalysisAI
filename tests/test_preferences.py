@@ -12,6 +12,7 @@ from laserlab.preferences import (
     remember_experiment,
     save_preferences,
     set_last_source_directory,
+    set_brand_font_variant,
     set_veilbreak_cache_enabled,
 )
 
@@ -63,7 +64,7 @@ class PreferencesTests(unittest.TestCase):
         on_disk = json.loads(self.preferences_file.read_text(encoding="utf-8"))
         self.assertEqual(
             set(on_disk),
-            {"schema_version", "recent_experiments", "last_source_directory", "veilbreak_cache_enabled"},
+            {"schema_version", "recent_experiments", "last_source_directory", "veilbreak_cache_enabled", "brand_font_variant"},
         )
         self.assertEqual(on_disk["schema_version"], SCHEMA_VERSION)
         self.assertEqual(on_disk["recent_experiments"], [str(experiment.resolve())])
@@ -96,6 +97,7 @@ class PreferencesTests(unittest.TestCase):
             "recent_experiments": [],
             "last_source_directory": None,
             "veilbreak_cache_enabled": False,
+            "brand_font_variant": "classic",
         }
 
 
@@ -122,6 +124,19 @@ class PreferencesTests(unittest.TestCase):
         loaded = load_preferences(self.preferences_file)
 
         self.assertEqual(loaded["recent_experiments"], [str(present.resolve())])
+
+    def test_wordmark_variant_round_trips_without_affecting_experiments(self) -> None:
+        experiment = self._directory("styled-experiment")
+        remember_experiment(experiment, self.preferences_file)
+        saved = set_brand_font_variant("oracle", self.preferences_file)
+        self.assertEqual(saved["brand_font_variant"], "oracle")
+        self.assertEqual(saved["recent_experiments"], [str(experiment.resolve())])
+        self.assertEqual(load_preferences(self.preferences_file)["brand_font_variant"], "oracle")
+        with self.assertRaises(ValueError):
+            set_brand_font_variant("nonexistent", self.preferences_file)
+        self.assertEqual(load_preferences(self.preferences_file)["brand_font_variant"], "oracle")
+        set_brand_font_variant("system", self.preferences_file)
+        self.assertEqual(load_preferences(self.preferences_file)["brand_font_variant"], "system")
 
     def test_last_source_directory_is_stored_without_changing_recents(self) -> None:
         experiment = self._directory("experiment-with-source")

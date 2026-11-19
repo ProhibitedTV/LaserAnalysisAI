@@ -1,0 +1,73 @@
+name: Cut LaserLab v0.9.7
+
+# One-shot, version-pinned release request. Runs only when the explicit
+# v0.9.7 request is merged into main; no other branch or tag is affected.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release-requests/v0.9.7.json"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: laserlab-cut-v0.9.7
+  cancel-in-progress: false
+
+jobs:
+  cut:
+    if: github.repository == 'ProhibitedTV/LaserAnalysisAI'
+    name: Pin tag and dispatch complete four-platform release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout requested release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact release request and source version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import tomllib
+          from pathlib import Path
+          from laserlab import __version__
+
+          request = json.loads(Path(".github/release-requests/v0.9.7.json").read_text(encoding="utf-8"))
+          project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          assert request["tag"] == "v0.9.7"
+          assert request["authorization"] == "explicit-repository-maintainer-request"
+          assert request["publish"] is True
+          assert request["platforms"] == [
+              "windows-x86_64", "linux-x86_64",
+              "macos-x86_64", "macos-arm64"
+          ]
+          assert __version__ == "0.9.7"
+          assert project["project"]["version"] == __version__
+          assert Path("assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz").is_file()
+          assert Path("docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md").is_file()
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Create immutable release reference and dispatch qualification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=v0.9.7
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::The $tag tag already exists; refusing to move or overwrite a release."
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/$tag" \
+            -f "sha=$GITHUB_SHA"
+          # A tag pushed by GITHUB_TOKEN does not trigger tag-push workflows.
+          # workflow_dispatch intentionally starts the full release on this tag.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag" -f publish=true
+          echo "Dispatched verified four-platform v0.9.7 release on $GITHUB_SHA"

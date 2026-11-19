@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PyQt5.QtCore import QThread, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QCloseEvent, QDesktopServices, QPixmap
+from PyQt5.QtGui import QCloseEvent, QDesktopServices, QFont, QFontDatabase, QPixmap
 from PyQt5.QtWidgets import (
     QAction,
+    QActionGroup,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -43,6 +44,12 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
+from laserlab.branding import (
+    BRAND_FONT_VARIANTS, BRAND_STYLED_VARIANTS, BRAND_WORDMARK,
+    brand_font_path, install_local_fonts, load_brand_font,
+)
+from laserlab.font_ocr import FONT_OCR_ENV
+from laserlab.font_qualification import inspect_font_resources
 from laserlab.artifacts import checked_image_artifact, load_json
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
@@ -56,7 +63,8 @@ from laserlab.diagnostics import (
 )
 from laserlab.fixtures import list_fixtures
 from laserlab.manifest import latest_run_dir, load_manifest
-from laserlab.preferences import load_preferences, remember_experiment, set_last_source_directory, set_veilbreak_cache_enabled
+from laserlab.preferences import (load_preferences, remember_experiment, set_brand_font_variant as save_brand_font_variant,
+                                  set_last_source_directory, set_veilbreak_cache_enabled)
 from laserlab.runtime import default_experiments_dir
 from laserlab.theme import badge_strip_html, dashboard_stylesheet, evidence_tone, quality_checklist_html
 from .veilbreak_catalog import VeilbreakCatalogDialog
@@ -205,6 +213,10 @@ class LabDashboardWindow(QMainWindow):
         self.comparison_directories: list[Path] = []
         self.preferences = preferences if preferences is not None else load_preferences()
         self.protocol_presets = app_api.list_protocol_presets()
+        self.brand_font_variant = self.preferences.get("brand_font_variant", "classic")
+        if self.brand_font_variant != "system" and self.brand_font_variant not in BRAND_FONT_VARIANTS:
+            self.brand_font_variant = "classic"
+        self.brand_font_family = load_brand_font(self.brand_font_variant)
         self._build_ui()
         self._apply_style()
         self._load_fixtures()
@@ -227,6 +239,33 @@ class LabDashboardWindow(QMainWindow):
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+        appearance_menu = self.menuBar().addMenu("Appearance")
+        font_menu = appearance_menu.addMenu("Wordmark font")
+        self.brand_font_actions = QActionGroup(self)
+        self.brand_font_actions.setExclusive(True)
+        for variant, label in [("system", "System default"), *[(key, spec[0]) for key, spec in BRAND_FONT_VARIANTS.items()]]:
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(variant == self.brand_font_variant)
+            action.triggered.connect(lambda _checked=False, selected=variant: self.change_brand_font(selected))
+            self.brand_font_actions.addAction(action)
+            font_menu.addAction(action)
+        install_fonts_action = QAction("Install all seven CodeOfReality fonts…", self)
+        install_fonts_action.setToolTip(
+            "Select a local folder of seven original font files; verifies each SHA-256 before installing."
+        )
+        install_fonts_action.triggered.connect(self.install_codeofreality_fonts)
+        appearance_menu.addAction(install_fonts_action)
+        appearance_menu.addSeparator()
+        self.experimental_font_ocr = QAction("Compare CodeOfReality glyphs (experimental)", self)
+        self.experimental_font_ocr.setCheckable(True)
+        self.experimental_font_ocr.setChecked(bool(os.environ.get(FONT_OCR_ENV, "").strip()))
+        self.experimental_font_ocr.setToolTip(
+            "Add opt-in reference-shape OCR attempts on the next run; not a validated decoder."
+        )
+        self.experimental_font_ocr.triggered.connect(self.toggle_experimental_font_ocr)
+        appearance_menu.addAction(self.experimental_font_ocr)
 
         help_menu = self.menuBar().addMenu("Help")
         walkthrough = QAction("First-time walkthrough", self)
@@ -285,8 +324,10 @@ class LabDashboardWindow(QMainWindow):
     def _setup_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        title = QLabel("LaserLab / explore recorded laser patterns")
-        title.setObjectName("title")
+        title = QLabel(BRAND_WORDMARK)
+        title.setObjectName("brandWordmark")
+        tagline = QLabel("Explore recorded laser patterns")
+        tagline.setObjectName("subtitle")
         subtitle = QLabel(
             "See what image-analysis tools find in laser recordings, then compare "
             "those findings against a similar control recording. No coding or login required."
@@ -294,6 +335,7 @@ class LabDashboardWindow(QMainWindow):
         subtitle.setObjectName("subtitle")
         subtitle.setWordWrap(True)
         layout.addWidget(title)
+        layout.addWidget(tagline)
         layout.addWidget(subtitle)
 
         beginner_tip = QLabel(
@@ -345,8 +387,8 @@ class LabDashboardWindow(QMainWindow):
     def _home_tab(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        title = QLabel("LaserLab")
-        title.setObjectName("title")
+        title = QLabel(BRAND_WORDMARK)
+        title.setObjectName("brandWordmark")
         subtitle = QLabel("A local-first blinded validation lab for laser, diffraction, speckle, and symbol-recovery experiments.")
         subtitle.setObjectName("subtitle")
         layout.addWidget(title)
@@ -1179,7 +1221,83 @@ class LabDashboardWindow(QMainWindow):
         return page
 
     def _apply_style(self) -> None:
-        self.setStyleSheet(dashboard_stylesheet())
+        self.setStyleSheet(dashboard_stylesheet(self.brand_font_family))
+        # Qt combines Symbols Regular, 3D and Outline under one OpenType
+        # typographic family. Font stylesheet family alone would display the
+        # Regular face for all three choices; apply the correct styleName to
+        # the decorative wordmark labels only.
+        styled = BRAND_STYLED_VARIANTS.get(self.brand_font_variant)
+        for label in self.findChildren(QLabel, "brandWordmark"):
+            if styled is not None and self.brand_font_family == styled[0]:
+                font = QFontDatabase().font(styled[0], styled[1], 36)
+                font.setStyleName(styled[1])
+                label.setFont(font)
+            else:
+                label.setFont(QFont())
+
+    def change_brand_font(self, variant: str) -> None:
+        """Switch decorative wordmark font without affecting scientific content."""
+        if variant != "system" and variant not in BRAND_FONT_VARIANTS:
+            return
+        self.brand_font_variant = variant
+        self.brand_font_family = load_brand_font(variant)
+        self._apply_style()
+        try:
+            self.preferences = save_brand_font_variant(variant)
+        except OSError:
+            self.status.showMessage("Wordmark changed, but the choice could not be saved.")
+            return
+        if variant != "system" and self.brand_font_family is None:
+            self.status.showMessage(f"Wordmark font not installed: {brand_font_path(variant)} (using system fallback)")
+        else:
+            self.status.showMessage(f"Wordmark font: {variant}")
+
+    def install_codeofreality_fonts(self) -> None:
+        """Install the seven reviewed fonts from a local folder without publishing them."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select the folder containing all seven CodeOfReality font files", str(Path.home())
+        )
+        if not folder:
+            return
+        try:
+            result = install_local_fonts(folder)
+            verification = inspect_font_resources()
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(
+                self, "CodeOfReality fonts not installed",
+                f"All seven original font files are required. Installation was not completed.\n\n{exc}"
+            )
+            return
+        # Refresh the wordmark once Qt has access to the newly installed font.
+        self.brand_font_family = load_brand_font(self.brand_font_variant)
+        self._apply_style()
+        count = verification["verified_variants"]
+        self.status.showMessage(f"CodeOfReality local glyph references verified: {count}/7")
+        message = (
+            f"Installed {result['installed']} and found {result['already_present']} existing reviewed fonts.\n"
+            f"Glyph references verified: {count}/7.\n\n"
+            "OCR template comparisons are experimental and must be enabled separately in Appearance. "
+            "No font files were uploaded to GitHub or a remote service."
+        )
+        if count != len(BRAND_FONT_VARIANTS):
+            QMessageBox.warning(
+                self, "CodeOfReality verification incomplete",
+                message + "\n\nSome glyph references are unavailable or unreadable. "
+                "Use 'python -m laserlab.cli font-verify --require-all' for details."
+            )
+        else:
+            QMessageBox.information(self, "CodeOfReality fonts installed", message)
+
+    def toggle_experimental_font_ocr(self, enabled: bool) -> None:
+        """Opt in to unvalidated reference-glyph OCR for subsequent runs only."""
+        if enabled:
+            os.environ[FONT_OCR_ENV] = "all"
+            self.status.showMessage(
+                "Experimental CodeOfReality template comparisons enabled for the next run; not evidence of language."
+            )
+        else:
+            os.environ.pop(FONT_OCR_ENV, None)
+            self.status.showMessage("Experimental CodeOfReality template comparisons disabled.")
 
     def show_quick_start(self) -> None:
         """Short, supportive guide for users without a technical background."""
@@ -2092,6 +2210,25 @@ class LabDashboardWindow(QMainWindow):
         else:
             details.append("Source role, path, frame attribution, and q-value are sealed.")
         details.extend(["", candidate.get("ocr_text", "")])
+        font_attempts = [
+            attempt for attempt in candidate.get("ocr_attempts", [])
+            if str(attempt.get("engine_id", "")).startswith("codeofreality-template:")
+        ]
+        if font_attempts:
+            details.extend(["", "Experimental CodeOfReality reference-shape comparisons (NOT validated decoding):"])
+            for attempt in font_attempts:
+                variant = str(attempt.get("engine_id", "")).partition(":")[2]
+                roi = attempt.get("roi_reference") or {}
+                roi_id = roi.get("id", "unknown") if isinstance(roi, dict) else "unknown"
+                if not attempt.get("available"):
+                    outcome = "unavailable"
+                elif attempt.get("failure_reason"):
+                    outcome = "failed"
+                elif attempt.get("text"):
+                    outcome = f"possible glyph match: {str(attempt['text'])[:80]}"
+                else:
+                    outcome = "no unambiguous glyph match"
+                details.append(f"  {variant} / ROI {roi_id}: {outcome}")
         annotation = candidate.get("review_annotation") or {}
         if annotation:
             details.extend(["", f"Review flags: {', '.join(annotation.get('flags', []))}", annotation.get("note", "")])

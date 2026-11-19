@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,9 +29,14 @@ if str(ROOT) not in sys.path:
 
 from laserlab import __version__  # noqa: E402
 from laserlab.fixtures import FIXTURE_CATALOG, validate_fixture_catalog  # noqa: E402
+from laserlab.branding import BRAND_FONT_VARIANTS  # noqa: E402
 
 BUNDLED_METADATA = ("fixture_manifest.json", "ATTRIBUTION.md", "optical_benchmark_reference.json",
                     "optical_benchmark_observations.json")
+FONT_RIGHTS_NOTICE = "CODEOFREALITY-PERMISSION.txt"
+VENDORED_FONT_ARCHIVE = Path("assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz")
+VENDORED_FONT_ARCHIVE_SHA256 = "ad07981b0bdf10d2d6c51a9a2cfe1f3ffc00bac1f7920a19fd491884d7b7a2a7"
+VENDORED_FONT_ATTESTATION = Path("docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md")
 
 
 def _git(*arguments: str, allow_missing: bool = False) -> str:
@@ -97,6 +103,107 @@ def _stage_resources(build_root: Path) -> Path:
     return destination
 
 
+def _expected_font_hashes() -> dict[str, str]:
+    """Verify the seven externally supplied font files against reviewed inputs."""
+    manifest = ROOT / "docs" / "codeofreality_font_manifest.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    records = data["filenames"]
+    expected = {spec[1] for spec in BRAND_FONT_VARIANTS.values()}
+    if set(records) != expected:
+        raise ValueError("The CodeOfReality font manifest is incomplete or has unexpected entries")
+    return {name: records[name]["sha256"] for name in sorted(expected)}
+
+
+def _stage_vendored_codeofreality_fonts(build_root: Path) -> Path | None:
+    """Stage the seven maintainer-authorized fonts from a pinned source archive.
+
+    Inspect archive members and checksums before writing. Never use tarfile's
+    extractall: only regular, exact-name, bounded members are permitted.
+    """
+    archive = ROOT / VENDORED_FONT_ARCHIVE
+    if not archive.is_file():
+        return None
+    notice = ROOT / VENDORED_FONT_ATTESTATION
+    if archive.is_symlink() or notice.is_symlink() or not notice.is_file():
+        raise ValueError("Vendored CodeOfReality archive or authorization attestation is unsafe or missing")
+    if not 1024 <= archive.stat().st_size <= 2 * 1024 * 1024:
+        raise ValueError("Vendored CodeOfReality archive size is outside expected limits")
+    if _sha256(archive) != VENDORED_FONT_ARCHIVE_SHA256:
+        raise ValueError("Vendored CodeOfReality archive fingerprint mismatch")
+    notice_text = notice.read_text(encoding="utf-8")
+    if "direct permission" not in notice_text or "Discord" not in notice_text:
+        raise ValueError("Vendored CodeOfReality authorization attestation is incomplete")
+
+    expected = _expected_font_hashes()
+    destination = build_root / "resources" / "fonts"
+    try:
+        with tarfile.open(archive, "r:xz") as records:
+            members = records.getmembers()
+            named = {member.name: member for member in members}
+            if len(named) != len(members) or set(named) != set(expected):
+                raise ValueError("Vendored CodeOfReality archive does not contain exactly the seven reviewed fonts")
+            for name, member in named.items():
+                if not member.isfile() or not 1024 <= member.size <= 2 * 1024 * 1024:
+                    raise ValueError(f"Unsafe font archive member: {name}")
+            destination.mkdir(parents=True, exist_ok=False)
+            for name in sorted(expected):
+                source = records.extractfile(named[name])
+                if source is None:
+                    raise ValueError(f"Missing font bytes in archive: {name}")
+                with source, (destination / name).open("xb") as output:
+                    shutil.copyfileobj(source, output)
+                if _sha256(destination / name) != expected[name]:
+                    raise ValueError(f"Vendored font fingerprint mismatch: {name}")
+    except (tarfile.TarError, EOFError) as exc:
+        raise ValueError("Vendored CodeOfReality archive cannot be decoded") from exc
+    shutil.copy2(notice, destination / FONT_RIGHTS_NOTICE)
+    return destination
+
+
+def _stage_authorized_fonts(build_root: Path) -> Path | None:
+    """Optional release-only font staging; never ingest arbitrary source files.
+
+    Release operators must explicitly attest they hold distribution permission.
+    Without both the local source directory and authorization flag, normal
+    public builds remain free of third-party fonts.
+    """
+    source_value = os.environ.get("LASERLAB_RELEASE_FONTS_DIR", "").strip()
+    if not source_value:
+        return _stage_vendored_codeofreality_fonts(build_root)
+    if os.environ.get("LASERLAB_FONT_REDISTRIBUTION_CONFIRMED") != "yes":
+        raise ValueError("Set LASERLAB_FONT_REDISTRIBUTION_CONFIRMED=yes only with permission to redistribute all fonts")
+    source_dir = Path(source_value).expanduser().resolve()
+    if not source_dir.is_dir():
+        raise ValueError("The authorized font source directory does not exist")
+    notice_file = source_dir / FONT_RIGHTS_NOTICE
+    if not notice_file.is_file() or notice_file.is_symlink():
+        raise ValueError(f"Authorized font bundle must include {FONT_RIGHTS_NOTICE}")
+    if not 40 <= notice_file.stat().st_size <= 64 * 1024:
+        raise ValueError("The font rights notice is missing or outside expected text limits")
+    try:
+        notice_text = notice_file.read_text(encoding="utf-8")
+    except UnicodeError as exc:
+        raise ValueError("The font rights notice must be UTF-8 text") from exc
+    if len(notice_text.strip()) < 40:
+        raise ValueError("The font rights notice must identify relevant permission terms")
+    destination = build_root / "resources" / "fonts"
+    filenames = sorted({spec[1] for spec in BRAND_FONT_VARIANTS.values()})
+    fingerprints = _expected_font_hashes()
+    for name in filenames:
+        source = source_dir / name
+        if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(source_dir):
+            raise ValueError(f"Required authorized font file missing or unsafe: {name}")
+        if source.stat().st_size > 2 * 1024 * 1024 or source.stat().st_size < 1024:
+            raise ValueError(f"Invalid or unexpected authorized font size: {name}")
+        if _sha256(source) != fingerprints[name]:
+            raise ValueError(f"Authorized font checksum mismatch: {name}")
+    destination.mkdir(parents=True, exist_ok=False)
+    for name in filenames:
+        shutil.copy2(source_dir / name, destination / name)
+    shutil.copy2(notice_file, destination / FONT_RIGHTS_NOTICE)
+    return destination
+
+
 def default_target() -> str:
     system = {
         "Windows": "windows",
@@ -126,6 +233,7 @@ def _pyinstaller_command(
     windowed: bool,
     *,
     media_dir: Path | None = None,
+    fonts_dir: Path | None = None,
 ) -> list[str]:
     command = [
         sys.executable,
@@ -146,9 +254,13 @@ def _pyinstaller_command(
         "cv2",
         "--collect-all",
         "pytesseract",
+        "--collect-all",
+        "PIL",
         "--add-data",
         f"{media_dir or ROOT / 'sample_media'}{os.pathsep}sample_media",
     ]
+    if fonts_dir is not None:
+        command.extend(["--add-data", f"{fonts_dir}{os.pathsep}fonts"])
     if windowed:
         command.append("--windowed")
     command.append(str(ROOT / launcher))
@@ -169,7 +281,7 @@ def _gui_product(dist_dir: Path) -> Path:
     return dist_dir / executable_name("LaserLab")
 
 
-def _smoke(gui_product: Path, cli_product: Path) -> None:
+def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False) -> None:
     gui_executable = gui_product
     if gui_product.suffix == ".app":
         gui_executable = gui_product / "Contents" / "MacOS" / "LaserLab"
@@ -179,6 +291,36 @@ def _smoke(gui_product: Path, cli_product: Path) -> None:
         subprocess.run([str(gui_executable), "--smoke-resources"], cwd=unrelated_cwd, check=True, timeout=60)
         subprocess.run([str(gui_executable), "--smoke-demo"], cwd=unrelated_cwd, check=True, timeout=120)
         subprocess.run([str(cli_product), "--help"], cwd=unrelated_cwd, check=True, timeout=60)
+        if fonts_included:
+            font_smoke_env = os.environ.copy()
+            font_smoke_env["QT_QPA_PLATFORM"] = "offscreen"
+            font_result = subprocess.run(
+                [str(gui_executable), "--smoke-fonts"],
+                cwd=unrelated_cwd, env=font_smoke_env, check=False, timeout=120,
+            )
+            font_report_path = unrelated_cwd / "laserlab-font-smoke.json"
+            if not font_report_path.is_file():
+                raise RuntimeError(
+                    f"Packaged GUI font smoke exited {font_result.returncode} without its diagnostic record"
+                )
+            font_report = json.loads(font_report_path.read_text(encoding="utf-8"))
+            if font_result.returncode != 0 or font_report.get("status") != "passed":
+                # The diagnostic has only variant names and Qt family values;
+                # it contains no experiment media, recording paths or secrets.
+                raise RuntimeError("Packaged GUI font smoke failed: " + json.dumps(font_report, sort_keys=True))
+            checked = subprocess.run(
+                [str(cli_product), "font-verify", "--require-all"],
+                cwd=unrelated_cwd, check=True, timeout=120,
+                capture_output=True, text=True,
+            )
+            qualification = json.loads(checked.stdout)
+            if (
+                qualification.get("total_variants") != len(BRAND_FONT_VARIANTS)
+                or qualification.get("verified_variants") != len(BRAND_FONT_VARIANTS)
+                or qualification.get("all_verified") is not True
+                or qualification.get("scientific_accuracy_validated") is not False
+            ):
+                raise RuntimeError("Packaged CodeOfReality OCR reference qualification failed")
         diagnostics = subprocess.run(
             [str(cli_product), "diagnostics", "--format", "json"],
             cwd=unrelated_cwd,
@@ -239,16 +381,17 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
     work_dir.mkdir(parents=True)
     spec_dir.mkdir(parents=True)
     media_dir = _stage_resources(build_root)
+    fonts_dir = _stage_authorized_fonts(build_root)
 
-    _run(_pyinstaller_command("laserlab_launcher.py", "LaserLab", dist_dir, work_dir / "gui", spec_dir, True, media_dir=media_dir))
-    _run(_pyinstaller_command("laserlab_cli_launcher.py", "LaserLabCLI", dist_dir, work_dir / "cli", spec_dir, False, media_dir=media_dir))
+    _run(_pyinstaller_command("laserlab_launcher.py", "LaserLab", dist_dir, work_dir / "gui", spec_dir, True, media_dir=media_dir, fonts_dir=fonts_dir))
+    _run(_pyinstaller_command("laserlab_cli_launcher.py", "LaserLabCLI", dist_dir, work_dir / "cli", spec_dir, False, media_dir=media_dir, fonts_dir=fonts_dir))
 
     gui_product = _gui_product(dist_dir)
     cli_product = dist_dir / executable_name("LaserLabCLI")
     for product in (gui_product, cli_product):
         if not product.exists():
             raise FileNotFoundError(f"PyInstaller product missing: {product}")
-    _smoke(gui_product, cli_product)
+    _smoke(gui_product, cli_product, fonts_included=fonts_dir is not None)
     _assert_source_unchanged(context)
 
     bundle_dir.mkdir()
@@ -257,6 +400,8 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
     shutil.copy2(ROOT / "README.md", bundle_dir / "README.md")
     shutil.copy2(ROOT / "LICENSE", bundle_dir / "LICENSE")
     shutil.copytree(media_dir, bundle_dir / "sample_media")
+    if fonts_dir is not None:
+        shutil.copytree(fonts_dir, bundle_dir / "fonts")
     (bundle_dir / "BUILD-INFO.json").write_text(
         json.dumps(
             {
@@ -267,6 +412,13 @@ def build_release(output_dir: Path, target: str, *, release_tag: str | None = No
                 "machine": platform.machine(),
                 "built_at_utc": datetime.now(timezone.utc).isoformat(),
                 "checksums_file": "SHA256SUMS",
+                "bundled_codeofreality_font_count": (len(BRAND_FONT_VARIANTS) if fonts_dir is not None else 0),
+                "font_redistribution_attested_by_release_builder": fonts_dir is not None,
+                "codeofreality_distribution_record": (
+                    str(VENDORED_FONT_ATTESTATION)
+                    if fonts_dir is not None and not os.environ.get("LASERLAB_RELEASE_FONTS_DIR", "").strip()
+                    else None
+                ),
                 "qualification": "headless startup/resources/demo/diagnostics/benchmark; native UI acceptance is separate",
             },
             indent=2,
