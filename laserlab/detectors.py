@@ -266,7 +266,9 @@ def run_roi_ocr(
 
     ensemble_summary = {
         "schema_version": "1.0",
-        "agreement_scope": "per_roi_primary_only",
+        "agreement_scope": "per_roi",
+        "primary_agreement_only": True,
+        "experimental_agreement_scope": "separate_correlated_reference_variants",
         "engine_ids": sorted({str(item.get("engine_id", "")) for item in attempts}),
         "attempt_count": len(attempts),
         "roi_results": roi_results,
