@@ -32,7 +32,8 @@ if __name__ == "__main__":
         report = {"schema_version": "1.0", "status": "failed", "variants": []}
         try:
             from PyQt5.QtWidgets import QApplication
-            from laserlab.branding import BRAND_FONT_VARIANTS, load_brand_font
+            from PyQt5.QtGui import QFontDatabase
+            from laserlab.branding import BRAND_FONT_VARIANTS, BRAND_STYLED_VARIANTS, load_brand_font
             from laserlab.font_qualification import inspect_font_resources
             app = QApplication.instance() or QApplication([])
             resources = inspect_font_resources()
@@ -41,15 +42,25 @@ if __name__ == "__main__":
             if not resources["all_verified"]:
                 report["error"] = "At least one bundled font could not be verified"
             else:
-                for variant, (_, _filename, expected_family) in BRAND_FONT_VARIANTS.items():
+                for variant, (_, _filename, named_family) in BRAND_FONT_VARIANTS.items():
                     actual_family = load_brand_font(variant)
+                    styled = BRAND_STYLED_VARIANTS.get(variant)
+                    expected_family = styled[0] if styled is not None else named_family
+                    requested_style = styled[1] if styled is not None else None
+                    available_styles = (
+                        QFontDatabase().styles(actual_family) if actual_family else []
+                    )
                     report["variants"].append({
                         "variant": variant, "expected_family": expected_family,
                         "registered_family": actual_family,
+                        "requested_style": requested_style,
+                        "available_styles": available_styles if requested_style else None,
+                        "style_available": requested_style is None or requested_style in available_styles,
                     })
                 report["status"] = (
                     "passed" if all(
                         item["expected_family"] == item["registered_family"]
+                        and item["style_available"]
                         for item in report["variants"]
                     ) else "failed"
                 )
