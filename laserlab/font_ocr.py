@@ -133,7 +133,7 @@ def _source_mask(image: Any) -> Any:
     borders = np.concatenate((gray[0, :], gray[-1, :], gray[:, 0], gray[:, -1]))
     # Infer the background polarity from the border; reject near-inverted noise.
     background_bright = float(np.median(borders)) > threshold
-    mask = (gray < threshold) if background_bright else (gray > threshold)
+    mask = (gray <= threshold) if background_bright else (gray > threshold)
     occupied = float(mask.mean())
     if occupied < 0.003 or occupied > 0.45:
         return None
