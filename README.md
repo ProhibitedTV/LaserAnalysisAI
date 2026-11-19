@@ -58,8 +58,15 @@ uninstalled or invalid font files automatically use the system fallback.
 | Symbols Outline | `CodeOfRealitySymbols-Outline.ttf` |
 
 For a complete verified local installation, put all seven files into one
-folder and run (the original uploaded `CodeOfRealityV1.otf_1` filename is also
-accepted and installed as `CodeOfRealityV1.otf`):
+folder. In the desktop app select **Appearance > Install all seven
+CodeOfReality fonts…** and choose that folder. LaserLab verifies the original
+SHA-256 for every file, installs locally, refreshes the wordmark and reports
+the number of renderable references. This never publishes the fonts and does
+**not** automatically enable experimental OCR.
+
+You can also install from the command line (the original uploaded
+`CodeOfRealityV1.otf_1` filename is accepted and renamed to
+`CodeOfRealityV1.otf`):
 
 ```powershell
 python -m laserlab.cli font-install --source "C:\\Research\\CodeOfRealityFonts"
