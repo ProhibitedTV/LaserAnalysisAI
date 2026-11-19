@@ -167,7 +167,9 @@ class FontOCRTests(unittest.TestCase):
         self.assertEqual(len(attempts), 2)
         self.assertIn("codeofreality-template:oracle", summary["engine_ids"])
         self.assertEqual(summary["attempt_count"], 2)
-        self.assertEqual(summary["agreement_scope"], "per_roi_primary_only")
+        self.assertEqual(summary["agreement_scope"], "per_roi")
+        self.assertTrue(summary["primary_agreement_only"])
+        self.assertEqual(summary["experimental_agreement_scope"], "separate_correlated_reference_variants")
         self.assertEqual(summary["roi_results"][0]["agreement"]["total_attempts"], 1)
         experimental = summary["roi_results"][0]["experimental_codeofreality"]
         self.assertEqual(experimental["agreement"]["total_attempts"], 1)
@@ -196,7 +198,9 @@ class FontOCRTests(unittest.TestCase):
         self.assertEqual(result["agreement"]["consensus"]["text"], "unrelated")
         self.assertEqual(result["agreement"]["total_attempts"], 1)
         self.assertEqual(result["experimental_codeofreality"]["agreement"]["total_attempts"], 7)
-        self.assertEqual(summary["agreement_scope"], "per_roi_primary_only")
+        self.assertEqual(summary["agreement_scope"], "per_roi")
+        self.assertTrue(summary["primary_agreement_only"])
+        self.assertEqual(summary["experimental_agreement_scope"], "separate_correlated_reference_variants")
 
 
 
