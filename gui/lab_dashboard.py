@@ -44,8 +44,9 @@ from PyQt5.QtWidgets import (
 )
 
 from laserlab import __version__, app_api
-from laserlab.branding import BRAND_FONT_VARIANTS, BRAND_WORDMARK, brand_font_path, load_brand_font
+from laserlab.branding import BRAND_FONT_VARIANTS, BRAND_WORDMARK, brand_font_path, install_local_fonts, load_brand_font
 from laserlab.font_ocr import FONT_OCR_ENV
+from laserlab.font_qualification import inspect_font_resources
 from laserlab.artifacts import checked_image_artifact, load_json
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
@@ -247,6 +248,12 @@ class LabDashboardWindow(QMainWindow):
             action.triggered.connect(lambda _checked=False, selected=variant: self.change_brand_font(selected))
             self.brand_font_actions.addAction(action)
             font_menu.addAction(action)
+        install_fonts_action = QAction("Install all seven CodeOfReality fonts…", self)
+        install_fonts_action.setToolTip(
+            "Select a local folder of seven original font files; verifies each SHA-256 before installing."
+        )
+        install_fonts_action.triggered.connect(self.install_codeofreality_fonts)
+        appearance_menu.addAction(install_fonts_action)
         appearance_menu.addSeparator()
         self.experimental_font_ocr = QAction("Compare CodeOfReality glyphs (experimental)", self)
         self.experimental_font_ocr.setCheckable(True)
@@ -1229,6 +1236,35 @@ class LabDashboardWindow(QMainWindow):
             self.status.showMessage(f"Wordmark font not installed: {brand_font_path(variant)} (using system fallback)")
         else:
             self.status.showMessage(f"Wordmark font: {variant}")
+
+    def install_codeofreality_fonts(self) -> None:
+        """Install the seven reviewed fonts from a local folder without publishing them."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select the folder containing all seven CodeOfReality font files", str(Path.home())
+        )
+        if not folder:
+            return
+        try:
+            result = install_local_fonts(folder)
+            verification = inspect_font_resources()
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(
+                self, "CodeOfReality fonts not installed",
+                f"All seven original font files are required. Installation was not completed.\\n\\n{exc}"
+            )
+            return
+        # Refresh the wordmark once Qt has access to the newly installed font.
+        self.brand_font_family = load_brand_font(self.brand_font_variant)
+        self._apply_style()
+        count = verification["verified_variants"]
+        self.status.showMessage(f"CodeOfReality local glyph references verified: {count}/7")
+        QMessageBox.information(
+            self, "CodeOfReality fonts installed",
+            f"Installed {result['installed']} and found {result['already_present']} existing reviewed fonts.\\n"
+            f"Glyph references verified: {count}/7.\\n\\n"
+            "OCR template comparisons are experimental and must be enabled separately in Appearance. "
+            "No font files were uploaded to GitHub or a remote service."
+        )
 
     def toggle_experimental_font_ocr(self, enabled: bool) -> None:
         """Opt in to unvalidated reference-glyph OCR for subsequent runs only."""
