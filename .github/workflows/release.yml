@@ -78,6 +78,44 @@ jobs:
         id: bundle
         run: python scripts/build_release.py --output-dir dist --target ${{ matrix.target }}
 
+      - name: Enforce complete v0.9.7 font-inclusive native ZIP
+        if: github.ref_name == 'v0.9.7'
+        shell: bash
+        env:
+          RELEASE_TARGET: ${{ matrix.target }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+          from laserlab.branding import BRAND_FONT_VARIANTS
+
+          target = os.environ["RELEASE_TARGET"]
+          archives = list(Path("dist").glob(f"LaserLab-v0.9.7-{target}.zip"))
+          assert len(archives) == 1, f"Expected one v0.9.7 archive for {target}, got {archives}"
+          with zipfile.ZipFile(archives[0]) as archive:
+              names = archive.namelist()
+              records = [name for name in names if name.endswith("/BUILD-INFO.json")]
+              assert len(records) == 1, "Missing or duplicated BUILD-INFO.json"
+              info = json.loads(archive.read(records[0]))
+              assert info["source_revision"] == os.environ["GITHUB_SHA"]
+              assert info["release_tag"] == "v0.9.7"
+              assert info["build_channel"] == "release"
+              assert info["target"] == target
+              assert info["bundled_codeofreality_font_count"] == 7
+              assert info["font_redistribution_attested_by_release_builder"]
+              base = records[0].rsplit("/", 1)[0] + "/fonts/"
+              expected = {spec[1] for spec in BRAND_FONT_VARIANTS.values()}
+              actual = {
+                  name[len(base):] for name in names
+                  if name.startswith(base) and name.lower().endswith((".ttf", ".otf"))
+              }
+              assert actual == expected, f"Unexpected {target} font files: {actual ^ expected}"
+              assert base + "CODEOFREALITY-PERMISSION.txt" in names
+          print(f"Release {target}: source, tag, seven fonts and rights notice verified")
+          PY
+
       - name: Verify extracted Linux dashboard on X11
         if: matrix.target == 'linux-x86_64'
         shell: bash
