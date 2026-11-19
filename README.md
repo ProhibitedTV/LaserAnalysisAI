@@ -69,6 +69,19 @@ The installer checks every file against the reviewed SHA-256 manifest before
 copying anything, refuses to overwrite a different installed font, and reports
 how many fonts were installed. It never uploads them to a network service.
 
+To qualify the complete installed font family for OCR, run:
+
+```powershell
+python -m laserlab.cli font-verify --require-all
+```
+
+This checks every installed font's fingerprint and verifies that the expected
+character templates can be rasterized. It prints a JSON report with a separate
+status for missing, altered, unreadable or verified fonts, without exposing
+private local paths. A complete inspection reports `verified_variants: 7`
+and `all_verified: true`. This **does not measure OCR accuracy** on real
+laser footage.
+
 Local installation directories:
 
 - Windows: `%LOCALAPPDATA%\\LaserLab\\fonts\\`
@@ -79,8 +92,10 @@ Alternatively, set `LASERLAB_BRAND_FONT_PATH` to the full path of a Classic
 OTF file before starting the app. That override applies to the **Classic OTF**
 menu entry for backwards compatibility.
 
-These fonts are limited to the lowercase `laserlab` wordmark, **not**
-scientific values, tables, OCR results, or experiment labels. The symbol
+As UI typefaces, these fonts are limited to the lowercase `laserlab` wordmark,
+**not** scientific values, tables, OCR output text, or experiment labels.
+Separately, all seven can serve as glyph references for the optional OCR
+comparison adapter below. The symbol
 variants map some normal letters to pictographs and are not suitable for
 ordinary interface text. Classic OTF/TTF omit most punctuation and numerals.
 
@@ -140,10 +155,14 @@ $env:LASERLAB_FONT_REDISTRIBUTION_CONFIRMED = "yes"
 python scripts/build_release.py
 ```
 
-The release builder rejects missing or unsafe font inputs, places approved
-fonts into both packaged apps and the release archive, and records that the
-builder attested redistribution permission in `BUILD-INFO.json`. After
-release, LaserLab resolves packaged fonts before looking for user-local
+The release builder rejects missing, altered, or unsafe font inputs, places
+approved fonts into both packaged apps and the release archive, and records
+that the builder attested redistribution permission in `BUILD-INFO.json`.
+Before the archive is produced, the native release smoke test runs the
+**packaged** `font-verify --require-all` command and requires all seven glyph
+references to be complete, fingerprint-matched, and renderable. This confirms
+the packaged CLI can really find them rather than only testing source files.
+After release, LaserLab resolves packaged fonts before looking for user-local
 overrides. Include the relevant copyright notice and license or written
 permission with every externally distributed release.
 
