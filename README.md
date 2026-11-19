@@ -82,6 +82,22 @@ private local paths. A complete inspection reports `verified_variants: 7`
 and `all_verified: true`. This **does not measure OCR accuracy** on real
 laser footage.
 
+To reproduce a fuller synthetic glyph self-consistency benchmark using all
+seven fonts (across the 96, 64, 40 and 24 px reference sizes), run:
+
+```powershell
+python -m laserlab.cli font-calibrate --variant all
+```
+
+This prints per-font counts of correct matches, incorrect matches, abstentions,
+unrenderable samples and false accepts on three deterministic synthetic
+negative controls (blank, uniform and seeded noise). The samples are created
+**from the same fonts that generate the OCR templates**, not from independent
+capture footage, so this is a software calibration check only. It deliberately
+reports `empirical_accuracy_validated: false` and
+`independent_laser_capture_count: 0`, regardless of how many synthetic
+matches succeed. Do not present it as accuracy on actual laser recordings.
+
 Local installation directories:
 
 - Windows: `%LOCALAPPDATA%\\LaserLab\\fonts\\`
