@@ -204,6 +204,8 @@ def _pyinstaller_command(
         "cv2",
         "--collect-all",
         "pytesseract",
+        "--collect-all",
+        "PIL",
         "--add-data",
         f"{media_dir or ROOT / 'sample_media'}{os.pathsep}sample_media",
     ]
