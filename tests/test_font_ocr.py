@@ -79,6 +79,36 @@ class FontOCRTests(unittest.TestCase):
         inverted = _match_reference(255 - image, templates)
         self.assertEqual(inverted.text, "ab")
 
+    def test_multiscale_reference_recovers_small_glyph_shape_without_false_confidence(self):
+        image, original = _synthetic_reference()
+        # Deliberately poor large-size references plus exact small-size
+        # references. Only the best match per CHARACTER should be ranked;
+        # template-to-template competition would cause false ambiguity.
+        templates = {
+            letter: (np.zeros((32, 32), dtype=np.uint8), glyph)
+            for letter, glyph in original.items()
+        }
+        payload = _match_reference(image, templates)
+        self.assertEqual(payload.text, "ab")
+        self.assertIsNone(payload.confidence)
+        self.assertEqual(payload.word_boxes[0]["reference_sizes_px"], [96, 64, 40, 24])
+        self.assertEqual(len(payload.character_boxes), 2)
+
+    def test_multiscale_duplicate_shapes_abstain_instead_of_guessing(self):
+        image, original = _synthetic_reference()
+        duplicate = original["a"].copy()
+        templates = {
+            "a": (np.zeros((32, 32), dtype=np.uint8), original["a"]),
+            "b": (np.zeros((32, 32), dtype=np.uint8), original["b"]),
+            "c": (duplicate,),
+        }
+        self.assertIsNone(_match_reference(image, templates).text)
+
+    def test_reference_alphabet_is_not_a_translation_key(self):
+        self.assertNotEqual(reference_alphabet("oracle"), reference_alphabet("classic"))
+        self.assertTrue(all(ch.islower() or ch.isdigit() for ch in reference_alphabet("symbols")))
+        self.assertEqual(reference_alphabet("classic"), reference_alphabet("classic-ttf"))
+
     def test_ambiguous_or_unstructured_images_abstain(self):
         image, templates = _synthetic_reference()
         ambiguous = {**templates, "c": templates["a"].copy()}
