@@ -45,6 +45,7 @@ from PyQt5.QtWidgets import (
 
 from laserlab import __version__, app_api
 from laserlab.branding import BRAND_FONT_VARIANTS, BRAND_WORDMARK, brand_font_path, load_brand_font
+from laserlab.font_ocr import FONT_OCR_ENV
 from laserlab.artifacts import checked_image_artifact, load_json
 from laserlab.capture_inference import sample_class, source_class_label
 from laserlab.report import pair_quality_html
@@ -246,6 +247,15 @@ class LabDashboardWindow(QMainWindow):
             action.triggered.connect(lambda _checked=False, selected=variant: self.change_brand_font(selected))
             self.brand_font_actions.addAction(action)
             font_menu.addAction(action)
+        appearance_menu.addSeparator()
+        self.experimental_font_ocr = QAction("Compare CodeOfReality glyphs (experimental)", self)
+        self.experimental_font_ocr.setCheckable(True)
+        self.experimental_font_ocr.setChecked(bool(os.environ.get(FONT_OCR_ENV, "").strip()))
+        self.experimental_font_ocr.setToolTip(
+            "Add opt-in reference-shape OCR attempts on the next run; not a validated decoder."
+        )
+        self.experimental_font_ocr.triggered.connect(self.toggle_experimental_font_ocr)
+        appearance_menu.addAction(self.experimental_font_ocr)
 
         help_menu = self.menuBar().addMenu("Help")
         walkthrough = QAction("First-time walkthrough", self)
@@ -1219,6 +1229,17 @@ class LabDashboardWindow(QMainWindow):
             self.status.showMessage(f"Wordmark font not installed: {brand_font_path(variant)} (using system fallback)")
         else:
             self.status.showMessage(f"Wordmark font: {variant}")
+
+    def toggle_experimental_font_ocr(self, enabled: bool) -> None:
+        """Opt in to unvalidated reference-glyph OCR for subsequent runs only."""
+        if enabled:
+            os.environ[FONT_OCR_ENV] = "all"
+            self.status.showMessage(
+                "Experimental CodeOfReality template comparisons enabled for the next run; not evidence of language."
+            )
+        else:
+            os.environ.pop(FONT_OCR_ENV, None)
+            self.status.showMessage("Experimental CodeOfReality template comparisons disabled.")
 
     def show_quick_start(self) -> None:
         """Short, supportive guide for users without a technical background."""
