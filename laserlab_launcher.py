@@ -24,6 +24,21 @@ if __name__ == "__main__":
         raise SystemExit(0)
     if "--smoke" in sys.argv:
         raise SystemExit(main(smoke=True))
+    if "--smoke-fonts" in sys.argv:
+        from PyQt5.QtWidgets import QApplication
+        from laserlab.branding import BRAND_FONT_VARIANTS, load_brand_font
+        from laserlab.font_qualification import inspect_font_resources
+
+        app = QApplication.instance() or QApplication([])
+        result = inspect_font_resources()
+        if not result["all_verified"] or result["verified_variants"] != len(BRAND_FONT_VARIANTS):
+            raise SystemExit("Packaged CodeOfReality fonts are absent or fail verification")
+        for variant, (_, _filename, expected_family) in BRAND_FONT_VARIANTS.items():
+            actual_family = load_brand_font(variant)
+            if actual_family != expected_family:
+                raise SystemExit(f"CodeOfReality Qt family mismatch: {variant}")
+        print(f"LaserLab GUI font smoke OK / variants={len(BRAND_FONT_VARIANTS)}")
+        raise SystemExit(0)
     if "--smoke-resources" in sys.argv:
         fixture_names = (
             "commons-double-slit-experiment.webm",
