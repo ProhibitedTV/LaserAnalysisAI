@@ -79,6 +79,33 @@ class FontOCRTests(unittest.TestCase):
         inverted = _match_reference(255 - image, templates)
         self.assertEqual(inverted.text, "ab")
 
+    def test_disjoint_vertical_glyphs_cannot_be_combined_into_one_word(self):
+        image, templates = _synthetic_reference()
+        vertically_separated = np.zeros((250, image.shape[1]), dtype=np.uint8)
+        vertically_separated[5:115, :110] = image[:, :110]
+        vertically_separated[130:240, 110:] = image[:, 110:]
+        result = _match_reference(vertically_separated, templates)
+        self.assertIsNone(result.text)
+        self.assertEqual(result.character_boxes, [])
+
+    def test_character_boxes_track_each_glyph_not_the_full_word_height(self):
+        image, templates = _synthetic_reference()
+        staggered = np.zeros((155, image.shape[1]), dtype=np.uint8)
+        staggered[12:122, :110] = image[:, :110]
+        staggered[26:136, 110:] = image[:, 110:]
+        result = _match_reference(staggered, templates)
+        self.assertEqual(result.text, "ab")
+        self.assertEqual(len(result.character_boxes), 2)
+        left_box, right_box = result.character_boxes
+        self.assertGreater(right_box["y"], left_box["y"])
+        self.assertLess(left_box["height"], result.word_boxes[0]["height"])
+        self.assertLess(right_box["height"], result.word_boxes[0]["height"])
+        self.assertEqual(
+            result.word_boxes[0]["height"],
+            max(box["y"] + box["height"] for box in result.character_boxes)
+            - min(box["y"] for box in result.character_boxes),
+        )
+
     def test_multiscale_reference_recovers_small_glyph_shape_without_false_confidence(self):
         image, original = _synthetic_reference()
         # Deliberately poor large-size references plus exact small-size
