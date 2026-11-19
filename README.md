@@ -163,6 +163,48 @@ uppercase, numerals, and brackets. No validated accuracy on real-world laser
 footage is claimed. More advanced segmentation, robustness testing, false
 positive controls, and independent external validation remain necessary.
 
+### Reported-symbol / laser-light comparison (experimental)
+
+You can compare **one cropped laser-light shape** against **one separately
+supplied image** of a symbol someone has reported seeing during a DMT
+experience. Optionally include a distinct laser control image captured under
+similar conditions. The two independent images are not bundled, shared, or
+uploaded by LaserLab:
+
+```powershell
+python -m laserlab.cli symbol-compare \
+  --laser-image "C:\\Research\\laser-crop.png" \
+  --reported-symbol-image "C:\\Research\\reported-symbol.png" \
+  --control-laser-image "C:\\Research\\control-crop.png" \
+  --variant all
+```
+
+For initial experimentation without a locally installed Tesseract executable,
+add `--no-tesseract`. Otherwise the command records Tesseract's **separate,
+untrained** output for both crops. The opt-in CodeOfReality reference matcher
+tries all seven font variants independently on each image, and reports possible
+shared reference labels without treating correlated font variants as
+independent votes. The original images are not exported.
+
+The JSON output includes two **descriptive** image-shape metrics:
+`normalized_pixel_difference` (smaller means more alike after foreground
+cropping and rescaling) and `foreground_intersection_over_union` (larger
+means greater binary shape overlap). If a control is supplied, it also records
+a **difference in pixel distance** between the experimental laser crop and
+the user-supplied control; capture-condition matching has not been verified.
+No statistical significance, language, meaning, DMT mechanism or common origin
+is inferred. Blank, oversized, or unstructured images may produce an explicit
+`unavailable` outcome instead of a false match.
+
+For reliable scientific comparison, obtain independently documented symbol
+references with their source/context, predefine image crop locations and shape
+thresholds before unblinding, add camera-matched negative-control recordings,
+and repeat with independently acquired data. A font inspired by reported
+experiences is a reference-shape library, **not** a validated map of
+experiences or a cipher key. See
+[the distribution attestation](docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md)
+for the maintainer-reported creator authorization.
+
 ### Authorized release packaging
 
 Normally the seven font **binaries are not checked in to public GitHub** and
