@@ -16,7 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .branding import BRAND_FONT_VARIANTS, brand_font_path
+from .branding import BRAND_FONT_VARIANTS, KNOWN_FONT_SHA256, _font_sha256, brand_font_path
 from .ocr_adapters import BaseOCRAdapter, OCRPayload, OCRRequest
 
 
@@ -249,8 +249,12 @@ class CodeOfRealityTemplateAdapter(BaseOCRAdapter):
         if not path.is_file():
             return False, f"CodeOfReality font not installed for {self.variant}"
         try:
-            if path.stat().st_size > 2 * 1024 * 1024:
-                return False, "CodeOfReality reference font exceeds local safety limit"
+            size = path.stat().st_size
+            if size < 1024 or size > 2 * 1024 * 1024:
+                return False, "CodeOfReality reference font is outside allowed size limits"
+            filename = BRAND_FONT_VARIANTS[self.variant][1]
+            if _font_sha256(path) != KNOWN_FONT_SHA256[filename]:
+                return False, "CodeOfReality reference font does not match the reviewed font fingerprint"
         except OSError:
             return False, "CodeOfReality font cannot be read"
         try:
