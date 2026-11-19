@@ -32,6 +32,7 @@ from laserlab.branding import BRAND_FONT_VARIANTS  # noqa: E402
 
 BUNDLED_METADATA = ("fixture_manifest.json", "ATTRIBUTION.md", "optical_benchmark_reference.json",
                     "optical_benchmark_observations.json")
+FONT_RIGHTS_NOTICE = "CODEOFREALITY-PERMISSION.txt"
 
 
 def _git(*arguments: str, allow_missing: bool = False) -> str:
@@ -124,6 +125,17 @@ def _stage_authorized_fonts(build_root: Path) -> Path | None:
     source_dir = Path(source_value).expanduser().resolve()
     if not source_dir.is_dir():
         raise ValueError("The authorized font source directory does not exist")
+    notice_file = source_dir / FONT_RIGHTS_NOTICE
+    if not notice_file.is_file() or notice_file.is_symlink():
+        raise ValueError(f"Authorized font bundle must include {FONT_RIGHTS_NOTICE}")
+    if not 40 <= notice_file.stat().st_size <= 64 * 1024:
+        raise ValueError("The font rights notice is missing or outside expected text limits")
+    try:
+        notice_text = notice_file.read_text(encoding="utf-8")
+    except UnicodeError as exc:
+        raise ValueError("The font rights notice must be UTF-8 text") from exc
+    if len(notice_text.strip()) < 40:
+        raise ValueError("The font rights notice must identify relevant permission terms")
     destination = build_root / "resources" / "fonts"
     filenames = sorted({spec[1] for spec in BRAND_FONT_VARIANTS.values()})
     fingerprints = _expected_font_hashes()
@@ -138,6 +150,7 @@ def _stage_authorized_fonts(build_root: Path) -> Path | None:
     destination.mkdir(parents=True, exist_ok=False)
     for name in filenames:
         shutil.copy2(source_dir / name, destination / name)
+    shutil.copy2(notice_file, destination / FONT_RIGHTS_NOTICE)
     return destination
 
 
