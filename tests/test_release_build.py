@@ -92,6 +92,42 @@ class ReleaseBuildTests(unittest.TestCase):
             self.assertNotEqual(embedded, self.root / "sample_media")
             self.assertEqual({path.name for path in embedded.iterdir()}, set(release.BUNDLED_METADATA) | {"public.mp4"})
 
+    def test_explicitly_authorized_fonts_are_embedded_in_both_products_and_archive(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+        font_root = self.parent / "approved-fonts"
+        font_root.mkdir()
+        sample = b"sample-font-test-data" * 128
+        expected = {}
+        for _, filename, _ in BRAND_FONT_VARIANTS.values():
+            (font_root / filename).write_bytes(sample)
+            expected[filename] = hashlib.sha256(sample).hexdigest()
+        with patch.dict(os.environ, {
+            "LASERLAB_RELEASE_FONTS_DIR": str(font_root),
+            "LASERLAB_FONT_REDISTRIBUTION_CONFIRMED": "yes",
+        }), patch.object(release, "_expected_font_hashes", return_value=expected):
+            archive = self.build()
+        bundle = archive.with_suffix("")
+        info = json.loads((bundle / "BUILD-INFO.json").read_text())
+        self.assertEqual(info["bundled_codeofreality_font_count"], 7)
+        self.assertTrue(info["font_redistribution_attested_by_release_builder"])
+        self.assertEqual({path.name for path in (bundle / "fonts").iterdir()}, set(expected))
+        for name, digest in expected.items():
+            self.assertEqual(hashlib.sha256((bundle / "fonts" / name).read_bytes()).hexdigest(), digest)
+        for command in self.commands:
+            entries = [command[index + 1] for index, arg in enumerate(command) if arg == "--add-data"]
+            self.assertEqual(len(entries), 2)
+            staged_fonts, target = entries[1].rsplit(os.pathsep, 1)
+            self.assertEqual(target, "fonts")
+            self.assertEqual({p.name for p in Path(staged_fonts).iterdir()}, set(expected))
+        self.smoke.assert_called_once()
+        self.assertTrue(self.smoke.call_args.kwargs["fonts_included"])
+        with zipfile.ZipFile(archive) as zipped:
+            for name in expected:
+                self.assertEqual(
+                    zipped.read(f"{bundle.name}/fonts/{name}"),
+                    sample,
+                )
+
     def test_matching_tag_at_exact_commit_builds_a_release(self):
         tag = "v0.9.0"
         self.git("tag", tag)
