@@ -31,6 +31,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "symbol-compare":
+            import cv2
+            from .symbol_comparison import compare_reported_and_laser_symbols
+            laser = cv2.imread(str(args.laser_image), cv2.IMREAD_COLOR)
+            reported = cv2.imread(str(args.reported_symbol_image), cv2.IMREAD_COLOR)
+            if laser is None or reported is None:
+                raise ValueError("Cannot read one or both symbol comparison images")
+            result = compare_reported_and_laser_symbols(
+                laser, reported, variant=args.variant,
+                with_tesseract=not args.no_tesseract,
+            )
+            print(json.dumps(result, indent=2, sort_keys=True, allow_nan=False))
+            return 0
         if args.command == "font-calibrate":
             from .font_calibration import calibrate_reference_fonts
             record = calibrate_reference_fonts(args.variant)
@@ -231,6 +244,13 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     from .branding import BRAND_FONT_VARIANTS
+    compare_symbols = subparsers.add_parser(
+        "symbol-compare", help="Experimental visual comparison of reported and laser symbol crops."
+    )
+    compare_symbols.add_argument("--laser-image", required=True, help="A local cropped laser-light symbol image.")
+    compare_symbols.add_argument("--reported-symbol-image", required=True, help="A separately supplied reported-symbol crop.")
+    compare_symbols.add_argument("--variant", choices=["all", *BRAND_FONT_VARIANTS], default="all")
+    compare_symbols.add_argument("--no-tesseract", action="store_true", help="Omit standard Tesseract OCR baselines.")
     font_calibrate = subparsers.add_parser(
         "font-calibrate", help="Measure CodeOfReality self-rendered glyph matches; NOT validation on laser captures."
     )
