@@ -38,6 +38,15 @@ BRAND_FONT_FILENAME = BRAND_FONT_VARIANTS["classic"][1]
 BRAND_FONT_FAMILY = BRAND_FONT_VARIANTS["classic"][2]
 ALLOWED_BRAND_FAMILIES = frozenset(item[2] for item in BRAND_FONT_VARIANTS.values())
 
+# The supplied 3D/Outline files use OpenType typographic family (nameID 16)
+# "Code of Reality Symbols" with styles (nameID 17) "3D" and "Outline".
+# On Windows, Qt exposes the shared typographic family rather than nameID 1.
+# Keep the original bytes unchanged; select the actual face through styleName.
+BRAND_STYLED_VARIANTS = {
+    "symbols-3d": ("Code of Reality Symbols", "3D"),
+    "symbols-outline": ("Code of Reality Symbols", "Outline"),
+}
+
 # SHA-256 of the user's seven reviewed font uploads. These identify reference
 # resources; they do not certify a redistribution license.
 KNOWN_FONT_SHA256 = {
@@ -192,4 +201,10 @@ def load_brand_font(variant: str = "classic") -> str | None:
     if font_id < 0:
         return None
     family = BRAND_FONT_VARIANTS[variant][2]
-    return family if family in QFontDatabase.applicationFontFamilies(font_id) else None
+    families = QFontDatabase.applicationFontFamilies(font_id)
+    if family in families:
+        return family
+    styled = BRAND_STYLED_VARIANTS.get(variant)
+    if styled is not None and styled[0] in families:
+        return styled[0]
+    return None
