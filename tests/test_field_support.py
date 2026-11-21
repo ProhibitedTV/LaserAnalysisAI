@@ -40,6 +40,35 @@ class FieldSupportCliTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(json.loads(output.getvalue()), record)
 
+    def test_diagnostics_text_identifies_both_ocr_engines(self) -> None:
+        record = {
+            "laserlab_version": "test",
+            "runtime": {"python_version": "3.11", "frozen": True},
+            "dependencies": {},
+            "fixtures": {"catalog_valid": True, "bundled_file_count": 0, "redistributable_count": 0},
+            "ocr": {
+                "tesseract": {"status": "available"},
+                "codeofreality": {
+                    "selection": "enabled",
+                    "selected_variants": ["classic", "oracle"],
+                    "verified_variants": 2,
+                    "total_variants": 7,
+                },
+            },
+        }
+        output = io.StringIO()
+        with (
+            patch("laserlab.cli.configure_logging"),
+            patch("laserlab.cli.collect_diagnostics", return_value=record),
+            redirect_stdout(output),
+        ):
+            result = main(["diagnostics", "--format", "text"])
+        self.assertEqual(result, 0)
+        self.assertIn("tesseract: available (optional; default eng)", output.getvalue())
+        self.assertIn("codeofreality templates: enabled (2/7 verified)", output.getvalue())
+        self.assertIn("selected template variants: classic, oracle", output.getvalue())
+        self.assertIn("do not train Tesseract", output.getvalue())
+
     def test_support_bundle_command_reports_exported_path(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "support.zip"
