@@ -14,7 +14,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtWidgets import QApplication, QLabel
-from gui.lab_dashboard import LabDashboardWindow
+from gui.lab_dashboard import LabDashboardWindow, _ocr_readiness_lines, _saved_ocr_mode_lines
 from laserlab.font_ocr import FONT_OCR_ENV
 
 
@@ -43,6 +43,66 @@ class CodeOfRealityFontGuiTests(unittest.TestCase):
         toggle = [action for action in actions if "experimental" in action.text().lower()]
         self.assertEqual(len(toggle), 1)
         self.assertTrue(toggle[0].isCheckable())
+
+    def test_system_check_separates_english_tesseract_from_font_templates(self):
+        record = {
+            "laserlab_version": "test",
+            "runtime": {"python_version": "3.11", "frozen": True},
+            "dependencies": {},
+            "native_runtime": {},
+            "fixtures": {"catalog_valid": True, "bundled_file_count": 1, "redistributable_count": 1},
+            "ocr": {
+                "tesseract": {"status": "available"},
+                "codeofreality": {
+                    "selection": "disabled",
+                    "reference_check": "completed",
+                    "verified_variants": 6,
+                    "total_variants": 7,
+                    "selected_variants": [],
+                    "variant_statuses": {"oracle": "missing", "classic": "verified"},
+                },
+            },
+        }
+        with (
+            patch("gui.lab_dashboard.collect_diagnostics", return_value=record),
+            patch("gui.lab_dashboard.QMessageBox.information") as notice,
+        ):
+            self.window.show_system_check()
+        message = notice.call_args.args[2]
+        self.assertIn("Tesseract OCR: available", message)
+        self.assertIn("English / eng", message)
+        self.assertIn("CodeOfReality template OCR: disabled", message)
+        self.assertIn("6/7", message)
+        self.assertIn("oracle: missing", message)
+        self.assertIn(".ttf glyph references do not replace or train Tesseract", message)
+
+    def test_enabling_font_ocr_with_missing_references_warns_not_falls_back(self):
+        with (
+            patch.dict(os.environ, {FONT_OCR_ENV: ""}),
+            patch("gui.lab_dashboard.inspect_font_resources", return_value={"verified_variants": 4}),
+            patch("gui.lab_dashboard.QMessageBox.warning") as warning,
+        ):
+            self.window.toggle_experimental_font_ocr(True)
+            self.assertEqual(os.environ[FONT_OCR_ENV], "all")
+        self.assertIn("4/7", warning.call_args.args[2])
+        self.assertIn("not silently fall back to English OCR", warning.call_args.args[2])
+        self.assertIn("4/7", self.window.status.currentMessage())
+
+    def test_review_displays_recorded_ocr_engines_not_current_preferences(self):
+        lines = _saved_ocr_mode_lines([
+            {"engine_id": "tesseract", "settings": {"language": "eng"}, "text": "AB"},
+            {"engine_id": "codeofreality-template:classic", "available": False, "text": None},
+        ])
+        self.assertIn("requested language(s): eng", "\\n".join(lines))
+        self.assertIn("CodeOfReality templates: 1 attempts recorded", "\\n".join(lines))
+        missing = _saved_ocr_mode_lines([{"engine_id": "tesseract", "settings": {"language": "eng"}}])
+        self.assertIn("no attempts recorded", "\\n".join(missing))
+        self.assertNotIn("enabled", "\\n".join(missing))
+        disabled = _ocr_readiness_lines({
+            "codeofreality": {"selection": "invalid_selection", "selected_variants": []},
+            "tesseract": {"status": "available"},
+        })
+        self.assertIn("Invalid CodeOfReality selection", "\\n".join(disabled))
 
     def test_three_dimensional_and_outline_wordmarks_use_distinct_qt_style_names(self):
         wordmarks = self.window.findChildren(QLabel, "brandWordmark")
