@@ -1,6 +1,6 @@
 # Native release qualification
 
-The source tree builds LaserLab `0.9.6`. Track the current public version, qualification artifacts and remaining checks on the [Wiki release-status page](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Release-Status).
+The source tree builds LaserLab `0.9.8` candidates. The currently published native release is `v0.9.7`; 0.9.8 has not been released. Track public version, qualification artifacts and outstanding native field checks on the [Wiki release-status page](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Release-Status).
 
 ## Producing candidates
 
