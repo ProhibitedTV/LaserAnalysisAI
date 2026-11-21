@@ -48,7 +48,7 @@ from laserlab.branding import (
     BRAND_FONT_VARIANTS, BRAND_STYLED_VARIANTS, BRAND_WORDMARK,
     brand_font_path, install_local_fonts, load_brand_font,
 )
-from laserlab.font_ocr import FONT_OCR_ENV
+from laserlab.font_ocr import FONT_OCR_ENV, configured_font_ocr_adapters
 from laserlab.font_qualification import inspect_font_resources
 from laserlab.artifacts import checked_image_artifact, load_json
 from laserlab.capture_inference import sample_class, source_class_label
@@ -179,6 +179,71 @@ def _validate_open_report(report: dict[str, Any]) -> None:
                     text(roi[field], field)
 
 
+def _ocr_readiness_lines(ocr: dict[str, Any]) -> list[str]:
+    """Human-readable, local-only status; these are two separate OCR engines."""
+    tesseract = ocr.get("tesseract", {})
+    reference = ocr.get("codeofreality", {})
+    selected = reference.get("selected_variants", [])
+    statuses = reference.get("variant_statuses", {})
+    selection = reference.get("selection", "unknown")
+    total = reference.get("total_variants", len(BRAND_FONT_VARIANTS))
+    verified = reference.get("verified_variants", 0)
+    lines = [
+        f"Tesseract OCR: {tesseract.get('status', 'unknown')} (optional, defaults to English / eng)",
+        f"CodeOfReality template OCR: {selection}",
+        f"  Verified local font references: {verified}/{total} ({reference.get('reference_check', 'unknown')})",
+        f"  Selected glyph variants: {', '.join(selected) if selected else 'none'}",
+    ]
+    not_verified = [
+        f"{name}: {status}" for name, status in sorted(statuses.items())
+        if status != "verified"
+    ]
+    if not_verified:
+        lines.append("  Unverified references: " + "; ".join(not_verified))
+    if selection == "invalid_selection":
+        lines.append("  Invalid CodeOfReality selection; no template adapters are active.")
+    elif selection == "disabled":
+        lines.append("  To opt in for the next run: Appearance > Compare CodeOfReality glyphs (experimental).")
+    lines.extend([
+        "  .ttf glyph references do not replace or train Tesseract's English OCR model.",
+        "  Font verification is not experimental accuracy or proof of a decoded language.",
+    ])
+    return lines
+
+
+def _saved_ocr_mode_lines(attempts: list[dict[str, Any]]) -> list[str]:
+    """Describe engines actually recorded for one candidate, not current settings."""
+    templates = [
+        attempt for attempt in attempts if isinstance(attempt, dict)
+        and str(attempt.get("engine_id", "")).startswith("codeofreality-template:")
+    ]
+    baseline = [
+        attempt for attempt in attempts if isinstance(attempt, dict)
+        and attempt.get("engine_id") == "tesseract"
+    ]
+    lines = [""]
+    if baseline:
+        languages = sorted({
+            str((attempt.get("settings") or {}).get("language") or "unrecorded")
+            for attempt in baseline if isinstance(attempt.get("settings") or {}, dict)
+        })
+        lines.append(
+            f"Tesseract baseline: {len(baseline)} attempts; requested language(s): "
+            + (", ".join(languages) or "unrecorded")
+            + ". This is separate from CodeOfReality template comparisons."
+        )
+    else:
+        lines.append("Tesseract baseline: no attempts recorded for this candidate.")
+    if not templates:
+        lines.append(
+            "CodeOfReality templates: no attempts recorded for this saved candidate. "
+            "The matcher may have been disabled or the run produced no applicable regions."
+        )
+    else:
+        lines.append(f"CodeOfReality templates: {len(templates)} attempts recorded (experimental).")
+    return lines
+
+
 class ApiWorker(QThread):
     finished_ok = pyqtSignal(object)
     failed = pyqtSignal(str)
@@ -260,7 +325,7 @@ class LabDashboardWindow(QMainWindow):
         appearance_menu.addSeparator()
         self.experimental_font_ocr = QAction("Compare CodeOfReality glyphs (experimental)", self)
         self.experimental_font_ocr.setCheckable(True)
-        self.experimental_font_ocr.setChecked(bool(os.environ.get(FONT_OCR_ENV, "").strip()))
+        self.experimental_font_ocr.setChecked(bool(configured_font_ocr_adapters()))
         self.experimental_font_ocr.setToolTip(
             "Add opt-in reference-shape OCR attempts on the next run; not a validated decoder."
         )
@@ -1292,8 +1357,26 @@ class LabDashboardWindow(QMainWindow):
         """Opt in to unvalidated reference-glyph OCR for subsequent runs only."""
         if enabled:
             os.environ[FONT_OCR_ENV] = "all"
+            try:
+                verified = int(inspect_font_resources()["verified_variants"])
+            except Exception:
+                verified = 0
+                QMessageBox.warning(
+                    self, "CodeOfReality reference check failed",
+                    "Template OCR is selected for the next run, but font readiness could not be checked. "
+                    "Use Help > System Check before treating any result as a completed comparison."
+                )
+            else:
+                if verified != len(BRAND_FONT_VARIANTS):
+                    QMessageBox.warning(
+                        self, "CodeOfReality references incomplete",
+                        f"Template OCR is selected for the next run, but only {verified}/{len(BRAND_FONT_VARIANTS)} "
+                        "font references are verified. Missing or invalid variants will report unavailable, "
+                        "not silently fall back to English OCR. See Help > System Check."
+                    )
             self.status.showMessage(
-                "Experimental CodeOfReality template comparisons enabled for the next run; not evidence of language."
+                f"Experimental CodeOfReality templates selected for the next run ({verified}/7 verified); "
+                "this does not train Tesseract or validate a language."
             )
         else:
             os.environ.pop(FONT_OCR_ENV, None)
@@ -1531,7 +1614,7 @@ class LabDashboardWindow(QMainWindow):
         try:
             record = collect_diagnostics(self.experiment_dir)
             dependencies = record.get("dependencies", {})
-            tesseract = record.get("ocr", {}).get("tesseract", {})
+            ocr = record.get("ocr", {})
             fixtures = record.get("fixtures", {})
             lines = [
                 f"LaserLab {record.get('laserlab_version', 'unknown')}",
@@ -1554,7 +1637,9 @@ class LabDashboardWindow(QMainWindow):
                     "",
                     f"Bundled fixtures: {'ready' if fixtures.get('catalog_valid') else 'check failed'} "
                     f"({fixtures.get('bundled_file_count', 0)}/{fixtures.get('redistributable_count', 0)})",
-                    f"Tesseract OCR: {tesseract.get('status', 'unknown')} (optional)",
+                    "",
+                    "OCR engines (independent):",
+                    *_ocr_readiness_lines(ocr),
                     "",
                     "No telemetry or uploads were performed.",
                 ]
@@ -2210,6 +2295,7 @@ class LabDashboardWindow(QMainWindow):
         else:
             details.append("Source role, path, frame attribution, and q-value are sealed.")
         details.extend(["", candidate.get("ocr_text", "")])
+        details.extend(_saved_ocr_mode_lines(candidate.get("ocr_attempts", [])))
         font_attempts = [
             attempt for attempt in candidate.get("ocr_attempts", [])
             if str(attempt.get("engine_id", "")).startswith("codeofreality-template:")
@@ -2221,7 +2307,9 @@ class LabDashboardWindow(QMainWindow):
                 roi = attempt.get("roi_reference") or {}
                 roi_id = roi.get("id", "unknown") if isinstance(roi, dict) else "unknown"
                 if not attempt.get("available"):
-                    outcome = "unavailable"
+                    outcome = "unavailable" + (
+                        f" ({str(attempt['failure_reason'])[:120]})" if attempt.get("failure_reason") else ""
+                    )
                 elif attempt.get("failure_reason"):
                     outcome = "failed"
                 elif attempt.get("text"):
