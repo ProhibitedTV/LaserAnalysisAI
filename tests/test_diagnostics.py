@@ -49,6 +49,7 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertEqual(record["runtime"]["entrypoint"], "source")
         self.assertIn("opencv", record["dependencies"])
         self.assertTrue(record["ocr"]["optional"])
+        self.assertIn("codeofreality", record["ocr"])
         self.assertGreaterEqual(record["fixtures"]["catalog_count"], record["fixtures"]["redistributable_count"])
         self.assertIsInstance(record["fixtures"]["catalog_valid"], bool)
         self.assertTrue(record["experiment"]["exists"])
@@ -79,6 +80,52 @@ class DiagnosticsTests(unittest.TestCase):
                 "failure": "executable not found",
             },
         )
+
+    def test_codeofreality_diagnostics_separate_selection_from_font_readiness(self) -> None:
+        font_check = {
+            "verified_variants": 2,
+            "fonts": [
+                {"variant": "classic", "status": "verified"},
+                {"variant": "oracle", "status": "verified"},
+                {"variant": "circuit", "status": "missing"},
+            ],
+        }
+        with (
+            patch.dict("laserlab.diagnostics.os.environ", {"LASERLAB_FONT_OCR_VARIANTS": "classic,oracle"}),
+            patch("laserlab.font_qualification.inspect_font_resources", return_value=font_check),
+        ):
+            record = diagnostics._codeofreality_record()
+        self.assertEqual(record["selection"], "enabled")
+        self.assertEqual(record["selected_variants"], ["classic", "oracle"])
+        self.assertEqual(record["reference_check"], "completed")
+        self.assertEqual(record["verified_variants"], 2)
+        self.assertEqual(record["variant_statuses"]["circuit"], "missing")
+        self.assertFalse(record["tesseract_language_model"])
+        self.assertFalse(record["scientific_accuracy_validated"])
+
+    def test_codeofreality_invalid_selection_and_loader_failure_are_safe(self) -> None:
+        with (
+            patch.dict("laserlab.diagnostics.os.environ", {"LASERLAB_FONT_OCR_VARIANTS": "eng"}),
+            patch("laserlab.font_qualification.inspect_font_resources", side_effect=RuntimeError("/home/private/fonts")),
+        ):
+            record = diagnostics._codeofreality_record()
+        self.assertEqual(record["selection"], "invalid_selection")
+        self.assertEqual(record["selected_variants"], [])
+        self.assertEqual(record["reference_check"], "failed")
+        self.assertNotIn("/home/private", json.dumps(record))
+
+    def test_codeofreality_disabled_is_distinct_from_missing_fonts(self) -> None:
+        with (
+            patch.dict("laserlab.diagnostics.os.environ", {"LASERLAB_FONT_OCR_VARIANTS": ""}),
+            patch("laserlab.font_qualification.inspect_font_resources", return_value={
+                "verified_variants": 7,
+                "fonts": [{"variant": "classic", "status": "verified"}],
+            }),
+        ):
+            record = diagnostics._codeofreality_record()
+        self.assertEqual(record["selection"], "disabled")
+        self.assertEqual(record["selected_variants"], [])
+        self.assertEqual(record["verified_variants"], 7)
 
     def test_linux_native_import_probe_succeeds_without_exposing_output(self) -> None:
         completed = subprocess.CompletedProcess(["python", "-c", "import cv2"], 0, b"", b"")

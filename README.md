@@ -176,6 +176,50 @@ uppercase, numerals, and brackets. No validated accuracy on real-world laser
 footage is claimed. More advanced segmentation, robustness testing, false
 positive controls, and independent external validation remain necessary.
 
+### Troubleshooting "English instead of .ttf OCR"
+
+**Tesseract and CodeOfReality are different OCR engines.** Tesseract uses
+traineddata models (normally `eng` for English), not font files. The opt-in
+CodeOfReality matcher uses the seven locally installed and checked font files
+as shape templates; it can abstain on noisy or overlapping glyphs and does not
+decode a validated language. Installing a decorative font or selecting a
+wordmark changes neither Tesseract's language nor the experimental OCR mode.
+
+For a report that only shows English OCR output:
+
+1. Check **Help > System Check** and the **About** version in the GUI. New
+   builds after [issue #96](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/96)
+   report CodeOfReality selection and per-font reference readiness separately
+   from Tesseract. The published **v0.9.7** release does not yet include this
+   expanded System Check; verify which build actually ran. A previous source
+   checkout or an older app folder can coexist with a newer download.
+2. In a source checkout, run `python -m laserlab.cli font-verify --require-all`
+   to verify all seven reviewed references. In a native release, use its
+   packaged `LaserLabCLI font-verify --require-all` executable.
+   `verified_variants: 7` and `all_verified: true` mean the fonts are
+   renderable, **not** that real recordings have passed recognition tests.
+3. For a *new* dashboard analysis, explicitly select **Appearance > Compare
+   CodeOfReality glyphs (experimental)**. This option is session-only and
+   affects the next run, not previously saved candidate records. For a
+   standalone synthetic high-contrast image, use
+   `python -m laserlab.cli font-ocr --image <image-file> --variant all`.
+4. In **Review**, look for `codeofreality-template:<variant>` in the OCR
+   attempts. A `tesseract` attempt with language `eng` is not a substitute.
+   Missing template attempts mean no such attempt was recorded for that
+   candidate, not necessarily that a font was corrupted. Explicit unavailable
+   or no-match outcomes should be preserved rather than treated as a fallback
+   to English.
+5. For reproducible support, record the OS, exact app version, CLI command
+   or clicks, and which engine ID was shown. Export only **Help > Export
+   Support Bundle**, review its redacted diagnostics before sharing, and
+   keep original recordings and review exports private.
+
+The local CLI also provides `python -m laserlab.cli diagnostics --format json`.
+New builds report `ocr.codeofreality.selection`, `selected_variants`,
+`verified_variants`, and `variant_statuses` without user font paths.
+Version/release comparisons must use the actual built executable, not the
+README version alone.
+
 ### Reported-symbol / laser-light comparison (experimental)
 
 You can compare **one cropped laser-light shape** against **one separately

@@ -408,6 +408,7 @@ def _print_diagnostics(record: dict[str, object]) -> None:
     dependencies = record.get("dependencies", {}) if isinstance(record.get("dependencies"), dict) else {}
     ocr = record.get("ocr", {}) if isinstance(record.get("ocr"), dict) else {}
     tesseract = ocr.get("tesseract", {}) if isinstance(ocr.get("tesseract"), dict) else {}
+    font_ocr = ocr.get("codeofreality", {}) if isinstance(ocr.get("codeofreality"), dict) else {}
     fixtures = record.get("fixtures", {}) if isinstance(record.get("fixtures"), dict) else {}
     print(f"LaserLab {record.get('laserlab_version', 'unknown')}")
     print(f"Python {runtime.get('python_version', 'unknown')} / packaged={bool(runtime.get('frozen'))}")
@@ -422,7 +423,14 @@ def _print_diagnostics(record: dict[str, object]) -> None:
         + ("ready" if fixtures.get("catalog_valid") else "check failed")
         + f" ({fixtures.get('bundled_file_count', 0)}/{fixtures.get('redistributable_count', 0)})"
     )
-    print(f"tesseract: {tesseract.get('status', 'unknown')} (optional)")
+    print(f"tesseract: {tesseract.get('status', 'unknown')} (optional; default eng)")
+    print(
+        f"codeofreality templates: {font_ocr.get('selection', 'unknown')} "
+        f"({font_ocr.get('verified_variants', 0)}/{font_ocr.get('total_variants', 7)} verified)"
+    )
+    selected = font_ocr.get("selected_variants", [])
+    print(f"selected template variants: {', '.join(selected) if selected else 'none'}")
+    print("note: .ttf glyph templates do not train Tesseract or validate decoded language")
     print("privacy: no telemetry, uploads, source media, or manifest content")
 
 
