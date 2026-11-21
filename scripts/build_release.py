@@ -281,6 +281,37 @@ def _gui_product(dist_dir: Path) -> Path:
     return dist_dir / executable_name("LaserLab")
 
 
+def _assert_packaged_codeofreality_diagnostics(record: dict[str, object]) -> None:
+    """Fail native qualification if bundled fonts are not visible to the OCR diagnostics."""
+    ocr = record.get("ocr", {})
+    if not isinstance(ocr, dict) or not isinstance(ocr.get("tesseract"), dict):
+        raise RuntimeError("Packaged OCR diagnostics omitted independent Tesseract state")
+    font = ocr.get("codeofreality", {})
+    expected = set(BRAND_FONT_VARIANTS)
+    if not isinstance(font, dict):
+        raise RuntimeError("Packaged CodeOfReality OCR diagnostics are missing")
+    statuses = font.get("variant_statuses")
+    selected = font.get("selected_variants")
+    if (
+        font.get("selection") != "enabled"
+        or font.get("reference_check") != "completed"
+        or font.get("total_variants") != len(expected)
+        or font.get("verified_variants") != len(expected)
+        or not isinstance(selected, list)
+        or len(selected) != len(expected)
+        or set(selected) != expected
+        or not isinstance(statuses, dict)
+        or set(statuses) != expected
+        or any(value != "verified" for value in statuses.values())
+        or font.get("scientific_accuracy_validated") is not False
+        or font.get("tesseract_language_model") is not False
+    ):
+        raise RuntimeError(
+            "Packaged CodeOfReality OCR diagnostics did not confirm seven "
+            "selected and verified independent reference templates"
+        )
+
+
 def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False) -> None:
     gui_executable = gui_product
     if gui_product.suffix == ".app":
@@ -321,15 +352,23 @@ def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False
                 or qualification.get("scientific_accuracy_validated") is not False
             ):
                 raise RuntimeError("Packaged CodeOfReality OCR reference qualification failed")
+        # Exercise the opt-in packaged matcher status independently of the
+        # optional Tesseract installation (which can be absent on clean hosts).
+        diagnostic_env = os.environ.copy()
+        if fonts_included:
+            diagnostic_env["LASERLAB_FONT_OCR_VARIANTS"] = "all"
         diagnostics = subprocess.run(
             [str(cli_product), "diagnostics", "--format", "json"],
             cwd=unrelated_cwd,
+            env=diagnostic_env,
             check=True,
-            timeout=60,
+            timeout=120 if fonts_included else 60,
             capture_output=True,
             text=True,
         )
         record = json.loads(diagnostics.stdout)
+        if fonts_included:
+            _assert_packaged_codeofreality_diagnostics(record)
         fixtures = record.get("fixtures", {})
         if not fixtures.get("catalog_valid") or fixtures.get("bundled_file_count") != fixtures.get("redistributable_count"):
             raise RuntimeError("Packaged diagnostics did not find every bundled fixture")
