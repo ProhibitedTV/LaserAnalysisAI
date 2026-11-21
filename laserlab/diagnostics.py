@@ -164,6 +164,7 @@ def collect_diagnostics(experiment_dir: str | os.PathLike[str] | None = None) ->
             "optional": True,
             "required_for_core_analysis": False,
             "tesseract": _tesseract_record(),
+            "codeofreality": _codeofreality_record(),
         },
         "fixtures": _fixture_record(),
         "experiment": _experiment_record(experiment_dir),
@@ -302,6 +303,45 @@ def _dependency_record(distributions: tuple[str, ...]) -> dict[str, Any]:
             return {"available": False, "version": None, "status": "probe_failed", "failure": type(exc).__name__}
         return {"available": True, "version": str(version), "status": "available"}
     return {"available": False, "version": None, "status": "unavailable"}
+
+
+def _codeofreality_record() -> dict[str, Any]:
+    """Report configured glyph matcher and local reference readiness without paths.
+
+    Tesseract's English traineddata and the optional CodeOfReality font-template
+    matcher are separate engines. An enabled preference does not prove that
+    any glyph was recognized or even that the selected fonts are installed.
+    """
+    from .branding import BRAND_FONT_VARIANTS
+    from .font_ocr import FONT_OCR_ENV, configured_font_ocr_adapters
+    from .font_qualification import inspect_font_resources
+
+    requested = bool(os.environ.get(FONT_OCR_ENV, "").strip())
+    selected = [adapter.variant for adapter in configured_font_ocr_adapters()]
+    selection = "enabled" if selected else ("invalid_selection" if requested else "disabled")
+    record: dict[str, Any] = {
+        "selection": selection,
+        "selected_variants": selected,
+        "reference_check": "not_checked",
+        "verified_variants": 0,
+        "total_variants": len(BRAND_FONT_VARIANTS),
+        "variant_statuses": {},
+        "scientific_accuracy_validated": False,
+        "tesseract_language_model": False,
+    }
+    try:
+        check = inspect_font_resources()
+    except Exception:
+        # Do not serialize exception messages: font loader errors can include
+        # absolute paths, and this record is included in redacted support ZIPs.
+        record["reference_check"] = "failed"
+        return record
+    record["reference_check"] = "completed"
+    record["verified_variants"] = int(check["verified_variants"])
+    record["variant_statuses"] = {
+        item["variant"]: item["status"] for item in check["fonts"]
+    }
+    return record
 
 
 def _tesseract_record() -> dict[str, Any]:
