@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import string
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -257,6 +258,14 @@ class CodeOfRealityTemplateAdapter(BaseOCRAdapter):
             raise ValueError("Unknown CodeOfReality variant")
         self.variant = variant
         self.engine_id = f"codeofreality-template:{variant}"
+
+    def run(self, request: OCRRequest) -> dict[str, Any]:
+        # The shared request carries Tesseract's language/script defaults.
+        # Template matching uses a fixed reference alphabet, not a language
+        # model. Record the effective settings even for unavailable attempts.
+        if not isinstance(request, OCRRequest):
+            raise TypeError("request must be an OCRRequest")
+        return super().run(replace(request, language=None, script=None))
 
     def engine_version(self) -> str:
         return TEMPLATE_VERSION
