@@ -1,17 +1,77 @@
-# LaserAnalysisAI
+# LaserLab — LaserAnalysisAI
 
-LaserAnalysisAI is now a LaserLab blinded validation lab for laser capture
-analysis. It does not claim what a signal "means"; it tests whether existing
-image or video captures contain repeatable structured detections above matched
-controls.
+LaserLab is a local-first desktop research tool for analyzing laser-light images
+and videos, comparing visible patterns against controls, and reviewing blinded
+experiments. It helps investigate repeatable structure without assuming that a
+visual match is a message, a language, or evidence of an external source.
 
-The main user-facing app is a PyQt5 desktop dashboard. The `laserlab` package
-also remains available as a CLI/API path for reproducible experiments, reports,
-and statistical comparison.
+[**Download the latest stable release**](https://github.com/ProhibitedTV/LaserAnalysisAI/releases/latest) ·
+[Documentation and FAQ](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki) ·
+[Get help](SUPPORT.md) ·
+[Report a bug](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/choose)
+
+![LaserLab dashboard](screenshots/release_gui_dashboard.png)
+
+## Download and start
+
+Choose the ZIP matching your operating system from the latest release's
+**Assets** section. Download its matching `.zip.sha256` sidecar, verify the ZIP,
+and extract into a new folder. Keep your existing experiment folders and older
+install intact. Native bundles do not require a separate Python installation.
+
+| Platform | Asset suffix | Open |
+| --- | --- | --- |
+| Windows 64-bit | `windows-x86_64.zip` | `LaserLab.exe` |
+| Linux 64-bit | `linux-x86_64.zip` | `LaserLab` |
+| Mac with Intel processor | `macos-x86_64.zip` | `LaserLab.app` |
+| Mac with Apple Silicon | `macos-arm64.zip` | `LaserLab.app` |
+
+See the [native field-check instructions](docs/field-test/README.md) for
+checksum commands and a safe synthetic OCR test on your own machine. If the
+app fails to open, see [Troubleshooting](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Troubleshooting)
+before changing system security settings.
+
+**Use the version shown on the release page and in the executable.** This
+source tree is v0.9.8; a development candidate is not an official release.
+[Release history](https://github.com/ProhibitedTV/LaserAnalysisAI/releases)
+is the authoritative list of published downloads.
+
+## First experiment
+
+1. Open **Setup** and create an experiment. Start with the included Demo
+   rather than private recordings if you are exploring the software.
+2. Add your captures and matched controls, then choose an analysis plan.
+3. In **Run**, review quality checks and score the sealed samples.
+4. In **Review**, inspect regions, original/processed images and OCR attempts.
+   Unblind only when you are ready to compare results.
+5. Use **Compare** and **Export** to examine control statistics and save reports.
+
+For experimental CodeOfReality comparisons, open **Help > System Check**,
+verify the seven reference fonts, and enable **Appearance > Compare
+CodeOfReality glyphs (experimental)** before starting a new run. The wordmark
+font menu alone does not enable recognition. The matcher is separate from
+optional English Tesseract and may return no reliable match.
+
+## What's new in v0.9.8
+
+- Clearer System Check and Review diagnostics distinguish template OCR from
+  Tesseract, including missing references and opt-in state.
+- Template attempts report no language-model setting; incomplete CLI runs
+  are distinguished from valid no-match results.
+- Synthetic calibration reports genuine control rejections, false accepts,
+  and execution failures separately.
+- Native package qualification exercises the actual compiled OCR command on
+  synthetic controls and verifies source identity and archive checksums.
+
+These are reliability improvements, not a claim of improved recognition
+accuracy on real laser footage. The original English-only field report
+remains subject to independent reproduction.
 
 ## LaserLab Dashboard
 
-This source tree builds **LaserLab 0.9.8 development candidates**; the latest published native release is **v0.9.7**. Development builds are identified by commit in `BUILD-INFO.json` and are not official v0.9.8 releases. See [Release status](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Release-Status) for publication and qualification progress.
+The PyQt5 desktop dashboard is the main user-facing application. The
+`laserlab` package also provides a CLI/API for reproducible experiments,
+reports and statistical comparisons.
 
 Native release bundles contain:
 
@@ -33,7 +93,6 @@ The dark community-science theme is driven by one shared token module used by bo
 
 Field support remains local-first. **Help > System Check** reports packaged-runtime, dependency, fixture, and optional OCR readiness. **Export Support Bundle** writes redacted diagnostics and a sanitized local log without experiment media, capture roles, or source paths. Recent experiment folders are remembered locally, and packaged builds resolve bundled fixtures independently of the directory used to launch the app.
 
-![LaserLab dashboard](screenshots/release_gui_dashboard.png)
 ![LaserLab run quality checklist](screenshots/release_run.png)
 ![LaserLab blinded review](screenshots/release_blinded_review.png)
 ![LaserLab report summary](screenshots/release_report_summary.png)
@@ -199,7 +258,7 @@ For a report that only shows English OCR output:
 1. Check **Help > System Check** and the **About** version in the GUI. New
    builds after [issue #96](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/96)
    report CodeOfReality selection and per-font reference readiness separately
-   from Tesseract. The published **v0.9.7** release does not yet include this
+   from Tesseract in v0.9.8. Older builds such as v0.9.7 do not include this
    expanded System Check; verify which build actually ran. A previous source
    checkout or an older app folder can coexist with a newer download.
 2. In a source checkout, run `python -m laserlab.cli font-verify --require-all`
@@ -227,7 +286,8 @@ The local CLI also provides `python -m laserlab.cli diagnostics --format json`.
 New builds report `ocr.codeofreality.selection`, `selected_variants`,
 `verified_variants`, and `variant_statuses` without user font paths.
 Version/release comparisons must use the actual built executable, not the
-README version alone.
+README version alone. For an installation check, use the [native synthetic
+field-test guide](docs/field-test/README.md).
 
 ### Reported-symbol / laser-light comparison (experimental)
 
