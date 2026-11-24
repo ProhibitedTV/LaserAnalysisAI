@@ -359,6 +359,58 @@ class PackagedCodeOfRealityDiagnosticsTests(unittest.TestCase):
             release._assert_packaged_codeofreality_diagnostics(record)
 
 
+class PackagedTemplateExecutionTests(unittest.TestCase):
+    def valid_record(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+
+        return {"attempts": [
+            {"engine_id": f"codeofreality-template:{variant}", "available": True,
+             "failure_reason": None, "text": None, "confidence": None,
+             "settings": {"language": None, "script": None},
+             "word_boxes": [], "character_boxes": []}
+            for variant in BRAND_FONT_VARIANTS
+        ]}
+
+    def test_blank_abstentions_and_shape_matches_are_valid(self):
+        record = self.valid_record()
+        release._assert_packaged_template_attempts(record, blank=True)
+        record["attempts"][0]["text"] = "a"
+        release._assert_packaged_template_attempts(record, blank=False)
+        with self.assertRaisesRegex(RuntimeError, "blank control"):
+            release._assert_packaged_template_attempts(record, blank=True)
+
+    def test_missing_duplicate_and_unexpected_engines_are_rejected(self):
+        for mode in ("missing", "duplicate", "tesseract"):
+            with self.subTest(mode=mode):
+                record = self.valid_record()
+                if mode == "missing":
+                    record["attempts"].pop()
+                elif mode == "duplicate":
+                    record["attempts"][-1] = record["attempts"][0].copy()
+                else:
+                    record["attempts"][0]["engine_id"] = "tesseract"
+                with self.assertRaisesRegex(RuntimeError, "exactly seven"):
+                    release._assert_packaged_template_attempts(record, blank=False)
+
+    def test_execution_errors_and_misleading_metadata_are_rejected(self):
+        for field, value in (
+            ("available", False), ("failure_reason", "failed"),
+            ("confidence", 0.9), ("settings", {"language": "eng", "script": None}),
+            ("settings", {"language": None}), ("settings", None),
+        ):
+            with self.subTest(field=field, value=value):
+                record = self.valid_record()
+                record["attempts"][0][field] = value
+                with self.assertRaisesRegex(RuntimeError, "failed or reported misleading"):
+                    release._assert_packaged_template_attempts(record, blank=False)
+
+    def test_blank_control_rejects_spurious_boxes(self):
+        record = self.valid_record()
+        record["attempts"][0]["character_boxes"] = [{"character": "a"}]
+        with self.assertRaisesRegex(RuntimeError, "blank control"):
+            release._assert_packaged_template_attempts(record, blank=True)
+
+
 class ReleaseVersionConsistencyTests(unittest.TestCase):
     def test_native_and_project_versions_match(self):
         root = Path(__file__).resolve().parents[1]
