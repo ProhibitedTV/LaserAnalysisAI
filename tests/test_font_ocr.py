@@ -27,7 +27,7 @@ from laserlab.font_ocr import (
     reference_alphabet,
 )
 from laserlab.detectors import DetectorContext, run_roi_ocr
-from laserlab.ocr_adapters import DeterministicStubAdapter, OCRPayload, OCRRequest
+from laserlab.ocr_adapters import DeterministicStubAdapter, OCRPayload, OCRRequest, run_ocr_ensemble
 
 
 def _synthetic_reference() -> tuple[np.ndarray, dict[str, np.ndarray]]:
@@ -154,6 +154,8 @@ class FontOCRTests(unittest.TestCase):
         self.assertFalse(attempt["available"])
         self.assertIsNone(attempt["text"])
         self.assertIn("not installed", attempt["failure_reason"])
+        self.assertIsNone(attempt["settings"]["language"])
+        self.assertIsNone(attempt["settings"]["script"])
 
     def test_unreviewed_font_bytes_are_not_treated_as_codeofreality_reference(self):
         image, _ = _synthetic_reference()
@@ -184,7 +186,47 @@ class FontOCRTests(unittest.TestCase):
         self.assertEqual(result["text"], "ab")
         self.assertIsNone(result["confidence"])
         self.assertEqual(result["roi_reference"], {"id": "reference-shape"})
+        self.assertIsNone(result["settings"]["language"])
+        self.assertIsNone(result["settings"]["script"])
         json.dumps(result, allow_nan=False)
+
+    def test_mixed_ensemble_preserves_language_only_for_primary_engine(self):
+        image, templates = _synthetic_reference()
+        request = OCRRequest(
+            image, roi_reference={"id": "roi-001"},
+            preprocessing_metadata={"variant": "raw"},
+            timeout_seconds=12.0, language="eng", script="Latin",
+        )
+        primary = DeterministicStubAdapter("tesseract", OCRPayload(text="baseline"))
+        template = CodeOfRealityTemplateAdapter("oracle")
+        with patch.object(template, "availability", return_value=(True, None)), patch.object(
+            template, "recognize", return_value=_match_reference(image, templates)
+        ):
+            result = run_ocr_ensemble([primary, template], request)
+        baseline, reference = result["attempts"]
+        self.assertEqual(baseline["settings"], {
+            "language": "eng", "script": "Latin", "timeout_seconds": 12.0,
+        })
+        self.assertEqual(reference["settings"], {
+            "language": None, "script": None, "timeout_seconds": 12.0,
+        })
+        self.assertEqual(reference["roi_reference"], baseline["roi_reference"])
+        self.assertEqual(reference["preprocessing_metadata"], baseline["preprocessing_metadata"])
+        self.assertEqual(reference["text"], "ab")
+        self.assertEqual(request.language, "eng")
+        self.assertEqual(request.script, "Latin")
+        self.assertEqual(baseline["text"], "baseline")
+
+    def test_failed_template_attempt_still_records_language_neutral_settings(self):
+        adapter = CodeOfRealityTemplateAdapter("oracle")
+        with patch.object(adapter, "availability", return_value=(True, None)), patch.object(
+            adapter, "recognize", side_effect=RuntimeError("synthetic failure")
+        ):
+            result = adapter.run(OCRRequest(None, language="eng", script="Latin"))
+        self.assertTrue(result["available"])
+        self.assertIn("synthetic failure", result["failure_reason"])
+        self.assertIsNone(result["settings"]["language"])
+        self.assertIsNone(result["settings"]["script"])
 
     def test_template_attempts_do_not_replace_primary_tesseract_score(self):
         image, _ = _synthetic_reference()
