@@ -2,6 +2,7 @@
 
 Start with the [LaserLab Wiki](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki), [researcher workflow](docs/researcher_workflow.md), and [FAQ](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/FAQ).
 
+- For CodeOfReality OCR setup or suspected English-only results, use the [synthetic native OCR field check](docs/field-test/README.md) without sharing research recordings.
 - For installation and error troubleshooting, check [Troubleshooting](https://github.com/ProhibitedTV/LaserAnalysisAI/wiki/Troubleshooting).
 - For questions, experimental design, and interpretation, use [GitHub Discussions](https://github.com/ProhibitedTV/LaserAnalysisAI/discussions).
 - For reproducible bugs and clear improvements, select an [Issue template](https://github.com/ProhibitedTV/LaserAnalysisAI/issues/new/choose).
