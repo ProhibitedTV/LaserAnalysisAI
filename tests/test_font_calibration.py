@@ -32,12 +32,14 @@ class FontCalibrationTests(unittest.TestCase):
                     "correct_matches": 2, "incorrect_matches": 1, "abstentions": 1,
                     "unrenderable_samples": 0, "failed_attempts": 0,
                     "negative_control_count": 3, "negative_control_false_accepts": 0,
+                    "negative_control_rejections": 3, "negative_control_failed_attempts": 0,
                 }
             return {
                 "variant": variant, "status": "unavailable", "sample_count": 0,
                 "correct_matches": 0, "incorrect_matches": 0, "abstentions": 0,
                 "unrenderable_samples": 0, "failed_attempts": 0,
                 "negative_control_count": 0, "negative_control_false_accepts": 0,
+                "negative_control_rejections": 0, "negative_control_failed_attempts": 0,
             }
 
         with patch.object(fc, "_calibrate_variant", side_effect=fake_variant):
@@ -48,6 +50,8 @@ class FontCalibrationTests(unittest.TestCase):
         self.assertEqual(record["totals"]["correct_matches"], 2)
         self.assertEqual(record["totals"]["incorrect_matches"], 1)
         self.assertEqual(record["totals"]["abstentions"], 1)
+        self.assertEqual(record["totals"]["negative_control_rejections"], 3)
+        self.assertEqual(record["totals"]["negative_control_failed_attempts"], 0)
         self.assertEqual(record["independent_laser_capture_count"], 0)
         self.assertFalse(record["empirical_accuracy_validated"])
         self.assertEqual(record["reference_sizes_px"], [96, 64, 40, 24])
@@ -81,6 +85,64 @@ class FontCalibrationTests(unittest.TestCase):
         self.assertEqual(record["correct_matches"], 0)
         self.assertEqual(record["negative_control_count"], 3)
         self.assertEqual(record["negative_control_false_accepts"], 0)
+        self.assertEqual(record["negative_control_rejections"], 3)
+        self.assertEqual(record["negative_control_failed_attempts"], 0)
+
+    def test_failed_controls_are_not_successful_rejections(self):
+        real_font = ImageFont.load_default()
+
+        class StubAdapter:
+            def __init__(self, variant):
+                pass
+
+            def availability(self):
+                return True, None
+
+            def run(self, request):
+                name = request.roi_reference.get("name")
+                if name == "blank":
+                    return {"available": False, "failure_reason": None, "text": None}
+                if name == "uniform":
+                    return {"available": True, "failure_reason": "synthetic error", "text": "a"}
+                if name == "seeded_noise":
+                    return {"available": True, "failure_reason": None, "text": "a"}
+                return {"available": True, "failure_reason": None, "text": None}
+
+        with patch.object(fc, "CodeOfRealityTemplateAdapter", StubAdapter), patch.object(
+            ImageFont, "truetype", return_value=real_font
+        ), patch.object(fc, "brand_font_path", return_value="/dummy/font.ttf"):
+            report = fc.calibrate_reference_fonts("classic")
+        record = report["variants"][0]
+        self.assertEqual(record["status"], "incomplete")
+        self.assertEqual(report["evaluated_variants"], 0)
+        self.assertEqual(record["negative_control_count"], 3)
+        self.assertEqual(record["negative_control_failed_attempts"], 2)
+        self.assertEqual(record["negative_control_false_accepts"], 1)
+        self.assertEqual(record["negative_control_rejections"], 0)
+        self.assertEqual(report["totals"]["negative_control_failed_attempts"], 2)
+
+    def test_failed_positive_attempt_also_marks_calibration_incomplete(self):
+        real_font = ImageFont.load_default()
+
+        class StubAdapter:
+            def __init__(self, variant):
+                pass
+
+            def availability(self):
+                return True, None
+
+            def run(self, request):
+                failure = "synthetic error" if request.roi_reference["id"] == "synthetic_font_calibration" else None
+                return {"available": True, "failure_reason": failure, "text": None}
+
+        with patch.object(fc, "CodeOfRealityTemplateAdapter", StubAdapter), patch.object(
+            ImageFont, "truetype", return_value=real_font
+        ), patch.object(fc, "brand_font_path", return_value="/dummy/font.ttf"):
+            record = fc._calibrate_variant("classic")
+        self.assertEqual(record["status"], "incomplete")
+        self.assertEqual(record["failed_attempts"], 120)
+        self.assertEqual(record["negative_control_rejections"], 3)
+        self.assertEqual(record["negative_control_failed_attempts"], 0)
 
     def test_cli_returns_failure_if_any_variant_has_not_been_calibrated(self):
         record = {
