@@ -151,6 +151,12 @@ Try it with one local image (without sending the image to a network service):
 python -m laserlab.cli font-ocr --image C:\\Research\\glyph-test.png --variant all
 ```
 
+The standalone command reports `comparison_complete` separately from any match.
+Exit code 0 means all requested variants completed (including valid abstentions);
+exit code 2 means at least one engine failed or was unavailable. JSON retains all
+attempts in either case. A match or completed comparison does not validate
+recognition accuracy, and a user-supplied image is not assumed to have known text.
+
 To also include these experiments in the regular blinded analysis pipeline,
 turn on **Appearance > Compare CodeOfReality glyphs (experimental)** in the
 desktop app before starting a new run (this switch is session-only).
