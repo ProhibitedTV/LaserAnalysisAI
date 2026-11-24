@@ -1,0 +1,12 @@
+{
+  "tag": "v0.9.8",
+  "authorization": "explicit-repository-maintainer-request",
+  "publish": true,
+  "independent_field_acceptance_confirmed": false,
+  "platforms": [
+    "windows-x86_64",
+    "linux-x86_64",
+    "macos-x86_64",
+    "macos-arm64"
+  ]
+}
