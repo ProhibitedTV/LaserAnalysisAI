@@ -110,8 +110,11 @@ python -m laserlab.cli font-calibrate --variant all
 ```
 
 This prints per-font counts of correct matches, incorrect matches, abstentions,
-unrenderable samples and false accepts on three deterministic synthetic
-negative controls (blank, uniform and seeded noise). The samples are created
+unrenderable samples, and separate counts of rejections, false accepts and failed
+attempts on three deterministic synthetic negative controls (blank, uniform and
+seeded noise). A failed or unavailable OCR attempt is not a successful rejection;
+any engine failure marks that variant incomplete and makes the CLI exit nonzero.
+A completed calibration still does not imply accurate recognition. The samples are created
 **from the same fonts that generate the OCR templates**, not from independent
 capture footage, so this is a software calibration check only. It deliberately
 reports `empirical_accuracy_validated: false` and
