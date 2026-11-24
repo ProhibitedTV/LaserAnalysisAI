@@ -92,6 +92,7 @@ jobs:
           RELEASE_TARGET: ${{ matrix.target }}
         run: |
           python - <<'PY'
+          import hashlib
           import json
           import os
           import re
@@ -109,7 +110,14 @@ jobs:
           archives = list(Path("dist").glob(f"LaserLab-v*-{target}.zip"))
           assert len(archives) == 1 and archives[0].name == expected_name, archives
           channel = ("release" if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", __version__) else "prerelease") if tag else "candidate"
-          with zipfile.ZipFile(archives[0]) as archive:
+          archive_path = archives[0]
+          digest = hashlib.sha256()
+          with archive_path.open("rb") as handle:
+              for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          sidecar = archive_path.with_suffix(".zip.sha256")
+          assert sidecar.read_text(encoding="utf-8").strip() == f"{digest.hexdigest()}  {expected_name}", "Archive checksum mismatch"
+          with zipfile.ZipFile(archive_path) as archive:
               names = archive.namelist()
               records = [name for name in names if name.endswith("/BUILD-INFO.json")]
               assert len(records) == 1, "Missing or duplicated BUILD-INFO.json"
