@@ -18,15 +18,43 @@ on:
     paths:
       - ".github/workflows/release.yml"
       - "scripts/build_release.py"
-      - "laserlab/font_qualification.py"
+      - "laserlab/font_*.py"
       - "laserlab/branding.py"
+      - "laserlab/ocr_adapters.py"
+      - "laserlab/cli.py"
+      - "laserlab/diagnostics.py"
+      - "laserlab/__init__.py"
+      - "laserlab_launcher.py"
+      - "laserlab_cli_launcher.py"
+      - "requirements.txt"
+      - "pyproject.toml"
       - "assets/codeofreality/**"
   push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release.yml"
+      - "scripts/build_release.py"
+      - "laserlab/font_*.py"
+      - "laserlab/branding.py"
+      - "laserlab/ocr_adapters.py"
+      - "laserlab/cli.py"
+      - "laserlab/diagnostics.py"
+      - "laserlab/__init__.py"
+      - "laserlab_launcher.py"
+      - "laserlab_cli_launcher.py"
+      - "requirements.txt"
+      - "pyproject.toml"
+      - "assets/codeofreality/**"
     tags:
       - "v*"
 
 permissions:
   contents: read
+
+# Superseded candidate builds for the same ref may stop; tag builds never cancel.
+concurrency:
+  group: native-release-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   codec-probe:
