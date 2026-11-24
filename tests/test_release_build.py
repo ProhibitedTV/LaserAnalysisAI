@@ -303,6 +303,62 @@ class ReleaseBuildTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
 
 
+class PackagedCodeOfRealityDiagnosticsTests(unittest.TestCase):
+    """Native candidate builds must actually expose the seven bundled OCR references."""
+
+    def valid_record(self):
+        from laserlab.branding import BRAND_FONT_VARIANTS
+
+        names = list(BRAND_FONT_VARIANTS)
+        return {
+            "ocr": {
+                "tesseract": {"status": "unavailable"},
+                "codeofreality": {
+                    "selection": "enabled",
+                    "reference_check": "completed",
+                    "selected_variants": names,
+                    "total_variants": len(names),
+                    "verified_variants": len(names),
+                    "variant_statuses": {name: "verified" for name in names},
+                    "scientific_accuracy_validated": False,
+                    "tesseract_language_model": False,
+                },
+            },
+        }
+
+    def test_native_diagnostics_allow_optional_tesseract_to_be_missing(self):
+        release._assert_packaged_codeofreality_diagnostics(self.valid_record())
+
+    def test_native_diagnostics_fail_if_codeofreality_not_selected_or_not_ready(self):
+        for key, bad in (
+            ("selection", "disabled"),
+            ("reference_check", "failed"),
+            ("verified_variants", 6),
+            ("total_variants", 6),
+            ("scientific_accuracy_validated", True),
+            ("tesseract_language_model", True),
+            ("selected_variants", ["classic"]),
+            ("variant_statuses", {"classic": "verified"}),
+        ):
+            with self.subTest(field=key):
+                record = self.valid_record()
+                record["ocr"]["codeofreality"][key] = bad
+                with self.assertRaisesRegex(RuntimeError, "Packaged CodeOfReality OCR diagnostics"):
+                    release._assert_packaged_codeofreality_diagnostics(record)
+
+    def test_native_diagnostics_detect_one_corrupt_reference(self):
+        record = self.valid_record()
+        record["ocr"]["codeofreality"]["variant_statuses"]["classic"] = "unexpected_fingerprint"
+        with self.assertRaisesRegex(RuntimeError, "seven selected and verified"):
+            release._assert_packaged_codeofreality_diagnostics(record)
+
+    def test_native_diagnostics_detect_missing_separate_tesseract_status(self):
+        record = self.valid_record()
+        record["ocr"].pop("tesseract")
+        with self.assertRaisesRegex(RuntimeError, "independent Tesseract state"):
+            release._assert_packaged_codeofreality_diagnostics(record)
+
+
 class ReleaseVersionConsistencyTests(unittest.TestCase):
     def test_native_and_project_versions_match(self):
         root = Path(__file__).resolve().parents[1]
