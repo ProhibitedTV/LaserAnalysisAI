@@ -1,0 +1,117 @@
+name: Cut LaserLab v0.9.8
+
+# Explicit one-shot maintainer release request. No automatic release on normal pushes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release-requests/v0.9.8.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: laserlab-cut-v0.9.8
+  cancel-in-progress: false
+
+jobs:
+  cut:
+    if: github.repository == 'ProhibitedTV/LaserAnalysisAI'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      actions: write
+      checks: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate explicit request and source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import tomllib
+          from pathlib import Path
+          from laserlab import __version__
+          request = json.loads(Path(".github/release-requests/v0.9.8.json").read_text())
+          assert request == {
+              "tag": "v0.9.8",
+              "authorization": "explicit-repository-maintainer-request",
+              "publish": True,
+              "independent_field_acceptance_confirmed": False,
+              "platforms": ["windows-x86_64", "linux-x86_64", "macos-x86_64", "macos-arm64"],
+          }
+          assert __version__ == "0.9.8"
+          assert tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"] == __version__
+          assert Path("assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz").is_file()
+          assert Path("docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md").is_file()
+          PY
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Dispatch and await exact merged candidate qualification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.9.8" >/dev/null 2>&1; then
+            echo "::error::v0.9.8 already exists; refusing to move or overwrite it."
+            exit 1
+          fi
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
+          # Dispatch explicitly; the connector cannot dispatch directly.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f publish=false
+          run_id=""
+          for attempt in {1..60}; do
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?event=workflow_dispatch&head_sha=$GITHUB_SHA&branch=main&per_page=20" --jq '.workflow_runs[0].id // empty')
+            if [[ -n "$run_id" ]]; then break; fi
+            sleep 5
+          done
+          test -n "$run_id"
+          echo "Candidate run: $run_id"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 15
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > "$RUNNER_TEMP/candidate.json"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" --jq '.jobs[]' > "$RUNNER_TEMP/jobs.jsonl"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          temp = Path(os.environ["RUNNER_TEMP"])
+          run = json.loads((temp / "candidate.json").read_text())
+          assert run["head_sha"] == os.environ["GITHUB_SHA"]
+          assert run["head_branch"] == "main"
+          assert run["event"] == "workflow_dispatch"
+          assert run["path"].split("@")[0] == ".github/workflows/release.yml"
+          assert run["conclusion"] == "success"
+          jobs = [json.loads(line) for line in (temp / "jobs.jsonl").read_text().splitlines()]
+          required = {
+              "Verify source / Python test suite (3.10)",
+              "Verify source / Python test suite (3.11)",
+              "Build windows-x86_64", "Build linux-x86_64",
+              "Build macos-x86_64", "Build macos-arm64",
+          }
+          passed = {job["name"] for job in jobs if job["status"] == "completed" and job["conclusion"] == "success"}
+          assert required <= passed, required - passed
+          assert not any(job["name"] == "Stage draft GitHub release" and job["conclusion"] != "skipped" for job in jobs)
+          PY
+
+      - name: Pin qualified source and dispatch public release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=v0.9.8
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
+          # Creating the immutable tag fails if it already exists.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$tag" -f "sha=$GITHUB_SHA"
+          # The tagged release workflow reruns CI, all native builds and checksums;
+          # only its successful final job can publish.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag" -f publish=true
+          echo "Dispatched public release qualification for $tag on $GITHUB_SHA"
+          echo "Independent field acceptance remains unconfirmed; no empirical OCR claim."
