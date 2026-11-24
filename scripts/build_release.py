@@ -312,6 +312,56 @@ def _assert_packaged_codeofreality_diagnostics(record: dict[str, object]) -> Non
         )
 
 
+def _assert_packaged_template_attempts(record: dict[str, object], *, blank: bool) -> None:
+    """Verify actual template execution, not empirical recognition accuracy."""
+    attempts = record.get("attempts")
+    expected = {f"codeofreality-template:{variant}" for variant in BRAND_FONT_VARIANTS}
+    if (
+        not isinstance(attempts, list)
+        or len(attempts) != len(expected)
+        or any(not isinstance(item, dict) for item in attempts)
+        or {item.get("engine_id") for item in attempts} != expected
+    ):
+        raise RuntimeError("Packaged font OCR did not return exactly seven template attempts")
+    for item in attempts:
+        settings = item.get("settings")
+        if (
+            item.get("available") is not True
+            or "failure_reason" not in item
+            or item["failure_reason"] is not None
+            or "text" not in item
+            or "confidence" not in item
+            or item["confidence"] is not None
+            or not isinstance(settings, dict)
+            or "language" not in settings
+            or settings["language"] is not None
+            or "script" not in settings
+            or settings["script"] is not None
+        ):
+            raise RuntimeError("Packaged font OCR attempt failed or reported misleading metadata")
+        if blank and (item["text"] not in (None, "") or item.get("character_boxes") or item.get("word_boxes")):
+            raise RuntimeError("Packaged font OCR unexpectedly accepted a blank control")
+
+
+def _smoke_template_execution(cli_product: Path, cwd: Path) -> None:
+    from PIL import Image, ImageDraw
+
+    # Synthetic inputs only; do not use or persist participant recordings.
+    blank = Image.new("L", (128, 128), 0)
+    shape = blank.copy()
+    draw = ImageDraw.Draw(shape)
+    draw.line([(36, 92), (64, 30), (92, 92)], fill=255, width=6)
+    draw.line([(48, 66), (80, 66)], fill=255, width=6)
+    for name, image in (("blank", blank), ("shape", shape)):
+        path = cwd / f"template-smoke-{name}.png"
+        image.save(path)
+        result = subprocess.run(
+            [str(cli_product), "font-ocr", "--image", str(path), "--variant", "all"],
+            cwd=cwd, check=True, timeout=120, capture_output=True, text=True,
+        )
+        _assert_packaged_template_attempts(json.loads(result.stdout), blank=name == "blank")
+
+
 def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False) -> None:
     gui_executable = gui_product
     if gui_product.suffix == ".app":
@@ -369,6 +419,7 @@ def _smoke(gui_product: Path, cli_product: Path, *, fonts_included: bool = False
         record = json.loads(diagnostics.stdout)
         if fonts_included:
             _assert_packaged_codeofreality_diagnostics(record)
+            _smoke_template_execution(cli_product, unrelated_cwd)
         fixtures = record.get("fixtures", {})
         if not fixtures.get("catalog_valid") or fixtures.get("bundled_file_count") != fixtures.get("redistributable_count"):
             raise RuntimeError("Packaged diagnostics did not find every bundled fixture")
