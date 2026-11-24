@@ -64,6 +64,8 @@ def _calibrate_variant(variant: str) -> dict[str, Any]:
         "failed_attempts": 0,
         "negative_control_count": 0,
         "negative_control_false_accepts": 0,
+        "negative_control_rejections": 0,
+        "negative_control_failed_attempts": 0,
     }
     if not available:
         return record
@@ -99,11 +101,18 @@ def _calibrate_variant(variant: str) -> dict[str, Any]:
                 preprocessing_metadata={"synthetic": True},
             ))
             record["negative_control_count"] += 1
-            if attempt.get("text"):
+            if attempt.get("failure_reason") is not None or not attempt.get("available"):
+                record["negative_control_failed_attempts"] += 1
+            elif attempt.get("text"):
                 record["negative_control_false_accepts"] += 1
+            else:
+                record["negative_control_rejections"] += 1
     except (OSError, RuntimeError, ValueError, ImportError) as exc:
         record["status"] = "probe_failed"
         record["reason"] = type(exc).__name__
+    if record["status"] == "evaluated" and (record["failed_attempts"] or record["negative_control_failed_attempts"]):
+        record["status"] = "incomplete"
+        record["reason"] = "One or more OCR attempts failed or became unavailable"
     return record
 
 
@@ -118,7 +127,8 @@ def calibrate_reference_fonts(variant: str = "all") -> dict[str, Any]:
         for field in (
             "sample_count", "correct_matches", "incorrect_matches", "abstentions",
             "unrenderable_samples", "failed_attempts", "negative_control_count",
-            "negative_control_false_accepts",
+            "negative_control_false_accepts", "negative_control_rejections",
+            "negative_control_failed_attempts",
         )
     }
     return {
