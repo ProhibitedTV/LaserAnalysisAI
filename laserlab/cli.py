@@ -83,10 +83,18 @@ def main(argv: list[str] | None = None) -> int:
             adapters = [CodeOfRealityTemplateAdapter(variant) for variant in variants]
             results = run_ocr_ensemble(adapters, OCRRequest(
                 image=image, roi_reference={"id": "font_calibration"},
-                preprocessing_metadata={"research_only": True, "known_glyph_reference": True},
+                preprocessing_metadata={"research_only": True, "user_supplied_image": True},
             ))
+            # An abstention is a completed comparison, but missing resources
+            # and engine errors are not. Preserve all attempts for diagnostics.
+            incomplete = any(
+                not attempt["available"] or attempt["failure_reason"] is not None
+                for attempt in results["attempts"]
+            )
+            results["comparison_complete"] = not incomplete
+            results["scientific_accuracy_validated"] = False
             print(json.dumps(results, indent=2, allow_nan=False))
-            return 0
+            return 2 if incomplete else 0
         if args.command == "exchange":
             from .research_exchange import prepare_exchange, export_exchange
             if (args.reference_kind is None) != (args.reference_id is None):
