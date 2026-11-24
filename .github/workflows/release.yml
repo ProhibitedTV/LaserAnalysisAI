@@ -13,6 +13,14 @@ on:
         required: false
         default: ""
         type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/release.yml"
+      - "scripts/build_release.py"
+      - "laserlab/font_qualification.py"
+      - "laserlab/branding.py"
+      - "assets/codeofreality/**"
   push:
     tags:
       - "v*"
@@ -78,30 +86,47 @@ jobs:
         id: bundle
         run: python scripts/build_release.py --output-dir dist --target ${{ matrix.target }}
 
-      - name: Enforce complete v0.9.7 font-inclusive native ZIP
-        if: github.ref_name == 'v0.9.7'
+      - name: Verify native archive identity and seven bundled fonts
         shell: bash
         env:
           RELEASE_TARGET: ${{ matrix.target }}
         run: |
           python - <<'PY'
+          import hashlib
           import json
           import os
+          import re
           import zipfile
           from pathlib import Path
+          from laserlab import __version__
           from laserlab.branding import BRAND_FONT_VARIANTS
 
           target = os.environ["RELEASE_TARGET"]
-          archives = list(Path("dist").glob(f"LaserLab-v0.9.7-{target}.zip"))
-          assert len(archives) == 1, f"Expected one v0.9.7 archive for {target}, got {archives}"
-          with zipfile.ZipFile(archives[0]) as archive:
+          revision = os.environ["GITHUB_SHA"]
+          ref = os.environ["GITHUB_REF"]
+          tag = ref.removeprefix("refs/tags/") if ref.startswith("refs/tags/") else None
+          identity = f"v{__version__}" if tag else f"v{__version__}-candidate-{revision[:12]}"
+          expected_name = f"LaserLab-{identity}-{target}.zip"
+          archives = list(Path("dist").glob(f"LaserLab-v*-{target}.zip"))
+          assert len(archives) == 1 and archives[0].name == expected_name, archives
+          channel = ("release" if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", __version__) else "prerelease") if tag else "candidate"
+          archive_path = archives[0]
+          digest = hashlib.sha256()
+          with archive_path.open("rb") as handle:
+              for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          sidecar = archive_path.with_suffix(".zip.sha256")
+          assert sidecar.read_text(encoding="utf-8").strip() == f"{digest.hexdigest()}  {expected_name}", "Archive checksum mismatch"
+          with zipfile.ZipFile(archive_path) as archive:
               names = archive.namelist()
               records = [name for name in names if name.endswith("/BUILD-INFO.json")]
               assert len(records) == 1, "Missing or duplicated BUILD-INFO.json"
               info = json.loads(archive.read(records[0]))
-              assert info["source_revision"] == os.environ["GITHUB_SHA"]
-              assert info["release_tag"] == "v0.9.7"
-              assert info["build_channel"] == "release"
+              assert info["source_revision"] == revision
+              assert info["source_dirty"] is False
+              assert info["version"] == __version__
+              assert info["release_tag"] == tag
+              assert info["build_channel"] == channel
               assert info["target"] == target
               assert info["bundled_codeofreality_font_count"] == 7
               assert info["font_redistribution_attested_by_release_builder"]
@@ -113,7 +138,7 @@ jobs:
               }
               assert actual == expected, f"Unexpected {target} font files: {actual ^ expected}"
               assert base + "CODEOFREALITY-PERMISSION.txt" in names
-          print(f"Release {target}: source, tag, seven fonts and rights notice verified")
+          print(f"{channel} {target}: source, version, seven fonts and rights notice verified")
           PY
 
       - name: Verify extracted Linux dashboard on X11
