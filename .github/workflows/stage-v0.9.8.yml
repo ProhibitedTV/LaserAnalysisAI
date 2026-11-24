@@ -1,0 +1,94 @@
+name: Stage LaserLab v0.9.8 draft
+
+# Manual maintainer action only. Never publish automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful Cross-platform Release candidate run on exact main commit
+        required: true
+        type: string
+      source_revision:
+        description: Full 40-character qualified main commit SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: laserlab-stage-v0.9.8
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.repository == 'ProhibitedTV/LaserAnalysisAI' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact candidate source and completed native qualification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+          EXPECTED_SHA: ${{ inputs.source_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$EXPECTED_SHA" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN" > "$RUNNER_TEMP/candidate-run.json"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN/jobs?per_page=100" --jq '.jobs[]' > "$RUNNER_TEMP/candidate-jobs.jsonl"
+          python - <<'PY'
+          import json
+          import os
+          import tomllib
+          from pathlib import Path
+          from laserlab import __version__
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          run = json.loads((temp / "candidate-run.json").read_text())
+          assert run["path"].split("@")[0] == ".github/workflows/release.yml"
+          assert run["head_sha"] == os.environ["EXPECTED_SHA"]
+          assert run["head_branch"] == "main"
+          assert run["event"] in {"push", "workflow_dispatch"}
+          assert run["status"] == "completed" and run["conclusion"] == "success"
+          jobs = [json.loads(line) for line in (temp / "candidate-jobs.jsonl").read_text().splitlines()]
+          required = {
+              "Verify source / Python test suite (3.10)",
+              "Verify source / Python test suite (3.11)",
+              "Build windows-x86_64", "Build linux-x86_64",
+              "Build macos-x86_64", "Build macos-arm64",
+          }
+          passed = {job["name"] for job in jobs if job["status"] == "completed" and job["conclusion"] == "success"}
+          assert required <= passed, required - passed
+          assert not any(job["name"] == "Stage draft GitHub release" and job["conclusion"] != "skipped" for job in jobs)
+          assert __version__ == "0.9.8"
+          project = tomllib.loads(Path("pyproject.toml").read_text())
+          assert project["project"]["version"] == __version__
+          assert Path("assets/codeofreality/CodeOfReality-authorized-fonts.tar.xz").is_file()
+          assert Path("docs/CODEOFREALITY_DISTRIBUTION_ATTESTATION.md").is_file()
+          PY
+
+      - name: Pin release tag and dispatch draft-only qualification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=v0.9.8
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Release tag already exists; refusing to move or overwrite it."
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$tag" -f "sha=$GITHUB_SHA"
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag" -f publish=false
+          echo "Requested tagged native qualification and draft staging, not publication."
